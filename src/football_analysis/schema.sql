@@ -10,6 +10,13 @@ CREATE TABLE IF NOT EXISTS ingestion_runs (
  sha256 VARCHAR, row_count INTEGER, status VARCHAR, detail VARCHAR,
  fetched_at TIMESTAMP DEFAULT current_timestamp
 );
+CREATE TABLE IF NOT EXISTS reference_standings (
+ source VARCHAR NOT NULL, league VARCHAR NOT NULL, season INTEGER NOT NULL,
+ rank INTEGER NOT NULL, team VARCHAR NOT NULL, played INTEGER, points INTEGER,
+ goal_difference INTEGER, form VARCHAR, description VARCHAR,
+ source_updated_at TIMESTAMP, fetched_at TIMESTAMP,
+ PRIMARY KEY(source, league, season, rank)
+);
 CREATE OR REPLACE VIEW team_matches AS
  SELECT league, season, match_date, home_team AS team, away_team AS opponent, 'Home' AS venue,
  home_goals AS gf, away_goals AS ga, home_shots AS shots, home_sot AS shots_on_target,

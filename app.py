@@ -5,6 +5,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from football_analysis.config import CLUBS, DB, LEAGUES, label, seasons
+from football_analysis.analytics import elo_history, shot_coverage, team_shot_efficiency
 
 
 ACCENT = "#57e6bb"
@@ -31,9 +32,16 @@ def load_data():
         return None
     try:
         with duckdb.connect(str(DB), read_only=True) as con:
+            tables = {row[0] for row in con.sql("SHOW TABLES").fetchall()}
+            reference = (
+                con.sql("SELECT * FROM reference_standings").df()
+                if "reference_standings" in tables else pd.DataFrame()
+            )
             return (
                 con.sql("SELECT * FROM team_seasons").df(),
                 con.sql("SELECT * FROM team_matches").df(),
+                con.sql("SELECT * FROM matches").df(),
+                reference,
                 con.sql("SELECT * FROM ingestion_runs ORDER BY fetched_at DESC").df(),
             )
     except duckdb.Error as exc:
@@ -75,16 +83,37 @@ if data is None:
     st.info("The dashboard database is not available yet. Run the ingestion command from the README, then refresh this page.")
     st.stop()
 
-summaries, games, runs = data
+summaries, games, fixtures, reference_standings, runs = data
 expected = seasons()
 summaries = summaries[summaries.season.isin(expected)].copy()
 games = games[games.season.isin(expected)].copy()
+fixtures = fixtures[fixtures.season.isin(expected)].copy()
+reference_standings = reference_standings[
+    reference_standings.season.isin(expected)
+].copy() if not reference_standings.empty else reference_standings
 coverage = summaries[["league", "season"]].drop_duplicates()
 if summaries.empty:
     st.info("No complete seasons are loaded yet. Run ingestion, then return to this page.")
     st.stop()
 
 elite_available = [team for team in CLUBS if team in set(summaries.team)]
+
+
+@st.cache_data(show_spinner=False)
+def calculate_match_analytics(match_frame, team_match_frame):
+    return (
+        elo_history(match_frame),
+        shot_coverage(match_frame),
+        team_shot_efficiency(team_match_frame),
+    )
+
+
+elo, shot_coverage_frame, shot_efficiency = calculate_match_analytics(fixtures, games)
+season_elo = (
+    elo.sort_values("match_date")
+    .groupby(["league", "season", "team"], as_index=False)
+    .tail(1)
+)
 
 with st.sidebar:
     st.markdown("## ⚽ Football Intelligence")
@@ -175,8 +204,8 @@ m4.metric("Average PPG", f"{hero_rows.points.sum()/played:.2f}")
 m5.metric("Peak season", f"{best_row.points_per_game:.2f}", f"{best_row.team} · {label(best_row.season)}")
 st.caption(f"Results through {latest_date:%d %B %Y}. Each selected club's performance is counted independently.")
 
-overview, standings_tab, club_lab, matches_tab, quality = st.tabs(
-    ["Overview", "League tables", "Club lab", "Match explorer", "Data quality"]
+overview, standings_tab, club_lab, shots_tab, matches_tab, quality = st.tabs(
+    ["Overview", "League tables", "Club lab", "Shot lab", "Match explorer", "Data quality"]
 )
 
 with overview:
@@ -228,6 +257,21 @@ with overview:
     scatter.update_yaxes(autorange="reversed")
     st.plotly_chart(style_chart(scatter, 500), width="stretch")
 
+    elo_rows = season_elo[
+        season_elo.league.isin(league_filter) & season_elo.season.isin(year_filter)
+        & season_elo.team.isin(overview_rows.team.unique())
+    ].copy()
+    elo_rows["Club"] = elo_rows.team.map(CLUBS).fillna(elo_rows.team)
+    elo_rows["Season"] = elo_rows.season.map(label)
+    elo_chart = px.line(
+        elo_rows.sort_values("season"), x="Season", y="post_elo", color="Club",
+        markers=True, title="Opponent-adjusted season-end Elo",
+        labels={"post_elo": "Elo rating"},
+    )
+    elo_chart.update_traces(line=dict(width=3), marker=dict(size=8))
+    st.plotly_chart(style_chart(elo_chart), width="stretch")
+    st.caption("Elo is calculated chronologically from domestic league matches. Same-day fixtures use the same pre-match rating snapshot.")
+
 with standings_tab:
     st.subheader("Reconstructed league table")
     st.markdown(
@@ -255,6 +299,7 @@ with standings_tab:
             ].sort_values("match_date").tail(form_window).points.map(result_letter)
         )
     )
+    st.markdown("#### Results-derived table")
     st.dataframe(
         table[[
             "Rank", "Club", "played", "wins", "draws", "losses", "goals_for",
@@ -274,7 +319,25 @@ with standings_tab:
             ),
         },
     )
-    st.caption("Administrative deductions and competition-specific official tiebreakers are excluded.")
+    st.caption("Results-derived points exclude administrative deductions and official competition-specific tiebreakers.")
+    st.markdown("#### External reference table")
+    reference = reference_standings[
+        (reference_standings.league == table_league)
+        & (reference_standings.season == table_year)
+    ].sort_values("rank") if not reference_standings.empty else pd.DataFrame()
+    if reference.empty:
+        st.info("No external reference table is cached for this competition and season.")
+    else:
+        reference_display = reference[[
+            "rank", "team", "played", "points", "goal_difference", "form", "description"
+        ]].rename(columns={
+            "rank": "Reference rank", "team": "Reference club",
+            "played": "Reference P", "points": "Reference points",
+            "goal_difference": "Reference GD", "form": "Reference form",
+            "description": "Qualification",
+        })
+        st.dataframe(reference_display, hide_index=True, width="stretch")
+        st.caption("TheSportsDB is a crowd-sourced reference feed. Its free endpoint returns only the top five, so this is shown separately and is not treated as a complete official table.")
 
 with club_lab:
     focus_club = st.selectbox(
@@ -295,11 +358,15 @@ with club_lab:
         unsafe_allow_html=True,
     )
     st.markdown(f'<div class="form-row">{form_html}</div>', unsafe_allow_html=True)
-    f1, f2, f3, f4 = st.columns(4)
+    club_elo = elo[(elo.team == focus_club) & elo.season.isin(year_filter)].sort_values("match_date")
+    current_elo = club_elo.iloc[-1].post_elo
+    elo_delta = current_elo - club_elo.iloc[0].pre_elo
+    f1, f2, f3, f4, f5 = st.columns(5)
     f1.metric(f"Last {len(recent)} PPG", f"{recent.points.mean():.2f}")
     f2.metric("Win rate", f"{100*(club_games.points == 3).mean():.1f}%")
     f3.metric("Goal difference", f"{int((club_games.gf-club_games.ga).sum()):+d}")
     f4.metric("Clean-sheet rate", f"{100*(club_games.ga == 0).mean():.1f}%")
+    f5.metric("Current Elo", f"{current_elo:.0f}", f"{elo_delta:+.0f} in range")
 
     club_games["Rolling PPG"] = club_games.points.rolling(form_window, min_periods=1).mean()
     form_chart = px.line(
@@ -329,6 +396,63 @@ with club_lab:
         ),
     )
     st.plotly_chart(style_chart(radar), width="stretch")
+
+with shots_tab:
+    st.subheader("Shot quality and efficiency")
+    st.markdown(
+        '<div class="section-note">Metrics appear only when at least 95% of a club-season has complete shots and shots-on-target fields.</div>',
+        unsafe_allow_html=True,
+    )
+    coverage_rows = shot_coverage_frame[
+        shot_coverage_frame.league.isin(league_filter)
+        & shot_coverage_frame.season.isin(year_filter)
+    ].copy()
+    coverage_rows["Competition"] = coverage_rows.league.map(LEAGUES)
+    coverage_rows["Season"] = coverage_rows.season.map(label)
+    gated = shot_efficiency[
+        shot_efficiency.league.isin(league_filter)
+        & shot_efficiency.season.isin(year_filter)
+        & shot_efficiency.team.isin(compare_clubs if compare_clubs else elite_available)
+    ].copy()
+    if gated.empty:
+        st.info("No selected club-season passes the 95% shot-data coverage gate.")
+    else:
+        gated["Club"] = gated.team.map(CLUBS).fillna(gated.team)
+        gated["Season"] = gated.season.map(label)
+        s1, s2, s3 = st.columns(3)
+        s1.metric("Eligible club-seasons", len(gated))
+        s2.metric("Average shot coverage", f"{gated.coverage_pct.mean():.1f}%")
+        s3.metric("Average shots / match", f"{gated.shots_per_match.mean():.1f}")
+        efficiency_chart = px.scatter(
+            gated, x="shot_accuracy_pct", y="goals_per_shot_pct",
+            size="shots_per_match", color="Club", symbol="Season",
+            hover_name="Club", hover_data={"coverage_pct": ":.1f", "Season": True},
+            title="Accuracy vs finishing efficiency",
+            labels={
+                "shot_accuracy_pct": "Shots on target / shots (%)",
+                "goals_per_shot_pct": "Goals / shots (%)",
+            },
+        )
+        st.plotly_chart(style_chart(efficiency_chart, 500), width="stretch")
+        volume = gated.groupby("Club", as_index=False).agg(
+            shots_per_match=("shots_per_match", "mean"),
+            goals_per_sot_pct=("goals_per_sot_pct", "mean"),
+        ).sort_values("shots_per_match")
+        volume_chart = px.bar(
+            volume, x="shots_per_match", y="Club", orientation="h",
+            color="goals_per_sot_pct", color_continuous_scale=["#52718f", ACCENT],
+            title="Shot volume and on-target conversion",
+            labels={"shots_per_match": "Shots per match", "goals_per_sot_pct": "Goals / SOT (%)"},
+        )
+        st.plotly_chart(style_chart(volume_chart), width="stretch")
+    with st.expander("View source coverage by competition and season"):
+        coverage_matrix = coverage_rows.pivot(
+            index="Competition", columns="Season", values="coverage_pct"
+        )
+        st.dataframe(
+            coverage_matrix, width="stretch",
+            column_config={season: st.column_config.ProgressColumn(season, min_value=0, max_value=100, format="%.1f%%") for season in coverage_matrix.columns},
+        )
 
 with matches_tab:
     st.subheader("Match explorer")
@@ -380,13 +504,23 @@ with quality:
     grid = grid.merge(coverage.assign(status="✓ Complete"), how="left").fillna({"status": "Missing"})
     grid["league"] = grid.league.map(LEAGUES)
     grid["season"] = grid.season.map(label)
-    q1, q2, q3 = st.columns(3)
+    q1, q2, q3, q4 = st.columns(4)
     q1.metric("League-seasons", f"{len(coverage)}/25")
     q2.metric("Match records", f"{len(games)//2:,}")
     q3.metric("Successful loads", int((runs.status == "success").sum()))
+    q4.metric("Reference rows", len(reference_standings), "Top-five only")
     st.dataframe(grid.pivot(index="league", columns="season", values="status"), width="stretch")
     with st.expander("Ingestion history"):
         st.dataframe(runs.drop(columns=["run_id"]), hide_index=True, width="stretch")
+    st.markdown("#### Shot-field coverage")
+    quality_shots = shot_coverage_frame.copy()
+    quality_shots["Competition"] = quality_shots.league.map(LEAGUES)
+    quality_shots["Season"] = quality_shots.season.map(label)
+    st.dataframe(
+        quality_shots[["Competition", "Season", "matches", "shot_matches", "coverage_pct"]],
+        hide_index=True, width="stretch",
+        column_config={"coverage_pct": st.column_config.ProgressColumn("Coverage", min_value=0, max_value=100, format="%.1f%%")},
+    )
     st.info("Player goals, assists, age, minutes, possession and xG are unavailable in the current source and are never inferred.")
 
 if len(coverage) < 25:
