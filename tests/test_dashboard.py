@@ -15,13 +15,13 @@ def test_dashboard_filters_and_empty_selection(tmp_path, monkeypatch):
     app = AppTest.from_file(str(Path(__file__).resolve().parents[1]/'app.py')).run(timeout=20)
     assert not app.exception
     assert app.metric[0].value == '2'
-    app.sidebar.multiselect[2].set_value(['Arsenal']).run()
+    app.sidebar.multiselect[1].set_value(['Arsenal']).run()
     assert not app.exception
     assert app.metric[0].value == '1'
     assert app.metric[1].value == '38'
-    app.sidebar.multiselect[2].set_value([]).run()
+    app.sidebar.multiselect[1].set_value([]).run()
     assert not app.exception
-    assert 'Choose at least' in app.info[0].value
+    assert 'Choose at least one club' in app.info[0].value
 
 
 def test_missing_database(tmp_path, monkeypatch):

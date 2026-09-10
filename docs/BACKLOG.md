@@ -11,7 +11,11 @@
 - [x] FA-008 Run automated validation and dashboard smoke tests.
 
 ## Iteration 2 — analytical depth
-- [ ] FA-009 Add rolling five-match form and opponent-adjusted Elo, with chronological evaluation and no future leakage.
+- [x] FA-018 Redesign season, competition and club selection around three analysis modes.
+- [x] FA-019 Add reconstructed league tables with recent-form indicators.
+- [x] FA-020 Add club form timelines, percentile profiles and opponent/venue match filters.
+- [x] FA-021 Add a responsive performance heatmap and clearer source-health summary.
+- [ ] FA-009 Add opponent-adjusted Elo, with chronological evaluation and no future leakage.
 - [ ] FA-010 Add separate official standings adapter for deductions/tiebreakers. Acceptance: display results-derived and official points with distinct labels.
 - [ ] FA-011 Add shot coverage indicators and efficiency analysis only where source coverage is sufficient.
 - [ ] FA-012 Investigate a genuinely free, permitted player-season source. Acceptance: field coverage matrix for all 12 clubs and five seasons; no assumed assists/minutes.
