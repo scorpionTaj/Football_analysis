@@ -14,6 +14,10 @@ def test_dashboard_filters_and_empty_selection(tmp_path, monkeypatch):
     ingest(LocalCSV(tmp_path/'raw'), config.DB, [2024], ['E0'])
     app = AppTest.from_file(str(Path(__file__).resolve().parents[1]/'app.py')).run(timeout=20)
     assert not app.exception
+    assert [tab.label for tab in app.tabs] == [
+        'Overview', 'League tables', 'Club lab', 'Shot lab', 'Match explorer',
+        'Recent matches', 'Players', 'Data quality',
+    ]
     assert app.metric[0].value == '2'
     app.sidebar.multiselect[1].set_value(['Arsenal']).run()
     assert not app.exception

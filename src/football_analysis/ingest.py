@@ -4,6 +4,7 @@ from importlib.resources import files
 from uuid import uuid4
 import duckdb
 from .adapters import FootballDataCSV, LocalCSV
+from .analytics import elo_history, team_shot_efficiency
 from .config import DATA, DB, LEAGUES, seasons
 
 def connect(db=DB):
@@ -11,6 +12,39 @@ def connect(db=DB):
     con = duckdb.connect(str(db))
     con.execute(files("football_analysis").joinpath("schema.sql").read_text())
     return con
+
+
+def refresh_analytics(con):
+    """Rebuild persisted analytics from the committed match store atomically."""
+    matches = con.sql("SELECT * FROM matches").df()
+    team_matches = con.sql("SELECT * FROM team_matches").df()
+    elo = elo_history(matches)
+    shots = team_shot_efficiency(team_matches)
+    con.register("incoming_elo", elo)
+    con.register("incoming_shots", shots)
+    con.execute("BEGIN")
+    try:
+        con.execute("DELETE FROM elo_ratings")
+        con.execute("INSERT INTO elo_ratings SELECT * FROM incoming_elo")
+        con.execute("DELETE FROM shot_efficiency_cache")
+        con.execute("INSERT INTO shot_efficiency_cache SELECT * FROM incoming_shots")
+        con.execute("DELETE FROM analytics_metadata WHERE cache_key='match_analytics'")
+        con.execute(
+            "INSERT INTO analytics_metadata VALUES ('match_analytics', current_timestamp, ?)",
+            [len(matches)],
+        )
+        con.execute("COMMIT")
+    except Exception:
+        con.execute("ROLLBACK")
+        raise
+    finally:
+        con.unregister("incoming_elo")
+        con.unregister("incoming_shots")
+
+
+def refresh_analytics_cache(db=DB):
+    with connect(db) as con:
+        refresh_analytics(con)
 
 def ingest(adapter, db=DB, years=None, leagues=None):
     report = []
@@ -39,6 +73,8 @@ def ingest(adapter, db=DB, years=None, leagues=None):
                     con.execute("INSERT INTO ingestion_runs VALUES (?, ?, ?, ?, ?, ?, 'failed', ?, current_timestamp)", [run_id, league, year, url, digest, count, str(exc)])
                     report.append(dict(league=league, season=year, status="failed", detail=str(exc)))
                 print(json.dumps(report[-1]), flush=True)
+        if any(row["status"] == "success" for row in report):
+            refresh_analytics(con)
     return report
 
 def main():
@@ -47,7 +83,14 @@ def main():
     parser.add_argument("--offline", type=str, help="Replay a raw CSV directory without network")
     parser.add_argument("--seasons", nargs="+", type=int, help="Season start years; defaults to latest five completed")
     parser.add_argument("--leagues", nargs="+", choices=LEAGUES)
+    parser.add_argument(
+        "--analytics-only", action="store_true",
+        help="Rebuild persisted Elo and shot analytics without fetching source data",
+    )
     args = parser.parse_args()
+    if args.analytics_only:
+        refresh_analytics_cache()
+        return
     adapter = LocalCSV(args.offline) if args.offline else FootballDataCSV(DATA / "raw", args.refresh)
     results = ingest(adapter, years=args.seasons, leagues=args.leagues)
     raise SystemExit(1 if any(r["status"] == "failed" for r in results) else 0)

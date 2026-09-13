@@ -56,3 +56,36 @@ def test_replay_idempotency_and_failed_refresh_preserves_data(tmp_path):
     with connect(db) as con:
         assert con.sql('SELECT count(*) FROM matches').fetchone()[0] == 380
         assert con.sql("SELECT count(*) FROM ingestion_runs WHERE status='failed'").fetchone()[0] == 1
+
+
+def test_impossible_shot_pair_is_quarantined():
+    df = fixture()
+    df["HS"] = 10
+    df["HST"] = 4
+    df["AS"] = 8
+    df["AST"] = 3
+    df.loc[0, "HST"] = 11
+    batch = normalize(raw(df), "E0", 2024, "test")
+    assert pd.isna(batch.frame.loc[0, "home_shots"])
+    assert pd.isna(batch.frame.loc[0, "home_sot"])
+    assert batch.frame.loc[1, "home_shots"] == 10
+
+
+def test_partial_current_season_keeps_only_completed_matches():
+    df = fixture().head(3).copy()
+    pending = df.iloc[[0]].copy()
+    pending[["FTHG", "FTAG", "FTR"]] = None
+    frame = pd.concat([df, pending], ignore_index=True)
+    batch = normalize(raw(frame), "E0", 2024, "test", require_complete=False)
+    assert len(batch.frame) == 3
+
+
+def test_ingestion_persists_derived_analytics(tmp_path):
+    directory = tmp_path / "raw" / "2425"
+    directory.mkdir(parents=True)
+    (directory / "E0.csv").write_bytes(raw(fixture()))
+    db = tmp_path / "test.duckdb"
+    ingest(LocalCSV(tmp_path / "raw"), db, [2024], ["E0"])
+    with connect(db) as con:
+        assert con.sql("SELECT count(*) FROM elo_ratings").fetchone()[0] == 760
+        assert con.sql("SELECT match_rows FROM analytics_metadata").fetchone()[0] == 380

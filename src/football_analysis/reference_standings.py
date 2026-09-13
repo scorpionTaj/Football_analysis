@@ -58,11 +58,20 @@ def sync(adapter=None, db=None, years=None, leagues=None):
             for league in leagues if leagues is not None else LEAGUES:
                 try:
                     frame = adapter.fetch(league, year)
-                    con.execute("DELETE FROM reference_standings WHERE source=? AND league=? AND season=?", [SOURCE, league, year])
                     if not frame.empty:
                         con.register("incoming_reference", frame)
-                        con.execute("INSERT INTO reference_standings SELECT * FROM incoming_reference")
-                        con.unregister("incoming_reference")
+                    con.execute("BEGIN")
+                    try:
+                        con.execute("DELETE FROM reference_standings WHERE source=? AND league=? AND season=?", [SOURCE, league, year])
+                        if not frame.empty:
+                            con.execute("INSERT INTO reference_standings SELECT * FROM incoming_reference")
+                        con.execute("COMMIT")
+                    except Exception:
+                        con.execute("ROLLBACK")
+                        raise
+                    finally:
+                        if not frame.empty:
+                            con.unregister("incoming_reference")
                     report.append({"league": league, "season": year, "status": "success", "rows": len(frame)})
                 except Exception as exc:
                     report.append({"league": league, "season": year, "status": "failed", "detail": str(exc)})

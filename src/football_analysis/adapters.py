@@ -22,14 +22,18 @@ class Adapter(Protocol):
     def fetch(self, league: str, year: int) -> Batch: ...
 
 
-def normalize(raw, league, year, url):
+def normalize(raw, league, year, url, require_complete=True):
     df = pd.read_csv(StringIO(raw.decode("utf-8-sig")))
     required = {"Div", "Date", "HomeTeam", "AwayTeam", "FTHG", "FTAG", "FTR"}
     if not required.issubset(df.columns):
         raise ValueError(f"Missing columns: {required - set(df.columns)}")
     df = df.dropna(how="all")
-    if df[list(required)].isna().any().any():
+    if require_complete and df[list(required)].isna().any().any():
         raise ValueError("Missing result or fixture fields; season may be unfinished")
+    if not require_complete:
+        df = df.dropna(subset=["Div", "Date", "HomeTeam", "AwayTeam", "FTHG", "FTAG", "FTR"])
+        if df.empty:
+            raise ValueError("No completed matches are available for this season")
     if not df.Div.eq(league).all():
         raise ValueError("Unexpected league in source")
     df["match_date"] = pd.to_datetime(df.Date, dayfirst=True, format="mixed", errors="raise").dt.date
@@ -46,14 +50,23 @@ def normalize(raw, league, year, url):
         if ((values.dropna() < 0) | (values.dropna() % 1 != 0)).any():
             raise ValueError(f"Invalid nonnegative integer: {col}")
         df[col] = values
+    # Some historical source rows contain impossible shot combinations. Keep the
+    # result, but quarantine the affected shot side so downstream coverage gates
+    # exclude it instead of presenting a misleading efficiency value.
+    invalid_home_shots = df.HS.notna() & df.HST.notna() & (df.HST > df.HS)
+    invalid_away_shots = df.AS.notna() & df.AST.notna() & (df.AST > df.AS)
+    df.loc[invalid_home_shots, ["HS", "HST"]] = float("nan")
+    df.loc[invalid_away_shots, ["AS", "AST"]] = float("nan")
     outcomes = df.apply(lambda r: "H" if r.FTHG > r.FTAG else "A" if r.FTHG < r.FTAG else "D", axis=1)
     if not outcomes.eq(df.FTR).all():
         raise ValueError("Result disagrees with score")
     teams = set(df.HomeTeam) | set(df.AwayTeam)
     n = expected_teams(league, year)
     pairs = set(zip(df.HomeTeam, df.AwayTeam))
-    if len(teams) != n or len(df) != n*(n-1) or len(pairs) != len(df) or any(a == b for a,b in pairs):
+    if require_complete and (len(teams) != n or len(df) != n*(n-1) or len(pairs) != len(df) or any(a == b for a,b in pairs)):
         raise ValueError(f"Incomplete/invalid season: {len(df)} results, expected {n*(n-1)}; {len(teams)} teams, expected {n}")
+    if len(pairs) != len(df) or any(a == b for a, b in pairs):
+        raise ValueError("Duplicate or self-referencing fixtures in source")
     df = df.rename(columns={"HomeTeam":"home_team", "AwayTeam":"away_team", "FTHG":"home_goals", "FTAG":"away_goals", "HS":"home_shots", "AS":"away_shots", "HST":"home_sot", "AST":"away_sot"})
     df["league"] = league
     df["season"] = year
@@ -61,8 +74,8 @@ def normalize(raw, league, year, url):
     return Batch(df[cols], url, sha256(raw).hexdigest())
 
 class FootballDataCSV:
-    def __init__(self, cache: Path, refresh=False):
-        self.cache, self.refresh = cache, refresh
+    def __init__(self, cache: Path, refresh=False, require_complete=True):
+        self.cache, self.refresh, self.require_complete = cache, refresh, require_complete
         self.session = requests.Session()
         self.session.headers["User-Agent"] = "football-analysis/0.1 (personal research; cached CSV)"
         retry = Retry(total=3, backoff_factor=1, status_forcelist=[429,500,502,503,504], respect_retry_after_header=True)
@@ -79,7 +92,7 @@ class FootballDataCSV:
             response.raise_for_status()
             raw = response.content
             time.sleep(1)  # Conservative courtesy interval, not a claimed provider quota.
-        batch = normalize(raw, league, year, url)
+        batch = normalize(raw, league, year, url, require_complete=self.require_complete)
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp = path.with_suffix(".tmp")
         tmp.write_bytes(raw)

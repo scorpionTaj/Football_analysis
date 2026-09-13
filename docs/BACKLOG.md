@@ -15,11 +15,30 @@
 - [x] FA-019 Add reconstructed league tables with recent-form indicators.
 - [x] FA-020 Add club form timelines, percentile profiles and opponent/venue match filters.
 - [x] FA-021 Add a responsive performance heatmap and clearer source-health summary.
-- [ ] FA-009 Add opponent-adjusted Elo, with chronological evaluation and no future leakage.
-- [ ] FA-010 Add separate official standings adapter for deductions/tiebreakers. Acceptance: display results-derived and official points with distinct labels.
-- [ ] FA-011 Add shot coverage indicators and efficiency analysis only where source coverage is sufficient.
-- [ ] FA-012 Investigate a genuinely free, permitted player-season source. Acceptance: field coverage matrix for all 12 clubs and five seasons; no assumed assists/minutes.
-- [ ] FA-013 Add player goals/assists/minutes/age only after FA-012 passes. Expose missingness rather than fill with invented values.
+- [x] FA-009 Add rolling form and opponent-adjusted Elo with chronological evaluation and same-day snapshots to prevent leakage.
+- [x] FA-010 Add a separate external standings adapter. TheSportsDB reference points are distinctly labelled; its free top-five cap is explicit.
+- [x] FA-011 Add shot coverage indicators and a 95% gate for efficiency analysis.
+- [x] FA-012 Investigate free, permitted player-season sources and publish the 12-club × five-season coverage matrix.
+- [x] FA-013 Close the player feature gate without implementation: FA-012 did not pass, so missingness remains visible and no player values are inferred.
+
+## Iteration 2.1 — trust and usability
+- [x] FA-022 Keep competition charts readable with a single-league workflow and Top 5/10/All overview control.
+- [x] FA-023 Synchronize Club focus across the club lab and match explorer; expose all league clubs in Competition view.
+- [x] FA-024 Add provider-independent club identities and reconciled reference/result standings deltas.
+- [x] FA-025 Reset rolling form at season boundaries and benchmark clean-sheet rate instead of raw totals.
+- [x] FA-026 Quarantine impossible shots-on-target values and surface the invariant in Data quality.
+- [x] FA-027 Make reference refreshes atomic and show reference/analytics refresh timestamps.
+- [x] FA-028 Persist Elo and shot-efficiency analytics after ingestion to reduce dashboard startup work.
+- [x] FA-029 Expand automated and browser verification for the new modes, analytics cache and data-quality rules.
+
+## Iteration 2.2 — recent coverage and player explorer
+- [x] FA-030 Add a current-season match centre for ten European domestic competitions.
+- [x] FA-031 Combine completed Football-Data.co.uk results with the latest and next TheSportsDB event per competition.
+- [x] FA-032 Support incomplete current-season CSV partitions without weakening completed-season validation.
+- [x] FA-033 Add per-player profiles for all 12 elite clubs through the capped TheSportsDB free feed.
+- [x] FA-034 Display source-returned goals, assists, appearances and minutes without filling missing values.
+- [x] FA-035 Add recent/player freshness and coverage to Data quality.
+- [x] FA-036 Verify recent competition selection and populated/empty player states in the live browser.
 
 ## Iteration 3 — packaging and operations
 - [ ] FA-014 CI with offline tests, dependency updates and scheduled source availability checks.

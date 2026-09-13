@@ -24,6 +24,19 @@ Primary repository: https://github.com/hudl/open-data
 
 Offers selected competitions/seasons, match JSON, events and lineups, plus selected 360 data. Its README requires StatsBomb attribution and logo when publishing resulting research/insights. Selection is not equivalent to complete recent coverage for all 12 clubs; it is a candidate for a separately labelled event-analysis module, not a fallback that fabricates full coverage. Inspect the repository licence and actual competition catalogue before adding it.
 
+## Added: TheSportsDB capped supplemental feed
+
+Documentation: https://www.thesportsdb.com/documentation
+Terms: https://www.thesportsdb.com/docs_terms_of_use.php
+
+The documented v1 free key is 123, with 30 requests per minute. Historical soccer tables accept league and season parameters. The free lookup-table response is capped at five rows, which live verification confirmed. League past/next event calls return one event, team player lists return up to 10 players, and player statistics return up to 10 rows per player on the free tier. The app stores these as explicitly capped supplemental data beside complete results-derived tables. It does not call the feed official or imply complete standings, fixture, squad or player-season coverage. API use is permitted by the provider's terms; website scraping is prohibited and is not used.
+
+Current-season completed results use Football-Data.co.uk codes E0, SP1, D1, I1, F1, N1, P1, B1, T1 and G1. Incomplete future fixtures are excluded rather than treated as failed results. TheSportsDB contributes one latest and one next listed event per league so the UI can show a fresher headline result and a limited upcoming fixture without overstating fixture coverage.
+
+## Player-source decision
+
+See PLAYER_SOURCE_ASSESSMENT.md. No evaluated source passed the free, permitted, complete 60 club-season gate. A separate player explorer is enabled as a visibly capped profile sample; it never substitutes for complete player-season analytics.
+
 ## Data contract
 
 The MVP requires complete domestic league score coverage, not player coverage. Verify each partition's teams, ordered fixture pairs, expected result count, dates, score/result consistency and mandatory fields before replacing database data. Missing optional shots remain NULL. No fabricated demo data is ever loaded in the normal pipeline. Test fixtures are synthetic and isolated to temporary test databases.
