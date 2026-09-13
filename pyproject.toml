@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "football_analysis"
-version = "0.3.0"
+version = "0.6.0"
 description = "Free-source European football analytics"
 requires-python = ">=3.11"
 dependencies = ["duckdb>=1.2,<2", "pandas>=2.2,<3", "plotly>=6,<7", "streamlit>=1.45,<2", "requests>=2.32,<3"]
@@ -18,6 +18,7 @@ football-sync-standings = "football_analysis.reference_standings:main"
 football-refresh-analytics = "football_analysis.ingest:refresh_analytics_cache"
 football-sync-recent = "football_analysis.recent:main"
 football-sync-players = "football_analysis.players:main"
+football-sync-open-players = "football_analysis.open_players:main"
 football-sync-media = "football_analysis.media:main"
 
 [tool.setuptools.package-data]

@@ -40,6 +40,35 @@
 - [x] FA-035 Add recent/player freshness and coverage to Data quality.
 - [x] FA-036 Verify recent competition selection and populated/empty player states in the live browser.
 
+## Iteration 2.3 — visual identity and motion
+- [x] FA-037 Cache official-style provider artwork for all 12 featured clubs and all 10 competitions.
+- [x] FA-038 Add mode-aware hero branding for club focus and competition view.
+- [x] FA-039 Add animated player cutouts, shirt-number watermark and a styled no-image fallback.
+- [x] FA-040 Add club identity cards and competition badge rails.
+- [x] FA-041 Respect reduced-motion preferences and keep the artwork layout responsive.
+- [x] FA-042 Assess Free API Live Football Data on RapidAPI and retain the current multi-source architecture.
+- [x] FA-043 Verify the redesigned overview, club focus, competition and player views in the live browser.
+
+## Iteration 2.4 — complete player discovery
+- [x] FA-044 Research current free/open squad and player-stat sources using primary documentation.
+- [x] FA-045 Import all 458 tracked 2025/26 player records for the 12 featured clubs from the CC0 Transfermarkt snapshot.
+- [x] FA-046 Aggregate 4,633 player competition-season rows across 2021/22–2025/26 without filling missing values.
+- [x] FA-047 Add platform-wide search plus a Discover area for players, clubs, competitions and feature navigation.
+- [x] FA-048 Add full-squad filters, player profiles, season charts, competition detail and squad totals.
+- [x] FA-049 Record the source cutoff and keep the capped TheSportsDB feed as an artwork/profile fallback.
+- [x] FA-050 Compare embedded DuckDB with PostgreSQL and retain DuckDB for the current single-process analytical app.
+- [ ] FA-051 Add an optional API-Football current-squad adapter after a free key is configured and live 2026/27 coverage passes preflight checks.
+
+## Iteration 2.5 — current season and Catppuccin interface
+- [x] FA-052 Refresh all ten competitions with real 2026/27 completed results and nearby event data.
+- [x] FA-053 Promote the current season to a clearly named primary navigation tab.
+- [x] FA-054 Add selected-club latest match, previous match and next listed fixture cards.
+- [x] FA-055 Add current form, points progression and a partial results-derived league table.
+- [x] FA-056 Apply the Catppuccin Mocha palette to Streamlit controls, cards, tables and Plotly charts.
+- [x] FA-057 Add current-season feature discovery and freshness indicators.
+- [x] FA-058 Verify the current-season workflow, responsive visual hierarchy and browser console.
+- [ ] FA-059 Add full fixture calendars only when a free source provides complete, permitted coverage; keep one-next-event labels explicit meanwhile.
+
 ## Iteration 3 — packaging and operations
 - [ ] FA-014 CI with offline tests, dependency updates and scheduled source availability checks.
 - [ ] FA-015 Optional PostgreSQL deployment adapter when multi-user writing is needed.

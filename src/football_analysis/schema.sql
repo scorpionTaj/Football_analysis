@@ -63,6 +63,30 @@ CREATE TABLE IF NOT EXISTS player_stats (
  value DOUBLE, fetched_at TIMESTAMP NOT NULL,
  PRIMARY KEY(source, player_id, league, season, statistic)
 );
+CREATE TABLE IF NOT EXISTS open_players (
+ source VARCHAR NOT NULL, player_id VARCHAR NOT NULL, team_id VARCHAR NOT NULL,
+ team VARCHAR NOT NULL, player VARCHAR NOT NULL, position VARCHAR,
+ sub_position VARCHAR, nationality VARCHAR, date_born DATE, foot VARCHAR,
+ height_cm INTEGER, market_value_eur BIGINT, highest_market_value_eur BIGINT,
+ image_url VARCHAR, profile_url VARCHAR, last_season INTEGER NOT NULL,
+ data_as_of DATE NOT NULL, fetched_at TIMESTAMP NOT NULL,
+ PRIMARY KEY(source, player_id)
+);
+CREATE TABLE IF NOT EXISTS open_player_stats (
+ source VARCHAR NOT NULL, player_id VARCHAR NOT NULL, team VARCHAR NOT NULL,
+ season INTEGER NOT NULL, competition_id VARCHAR NOT NULL,
+ competition VARCHAR NOT NULL, competition_type VARCHAR,
+ appearances INTEGER NOT NULL, goals INTEGER NOT NULL, assists INTEGER NOT NULL,
+ minutes_played INTEGER NOT NULL, yellow_cards INTEGER NOT NULL,
+ red_cards INTEGER NOT NULL, data_as_of DATE NOT NULL,
+ fetched_at TIMESTAMP NOT NULL,
+ PRIMARY KEY(source, player_id, season, competition_id)
+);
+CREATE TABLE IF NOT EXISTS external_source_metadata (
+ source VARCHAR PRIMARY KEY, dataset_url VARCHAR NOT NULL,
+ licence VARCHAR, snapshot_season INTEGER, data_as_of DATE,
+ player_rows INTEGER, statistic_rows INTEGER, fetched_at TIMESTAMP NOT NULL
+);
 CREATE TABLE IF NOT EXISTS team_media (
  source VARCHAR NOT NULL, team_id VARCHAR NOT NULL, team VARCHAR NOT NULL,
  badge_url VARCHAR, logo_url VARCHAR, banner_url VARCHAR, fanart_url VARCHAR,

@@ -77,7 +77,7 @@ class FootballDataCSV:
     def __init__(self, cache: Path, refresh=False, require_complete=True):
         self.cache, self.refresh, self.require_complete = cache, refresh, require_complete
         self.session = requests.Session()
-        self.session.headers["User-Agent"] = "football-analysis/0.1 (personal research; cached CSV)"
+        self.session.headers["User-Agent"] = "football-analysis/0.4 (personal research; cached CSV)"
         retry = Retry(total=3, backoff_factor=1, status_forcelist=[429,500,502,503,504], respect_retry_after_header=True)
         self.session.mount("https://", HTTPAdapter(max_retries=retry))
 

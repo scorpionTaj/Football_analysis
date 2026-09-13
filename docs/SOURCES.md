@@ -31,11 +31,34 @@ Terms: https://www.thesportsdb.com/docs_terms_of_use.php
 
 The documented v1 free key is 123, with 30 requests per minute. Historical soccer tables accept league and season parameters. The free lookup-table response is capped at five rows, which live verification confirmed. League past/next event calls return one event, team player lists return up to 10 players, and player statistics return up to 10 rows per player on the free tier. The app stores these as explicitly capped supplemental data beside complete results-derived tables. It does not call the feed official or imply complete standings, fixture, squad or player-season coverage. API use is permitted by the provider's terms; website scraping is prohibited and is not used.
 
+The same documented API responses expose image URLs for players, teams and leagues. Iteration 2.3 caches the metadata for 12 featured club badges and 10 competition badges. Images remain hosted by TheSportsDB and are rendered from validated HTTPS URLs; synchronization is explicit and never runs on a dashboard page view.
+
 Current-season completed results use Football-Data.co.uk codes E0, SP1, D1, I1, F1, N1, P1, B1, T1 and G1. Incomplete future fixtures are excluded rather than treated as failed results. TheSportsDB contributes one latest and one next listed event per league so the UI can show a fresher headline result and a limited upcoming fixture without overstating fixture coverage.
 
 ## Player-source decision
 
-See PLAYER_SOURCE_ASSESSMENT.md. No evaluated source passed the free, permitted, complete 60 club-season gate. A separate player explorer is enabled as a visibly capped profile sample; it never substitutes for complete player-season analytics.
+See PLAYER_DB_RESEARCH.md for the current comparison. The completed-season player explorer now uses the published CC0 Transfermarkt dataset for all tracked 2025/26 player records at the 12 featured clubs and aggregates only source-returned appearances. Current 2026/27 squads remain a separate feature gate because the dataset's automated updates paused on 6 July 2026.
+
+## Added: Transfermarkt Open Dataset snapshot
+
+Repository and update status: https://github.com/dcaribou/transfermarkt-datasets
+Published metadata and schema: https://github.com/dcaribou/transfermarkt-datasets/blob/master/data/prep/dataset-metadata.json
+Licence: https://github.com/dcaribou/transfermarkt-datasets/blob/master/LICENSE
+
+The project publishes compressed CSV tables under CC0 1.0. The imported snapshot contains 458 tracked players whose `current_club_id` maps to one of the 12 featured clubs and whose `last_season` is 2025. Appearance rows are joined to games and competitions, restricted to seasons 2021 through 2025, and aggregated into 4,633 player/season/competition rows. The latest included match date is 28 June 2026. Goals, assists, minutes and cards remain zero only when the source appearance row explicitly contains zero; absent players or matches are not synthesized.
+
+The dataset's external portrait URLs are references to third-party media. Their presence in the CC0 metadata does not establish copyright permission for the underlying photographs. The dashboard hotlinks validated HTTPS references for personal display and prefers existing TheSportsDB artwork when available; any public deployment must review media rights separately.
+
+The upstream repository states that automated updates are paused as of 6 July 2026 and that 2026/27 squads are not covered. The dashboard labels the snapshot and cutoff. API-Football is the researched optional current-squad source because its official free plan offers 100 calls per day and a squad endpoint, but it requires a user key, a live coverage preflight and a separate publication-rights review before activation.
+
+## Evaluated: Free API Live Football Data on RapidAPI
+
+Listing and pricing: https://rapidapi.com/Creativesdev/api/free-api-live-football-data/pricing
+RapidAPI subscription guidance: https://docs.rapidapi.com/docs/connecting-to-an-api
+
+The listing advertises fixtures, live events, standings, teams, players, lineups, statistics, heatmaps and incidents. Live pricing inspection on 13 September 2026 showed a Basic plan at $0 with a hard limit of 100 requests per month and a nominal 1,000 requests/hour rate limit. Paid plans begin at $9.99/month for 20,000 requests. RapidAPI also documents that plan subscriptions can carry quota and bandwidth charges.
+
+The 100-request monthly limit is too small to replace the current historical ingestion, ten-league current-season refresh, 12-club player sync and artwork cache. A complete switch would also introduce an account-bound RapidAPI key and a single-provider dependency. The project therefore keeps Football-Data.co.uk for complete historical/current CSV results and TheSportsDB for explicitly capped supplemental data and artwork. A future RapidAPI adapter may be added behind an environment variable for optional live-match detail, but it must not become required for the no-paid baseline.
 
 ## Data contract
 

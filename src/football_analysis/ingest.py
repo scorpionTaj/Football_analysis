@@ -3,8 +3,9 @@ import json
 from importlib.resources import files
 from uuid import uuid4
 import duckdb
+import pandas as pd
 from .adapters import FootballDataCSV, LocalCSV
-from .analytics import elo_history, team_shot_efficiency
+from .analytics import elo_history, team_match_rows, team_shot_efficiency
 from .config import DATA, DB, LEAGUES, seasons
 
 def connect(db=DB):
@@ -17,7 +18,17 @@ def connect(db=DB):
 def refresh_analytics(con):
     """Rebuild persisted analytics from the committed match store atomically."""
     matches = con.sql("SELECT * FROM matches").df()
-    team_matches = con.sql("SELECT * FROM team_matches").df()
+    tables = {row[0] for row in con.sql("SHOW TABLES").fetchall()}
+    if "recent_matches" in tables:
+        current = con.sql(
+            "SELECT league, season, match_date, home_team, away_team, home_goals, away_goals, "
+            "home_shots, away_shots, home_sot, away_sot FROM recent_matches"
+        ).df()
+        if not current.empty:
+            matches = pd.concat([matches, current], ignore_index=True).drop_duplicates(
+                ["league", "season", "home_team", "away_team"], keep="last",
+            )
+    team_matches = team_match_rows(matches)
     elo = elo_history(matches)
     shots = team_shot_efficiency(team_matches)
     con.register("incoming_elo", elo)

@@ -11,7 +11,7 @@ from urllib3.util.retry import Retry
 
 from .adapters import FootballDataCSV
 from .config import DATA, DB, RECENT_LEAGUES, THESPORTSDB_LEAGUE_IDS, current_season
-from .ingest import connect
+from .ingest import connect, refresh_analytics
 
 
 SOURCE_CSV = "Football-Data.co.uk"
@@ -23,7 +23,7 @@ class TheSportsDBRecentEvents:
 
     def __init__(self):
         self.session = requests.Session()
-        self.session.headers["User-Agent"] = "football-analysis/0.3 (personal analytics)"
+        self.session.headers["User-Agent"] = "football-analysis/0.4 (personal analytics)"
         retry = Retry(
             total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504],
             respect_retry_after_header=True,
@@ -109,6 +109,8 @@ def sync_recent(db=DB, year=None, leagues=None, refresh=True, event_adapter=None
                             con.unregister("incoming_events")
                 except Exception as exc:
                     print({"league": league, "event_kind": event_kind, "status": "failed", "detail": str(exc)}, flush=True)
+        if any(row["status"] == "success" for row in report):
+            refresh_analytics(con)
     return report
 
 

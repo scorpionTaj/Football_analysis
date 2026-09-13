@@ -6,23 +6,32 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-from football_analysis.config import CLUBS, DB, LEAGUES, RECENT_LEAGUES, label, seasons
-from football_analysis.analytics import elo_history, shot_coverage, team_shot_efficiency
+from football_analysis.config import CLUBS, DB, LEAGUES, RECENT_LEAGUES, current_season, label, seasons
+from football_analysis.analytics import current_table, elo_history, shot_coverage, team_shot_efficiency
 from football_analysis.teams import display_team, team_key
 
 
-ACCENT = "#57e6bb"
+MOCHA = {
+    "base": "#1e1e2e", "mantle": "#181825", "crust": "#11111b",
+    "surface0": "#313244", "surface1": "#45475a", "surface2": "#585b70",
+    "text": "#cdd6f4", "subtext": "#bac2de", "overlay": "#6c7086",
+    "mauve": "#cba6f7", "blue": "#89b4fa", "sapphire": "#74c7ec",
+    "teal": "#94e2d5", "green": "#a6e3a1", "yellow": "#f9e2af",
+    "peach": "#fab387", "red": "#f38ba8", "pink": "#f5c2e7",
+}
+ACCENT = MOCHA["mauve"]
 PLOT_LAYOUT = dict(
     paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-    font=dict(color="#dce7f5"), margin=dict(l=20, r=20, t=55, b=20),
-    hoverlabel=dict(bgcolor="#142238", font_color="#ffffff"),
+    font=dict(color=MOCHA["text"]), margin=dict(l=20, r=20, t=55, b=20),
+    hoverlabel=dict(bgcolor=MOCHA["surface0"], font_color=MOCHA["text"]),
+    colorway=[MOCHA["mauve"], MOCHA["blue"], MOCHA["teal"], MOCHA["peach"], MOCHA["pink"], MOCHA["green"]],
 )
 
 
 def style_chart(fig, height=430):
     fig.update_layout(**PLOT_LAYOUT, height=height, legend_title_text="")
-    fig.update_xaxes(gridcolor="rgba(255,255,255,.07)", zeroline=False)
-    fig.update_yaxes(gridcolor="rgba(255,255,255,.07)", zeroline=False)
+    fig.update_xaxes(gridcolor=MOCHA["surface0"], zeroline=False)
+    fig.update_yaxes(gridcolor=MOCHA["surface0"], zeroline=False)
     return fig
 
 
@@ -76,6 +85,18 @@ def load_data():
                 con.sql("SELECT * FROM competition_media").df()
                 if "competition_media" in tables else pd.DataFrame()
             )
+            open_players = (
+                con.sql("SELECT * FROM open_players").df()
+                if "open_players" in tables else pd.DataFrame()
+            )
+            open_player_stats = (
+                con.sql("SELECT * FROM open_player_stats").df()
+                if "open_player_stats" in tables else pd.DataFrame()
+            )
+            source_metadata = (
+                con.sql("SELECT * FROM external_source_metadata").df()
+                if "external_source_metadata" in tables else pd.DataFrame()
+            )
             return (
                 con.sql("SELECT * FROM team_seasons").df(),
                 con.sql("SELECT * FROM team_matches").df(),
@@ -91,6 +112,9 @@ def load_data():
                 player_stats,
                 team_media,
                 competition_media,
+                open_players,
+                open_player_stats,
+                source_metadata,
             )
     except duckdb.Error as exc:
         st.error(f"Database unavailable: {exc}")
@@ -104,48 +128,68 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    [data-testid="stAppViewContainer"] {background: radial-gradient(circle at 78% 0%, #14243a 0, #0a111d 35%, #080e18 72%);}
-    [data-testid="stSidebar"] {background: linear-gradient(180deg, #132238, #0d1727); border-right: 1px solid rgba(255,255,255,.07);}
-    [data-testid="stMetric"] {background: linear-gradient(145deg, rgba(30,49,74,.92), rgba(16,28,45,.92)); border: 1px solid rgba(255,255,255,.08); padding: 18px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.16);}
-    [data-testid="stMetricValue"] {color: #f6fbff;}
+    :root {--ctp-base:#1e1e2e;--ctp-mantle:#181825;--ctp-crust:#11111b;--ctp-surface0:#313244;--ctp-surface1:#45475a;--ctp-surface2:#585b70;--ctp-text:#cdd6f4;--ctp-subtext:#bac2de;--ctp-overlay:#6c7086;--ctp-mauve:#cba6f7;--ctp-blue:#89b4fa;--ctp-sapphire:#74c7ec;--ctp-teal:#94e2d5;--ctp-green:#a6e3a1;--ctp-yellow:#f9e2af;--ctp-peach:#fab387;--ctp-red:#f38ba8;--ctp-pink:#f5c2e7;}
+    [data-testid="stAppViewContainer"] {background:radial-gradient(circle at 78% 0%,rgba(203,166,247,.13) 0,var(--ctp-base) 34%,var(--ctp-crust) 100%);color:var(--ctp-text);}
+    [data-testid="stHeader"] {background:rgba(17,17,27,.82);}
+    [data-testid="stSidebar"] {background:linear-gradient(180deg,var(--ctp-mantle),var(--ctp-crust));border-right:1px solid var(--ctp-surface0);}
+    [data-testid="stMetric"] {background:linear-gradient(145deg,rgba(49,50,68,.96),rgba(24,24,37,.96));border:1px solid var(--ctp-surface1);padding:18px;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.24);}
+    [data-testid="stMetricValue"] {color:var(--ctp-text);}
     [data-testid="stMetricDelta"] {font-size: .8rem;}
-    .hero {position:relative; overflow:hidden; padding: 25px 28px; border-radius: 22px; background: linear-gradient(110deg, rgba(41,77,115,.9), rgba(26,119,105,.62)); border: 1px solid rgba(114,231,199,.22); margin-bottom: 20px; box-shadow:0 24px 60px rgba(0,0,0,.22);}
-    .hero::after {content:""; position:absolute; width:270px; height:270px; right:-90px; top:-150px; border-radius:50%; background:radial-gradient(circle, rgba(112,237,201,.25), transparent 68%);}
+    [data-baseweb="input"],[data-baseweb="select"]>div {background:var(--ctp-surface0)!important;border-color:var(--ctp-surface1)!important;}
+    [data-testid="stButton"] button,[data-testid="stDownloadButton"] button {background:var(--ctp-surface0);color:var(--ctp-text);border:1px solid var(--ctp-surface1);border-radius:10px;}
+    [data-testid="stButton"] button:hover,[data-testid="stDownloadButton"] button:hover {border-color:var(--ctp-mauve);color:var(--ctp-mauve);}
+    .hero {position:relative;overflow:hidden;padding:25px 28px;border-radius:22px;background:linear-gradient(110deg,rgba(203,166,247,.23),rgba(137,180,250,.16),rgba(148,226,213,.12));border:1px solid rgba(203,166,247,.42);margin-bottom:20px;box-shadow:0 24px 60px rgba(0,0,0,.28);}
+    .hero::after {content:"";position:absolute;width:270px;height:270px;right:-90px;top:-150px;border-radius:50%;background:radial-gradient(circle,rgba(203,166,247,.34),transparent 68%);}
     .hero-layout {display:flex; align-items:center; justify-content:space-between; gap:24px;}
     .hero-copy {position:relative; z-index:2;}
     .hero h1 {margin: 0; font-size: 2.25rem; letter-spacing: -.04em;}
-    .hero p {margin: 8px 0 0; color: #c7d7e8;}
-    .hero-mark {position:relative; z-index:2; flex:0 0 112px; width:112px; height:112px; display:grid; place-items:center; border-radius:26px; background:rgba(7,15,27,.35); border:1px solid rgba(255,255,255,.14); box-shadow:inset 0 1px rgba(255,255,255,.08), 0 18px 45px rgba(0,0,0,.22); animation:mark-in .65s cubic-bezier(.2,.8,.2,1) both;}
+    .hero p {margin:8px 0 0;color:var(--ctp-subtext);}
+    .hero-mark {position:relative;z-index:2;flex:0 0 112px;width:112px;height:112px;display:grid;place-items:center;border-radius:26px;background:rgba(17,17,27,.48);border:1px solid var(--ctp-surface1);box-shadow:inset 0 1px rgba(255,255,255,.08),0 18px 45px rgba(0,0,0,.3);animation:mark-in .65s cubic-bezier(.2,.8,.2,1) both;}
     .hero-mark img {width:82px; height:82px; object-fit:contain; filter:drop-shadow(0 10px 18px rgba(0,0,0,.32));}
-    .eyebrow {color: #70edc9; text-transform: uppercase; letter-spacing: .13em; font-weight: 700; font-size: .75rem;}
-    .section-note {color: #9fb2c8; font-size: .9rem; margin-top: -10px; margin-bottom: 10px;}
+    .eyebrow {color:var(--ctp-mauve);text-transform:uppercase;letter-spacing:.13em;font-weight:700;font-size:.75rem;}
+    .section-note {color:var(--ctp-subtext);font-size:.9rem;margin-top:-10px;margin-bottom:10px;}
     .form-row {display:flex; gap:7px; flex-wrap:wrap; margin: 8px 0 20px;}
     .form-pill {width:31px; height:31px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-weight:800; color:white;}
-    .win {background:#1ca77b}.draw {background:#68788e}.loss {background:#dc5362}
+    .win {background:#6c9c68}.draw {background:var(--ctp-surface2)}.loss {background:#b45c72}
     div[data-baseweb="tab-list"] {gap: 8px;}
-    div[data-baseweb="tab"] {background: rgba(24,39,60,.65); border-radius: 10px; padding: 9px 16px;}
-    div[data-baseweb="tab"][aria-selected="true"] {background: rgba(66,190,157,.18);}
-    .stDataFrame {border: 1px solid rgba(255,255,255,.07); border-radius: 12px; overflow: hidden;}
-    .identity-card {display:flex; align-items:center; gap:18px; padding:18px 20px; margin:4px 0 18px; border-radius:18px; background:linear-gradient(120deg,rgba(27,44,68,.9),rgba(17,37,48,.78)); border:1px solid rgba(112,237,201,.16); animation:card-in .55s ease-out both;}
+    div[data-baseweb="tab"] {background:rgba(49,50,68,.72);border-radius:10px;padding:9px 16px;}
+    div[data-baseweb="tab"][aria-selected="true"] {background:rgba(203,166,247,.18);color:var(--ctp-mauve);}
+    .stDataFrame {border:1px solid var(--ctp-surface0);border-radius:12px;overflow:hidden;}
+    .identity-card {display:flex;align-items:center;gap:18px;padding:18px 20px;margin:4px 0 18px;border-radius:18px;background:linear-gradient(120deg,rgba(49,50,68,.94),rgba(24,24,37,.88));border:1px solid rgba(203,166,247,.25);animation:card-in .55s ease-out both;}
     .identity-card img {width:76px; height:76px; object-fit:contain; filter:drop-shadow(0 10px 16px rgba(0,0,0,.32)); transition:transform .3s ease;}
     .identity-card:hover img {transform:scale(1.08) rotate(-2deg);}
     .identity-card h2 {margin:2px 0 3px; font-size:1.65rem;}
-    .identity-card p {margin:0; color:#9fb2c8;}
-    .art-kicker {color:#70edc9; font-size:.73rem; font-weight:800; text-transform:uppercase; letter-spacing:.12em;}
+    .identity-card p {margin:0;color:var(--ctp-subtext);}
+    .art-kicker {color:var(--ctp-mauve);font-size:.73rem;font-weight:800;text-transform:uppercase;letter-spacing:.12em;}
     .badge-rail {display:flex; gap:10px; flex-wrap:wrap; margin:10px 0 18px;}
-    .badge-chip {display:flex; align-items:center; gap:8px; padding:8px 11px; border-radius:999px; background:rgba(24,39,60,.72); border:1px solid rgba(255,255,255,.08); color:#dce7f5; font-size:.82rem; animation:card-in .4s ease-out both;}
+    .badge-chip {display:flex;align-items:center;gap:8px;padding:8px 11px;border-radius:999px;background:rgba(49,50,68,.76);border:1px solid var(--ctp-surface1);color:var(--ctp-text);font-size:.82rem;animation:card-in .4s ease-out both;}
     .badge-chip img {width:25px; height:25px; object-fit:contain;}
-    .player-stage {position:relative; min-height:300px; display:flex; align-items:flex-end; justify-content:center; overflow:hidden; border-radius:24px; background:radial-gradient(circle at 50% 42%,rgba(87,230,187,.25),transparent 42%),linear-gradient(165deg,#213753,#101a2a); border:1px solid rgba(112,237,201,.18); box-shadow:0 22px 55px rgba(0,0,0,.25); animation:card-in .55s ease-out both;}
-    .player-stage::before {content:""; position:absolute; width:190px; height:190px; top:38px; border:1px solid rgba(112,237,201,.3); border-radius:50%; animation:ring-pulse 3.4s ease-in-out infinite;}
+    .player-stage {position:relative;min-height:300px;display:flex;align-items:flex-end;justify-content:center;overflow:hidden;border-radius:24px;background:radial-gradient(circle at 50% 42%,rgba(203,166,247,.28),transparent 42%),linear-gradient(165deg,var(--ctp-surface0),var(--ctp-mantle));border:1px solid rgba(203,166,247,.3);box-shadow:0 22px 55px rgba(0,0,0,.3);animation:card-in .55s ease-out both;}
+    .player-stage::before {content:"";position:absolute;width:190px;height:190px;top:38px;border:1px solid rgba(203,166,247,.42);border-radius:50%;animation:ring-pulse 3.4s ease-in-out infinite;}
     .player-stage img {position:relative; z-index:2; width:94%; max-height:310px; object-fit:contain; object-position:center bottom; filter:drop-shadow(0 18px 22px rgba(0,0,0,.42)); animation:player-float 5s ease-in-out infinite;}
     .player-number {position:absolute; z-index:1; right:15px; top:7px; font-size:5.6rem; line-height:1; font-weight:900; color:rgba(255,255,255,.07); letter-spacing:-.08em;}
-    .no-art {width:82px; height:82px; display:grid; place-items:center; border-radius:50%; background:linear-gradient(145deg,#2b496b,#1aa37d); color:white; font-size:1.6rem; font-weight:900;}
+    .no-art {width:82px;height:82px;display:grid;place-items:center;border-radius:50%;background:linear-gradient(145deg,var(--ctp-blue),var(--ctp-mauve));color:var(--ctp-crust);font-size:1.6rem;font-weight:900;}
+    .feature-grid {display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:10px 0 22px;}
+    .feature-card {min-height:115px;padding:16px;border-radius:16px;background:linear-gradient(145deg,rgba(49,50,68,.94),rgba(24,24,37,.92));border:1px solid var(--ctp-surface1);box-shadow:0 12px 30px rgba(0,0,0,.22);}
+    .feature-icon {font-size:1.35rem;margin-bottom:8px}.feature-card b {display:block;color:var(--ctp-text);margin-bottom:4px}.feature-card span {color:var(--ctp-subtext);font-size:.82rem;line-height:1.35;}
+    .search-banner {padding:14px 18px;border-radius:16px;background:rgba(203,166,247,.1);border:1px solid rgba(203,166,247,.32);margin:0 0 18px;color:var(--ctp-text);}
+    .match-strip {display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin:10px 0 20px;}
+    .match-card {position:relative;overflow:hidden;padding:18px;border-radius:18px;background:linear-gradient(145deg,rgba(49,50,68,.96),rgba(24,24,37,.96));border:1px solid var(--ctp-surface1);box-shadow:0 14px 34px rgba(0,0,0,.22);}
+    .match-card.live {border-color:rgba(166,227,161,.48)}
+    .match-label {color:var(--ctp-mauve);text-transform:uppercase;letter-spacing:.12em;font-size:.69rem;font-weight:800;}
+    .match-date {color:var(--ctp-subtext);font-size:.78rem;margin-top:3px;}
+    .scoreline {display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;margin:16px 0 10px;}
+    .score-team {display:flex;align-items:center;gap:9px;font-weight:750;min-width:0}.score-team:last-child {justify-content:flex-end;text-align:right}.score-team img {width:36px;height:36px;object-fit:contain}.score {font-size:1.55rem;font-weight:900;color:var(--ctp-text);white-space:nowrap;}
+    .match-meta {color:var(--ctp-overlay);font-size:.78rem;}
+    .live-chip {display:inline-flex;align-items:center;gap:6px;padding:5px 9px;border-radius:999px;background:rgba(166,227,161,.12);color:var(--ctp-green);font-size:.73rem;font-weight:800;}
+    .live-chip::before {content:"";width:7px;height:7px;border-radius:50%;background:var(--ctp-green);box-shadow:0 0 10px var(--ctp-green);}
     @keyframes card-in {from{opacity:0; transform:translateY(12px)} to{opacity:1; transform:translateY(0)}}
     @keyframes mark-in {from{opacity:0; transform:scale(.8) rotate(-6deg)} to{opacity:1; transform:scale(1) rotate(0)}}
     @keyframes player-float {0%,100%{transform:translateY(0)} 50%{transform:translateY(-7px)}}
     @keyframes ring-pulse {0%,100%{transform:scale(.92);opacity:.42} 50%{transform:scale(1.08);opacity:.8}}
     @media (prefers-reduced-motion: reduce) {.hero-mark,.identity-card,.badge-chip,.player-stage,.player-stage img,.player-stage::before{animation:none!important;transition:none!important}}
-    @media (max-width:700px) {.hero-mark{width:82px;height:82px;flex-basis:82px}.hero-mark img{width:60px;height:60px}.hero h1{font-size:1.8rem}.identity-card img{width:58px;height:58px}.player-stage{min-height:240px}}
+    @media (max-width:900px) {.feature-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.match-strip{grid-template-columns:1fr}}
+    @media (max-width:700px) {.hero-mark{width:82px;height:82px;flex-basis:82px}.hero-mark img{width:60px;height:60px}.hero h1{font-size:1.8rem}.identity-card img{width:58px;height:58px}.player-stage{min-height:240px}.feature-grid{grid-template-columns:1fr}}
     </style>
     """,
     unsafe_allow_html=True,
@@ -160,6 +204,7 @@ if data is None:
     summaries, games, fixtures, reference_standings, runs, cached_elo,
     cached_shots, analytics_metadata, recent_matches, recent_events,
     players, player_stats, team_media, competition_media,
+    open_players, open_player_stats, source_metadata,
 ) = data
 
 
@@ -197,6 +242,32 @@ def badge_rail(codes):
         )
         chips.append(f'<span class="badge-chip">{visual}{html.escape(name)}</span>')
     return '<div class="badge-rail">' + "".join(chips) + "</div>"
+
+
+def match_card(row, title, scheduled=False):
+    home = display_team(row.home_team)
+    away = display_team(row.away_team)
+    home_badge = team_badge(row.home_team)
+    away_badge = team_badge(row.away_team)
+    home_mark = f'<img src="{html.escape(home_badge)}" alt="">' if home_badge else ""
+    away_mark = f'<img src="{html.escape(away_badge)}" alt="">' if away_badge else ""
+    if scheduled or pd.isna(getattr(row, "home_goals", None)):
+        score = "vs"
+        status = '<span class="live-chip">Scheduled</span>'
+    else:
+        score = f"{int(row.home_goals)}–{int(row.away_goals)}"
+        status = html.escape(getattr(row, "source", "Completed"))
+    match_date = pd.to_datetime(row.match_date)
+    competition = RECENT_LEAGUES.get(row.league, row.league)
+    return (
+        f'<div class="match-card{" live" if scheduled else ""}">'
+        f'<div class="match-label">{html.escape(title)}</div>'
+        f'<div class="match-date">{match_date:%A, %d %B %Y} · {html.escape(competition)}</div>'
+        f'<div class="scoreline"><div class="score-team">{home_mark}<span>{html.escape(home)}</span></div>'
+        f'<div class="score">{score}</div>'
+        f'<div class="score-team"><span>{html.escape(away)}</span>{away_mark}</div></div>'
+        f'<div class="match-meta">{status}</div></div>'
+    )
 expected = seasons()
 summaries = summaries[summaries.season.isin(expected)].copy()
 games = games[games.season.isin(expected)].copy()
@@ -223,7 +294,12 @@ season_elo = (
 
 with st.sidebar:
     st.markdown("## ⚽ Football Intelligence")
-    st.caption("Build your analysis")
+    st.caption("Search, compare and explore")
+    platform_search = st.text_input(
+        "Search platform", placeholder="Player, club or competition…",
+        help="Search all featured clubs, competitions and the complete player snapshot.",
+    ).strip()
+    st.divider()
     analysis_mode = st.radio(
         "Analysis mode", ["Compare clubs", "Club focus", "Competition view"],
         captions=["Benchmark elite teams", "One club in depth", "Full league standings"],
@@ -335,6 +411,35 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+search_term = platform_search.casefold()
+player_hits = pd.DataFrame()
+club_hits = []
+competition_hits = []
+if search_term:
+    if not open_players.empty:
+        player_hits = open_players[
+            open_players.player.str.casefold().str.contains(search_term, regex=False, na=False)
+            | open_players.team.map(display_team).str.casefold().str.contains(search_term, regex=False, na=False)
+            | open_players.position.str.casefold().str.contains(search_term, regex=False, na=False)
+            | open_players.nationality.str.casefold().str.contains(search_term, regex=False, na=False)
+        ].copy()
+    club_hits = [
+        (code, name) for code, name in CLUBS.items()
+        if search_term in name.casefold()
+    ]
+    competition_hits = [
+        (code, name) for code, name in RECENT_LEAGUES.items()
+        if search_term in name.casefold()
+    ]
+    total_hits = len(player_hits) + len(club_hits) + len(competition_hits)
+    preview = [*player_hits.player.head(3).tolist(), *[name for _, name in club_hits[:2]], *[name for _, name in competition_hits[:2]]]
+    detail = " · ".join(preview) if preview else "Try another spelling or a broader term."
+    st.markdown(
+        f'<div class="search-banner"><b>{total_hits} search result{"s" if total_hits != 1 else ""}</b> for '
+        f'“{html.escape(platform_search)}”<br><span>{html.escape(detail)}</span></div>',
+        unsafe_allow_html=True,
+    )
+
 if not league_filter:
     st.info("Select at least one competition to begin.")
     st.stop()
@@ -362,12 +467,63 @@ if analysis_mode == "Competition view":
 else:
     st.caption(f"Results through {latest_date:%d %B %Y}. Each selected club's performance is counted independently.")
 
-overview, standings_tab, club_lab, shots_tab, matches_tab, recent_tab, players_tab, quality = st.tabs(
+discover, overview, standings_tab, club_lab, shots_tab, matches_tab, recent_tab, players_tab, quality = st.tabs(
     [
-        "Overview", "League tables", "Club lab", "Shot lab", "Match explorer",
-        "Recent matches", "Players", "Data quality",
+        "Discover", "Overview", "League tables", "Club lab", "Shot lab", "Match explorer",
+        "Current season", "Players", "Data quality",
     ]
 )
+
+with discover:
+    st.subheader("Explore the platform")
+    st.markdown(
+        """
+        <div class="feature-grid">
+          <div class="feature-card"><div class="feature-icon">👤</div><b>Player intelligence</b><span>Search full featured-club squads and follow five-season appearances, goals, assists, minutes and cards.</span></div>
+          <div class="feature-card"><div class="feature-icon">⚔️</div><b>Club comparison</b><span>Benchmark attack, defence, form, Elo strength and clean-sheet performance across elite clubs.</span></div>
+          <div class="feature-card"><div class="feature-icon">🏆</div><b>Competition rooms</b><span>Open complete reconstructed tables for five major leagues and current results across ten competitions.</span></div>
+          <div class="feature-card"><div class="feature-icon">🔎</div><b>Match explorer</b><span>Filter every result by club, opponent, venue and season, then export the selected view.</span></div>
+          <div class="feature-card"><div class="feature-icon">🟢</div><b>Current season</b><span>Follow real 2026/27 results, the last two club matches, current form, points progress and partial league tables.</span></div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    d1, d2, d3, d4, d5 = st.columns(5)
+    d1.metric("Searchable players", f"{len(open_players):,}")
+    d2.metric("Featured clubs", open_players.team.nunique() if not open_players.empty else len(CLUBS))
+    d3.metric("Competitions", len(RECENT_LEAGUES))
+    d4.metric("Completed matches", f"{len(fixtures):,}")
+    d5.metric("Current results", f"{len(recent_matches):,}")
+    discover_query = st.text_input(
+        "Search players, clubs, positions or nationalities",
+        value=platform_search, placeholder="Try Vinicius, goalkeeper, Spain, Arsenal…",
+        key="discover_search",
+    ).strip()
+    if discover_query:
+        needle = discover_query.casefold()
+        discovery_players = open_players[
+            open_players.player.str.casefold().str.contains(needle, regex=False, na=False)
+            | open_players.team.map(display_team).str.casefold().str.contains(needle, regex=False, na=False)
+            | open_players.position.str.casefold().str.contains(needle, regex=False, na=False)
+            | open_players.sub_position.str.casefold().str.contains(needle, regex=False, na=False)
+            | open_players.nationality.str.casefold().str.contains(needle, regex=False, na=False)
+        ].copy() if not open_players.empty else pd.DataFrame()
+        if discovery_players.empty:
+            st.info("No player matched this search. Club and competition matches still appear in the sidebar result banner.")
+        else:
+            discovery_players["Club"] = discovery_players.team.map(display_team)
+            discovery_players["Value"] = discovery_players.market_value_eur
+            st.dataframe(
+                discovery_players[["image_url", "player", "Club", "position", "sub_position", "nationality", "Value"]].head(100),
+                hide_index=True, width="stretch",
+                column_config={
+                    "image_url": st.column_config.ImageColumn(""), "player": "Player",
+                    "position": "Position", "sub_position": "Role", "nationality": "Nationality",
+                    "Value": st.column_config.NumberColumn("Market value", format="€%d"),
+                },
+            )
+    else:
+        st.caption("Use search to discover any player in the 12-club snapshot. Open the Players tab for a full profile and season trends.")
 
 with overview:
     if analysis_mode == "Competition view":
@@ -729,9 +885,9 @@ with matches_tab:
         )
 
 with recent_tab:
-    st.subheader("Current-season match centre")
+    st.subheader(f"{label(current_season())} current-season centre")
     st.markdown(
-        '<div class="section-note">Completed matches come from the twice-weekly public CSV feed; the newest result and next event per league are supplemented by TheSportsDB.</div>',
+        '<div class="section-note">Real completed results with the selected club’s two nearest previous matches, current form, a live partial table and the next listed fixture when available.</div>',
         unsafe_allow_html=True,
     )
     if recent_matches.empty and recent_events.empty:
@@ -747,6 +903,9 @@ with recent_tab:
             format_func=lambda code: RECENT_LEAGUES[code],
         )
         st.markdown(badge_rail(recent_filter), unsafe_allow_html=True)
+        if not recent_filter:
+            st.info("Select at least one current competition.")
+            st.stop()
         history = recent_matches[
             recent_matches.league.isin(recent_filter)
         ][[
@@ -763,6 +922,10 @@ with recent_tab:
             "home_goals", "away_goals", "source", "fetched_at",
         ]].copy() if not recent_events.empty else pd.DataFrame()
         combined = pd.concat([history, event_history], ignore_index=True)
+        upcoming = recent_events[
+            recent_events.league.isin(recent_filter)
+            & (recent_events.event_kind == "next")
+        ].sort_values("match_date").copy() if not recent_events.empty else pd.DataFrame()
         if combined.empty:
             st.info("No completed current-season matches fit these competitions.")
         else:
@@ -780,18 +943,108 @@ with recent_tab:
             )
             latest_match_date = pd.to_datetime(combined.match_date).max()
             latest_rows = combined.sort_values("match_date", ascending=False)
-            rc1, rc2, rc3, rc4 = st.columns(4)
-            rc1.metric("Competitions", combined.league.nunique())
-            rc2.metric("Current-season matches", len(combined))
-            rc3.metric("Latest result", f"{latest_match_date:%d %b %Y}")
-            rc4.metric("Goals", int(combined.home_goals.sum() + combined.away_goals.sum()))
-            daily = combined.groupby(["match_date", "Competition"], as_index=False).size()
-            recent_chart = px.bar(
-                daily.sort_values("match_date").tail(80), x="match_date", y="size",
-                color="Competition", title="Recent match activity",
-                labels={"match_date": "Match date", "size": "Matches"},
+
+            domestic_default = None
+            if selected_club:
+                club_leagues = summaries.loc[summaries.team == selected_club, "league"]
+                domestic_default = club_leagues.iloc[0] if not club_leagues.empty else None
+            competition_index = recent_filter.index(domestic_default) if domestic_default in recent_filter else 0
+            current_competition = st.selectbox(
+                "Current-season competition", recent_filter, index=competition_index,
+                format_func=lambda code: RECENT_LEAGUES[code],
             )
-            st.plotly_chart(style_chart(recent_chart, 380), width="stretch")
+            competition_matches = combined[combined.league == current_competition].copy()
+            team_options = sorted(
+                set(competition_matches.home_team) | set(competition_matches.away_team),
+                key=display_team,
+            )
+            preferred_key = team_key(selected_club) if selected_club else ""
+            preferred_team = next(
+                (team for team in team_options if team_key(team) == preferred_key), team_options[0]
+            )
+            current_team = st.selectbox(
+                "Current-season club", team_options, index=team_options.index(preferred_team),
+                format_func=display_team,
+            )
+            current_key = team_key(current_team)
+            team_results = competition_matches[
+                competition_matches.home_team.map(team_key).eq(current_key)
+                | competition_matches.away_team.map(team_key).eq(current_key)
+            ].sort_values("match_date").copy()
+            team_results["is_home"] = team_results.home_team.map(team_key).eq(current_key)
+            team_results["gf"] = team_results.home_goals.where(team_results.is_home, team_results.away_goals)
+            team_results["ga"] = team_results.away_goals.where(team_results.is_home, team_results.home_goals)
+            team_results["points"] = team_results.apply(
+                lambda row: 3 if row.gf > row.ga else 1 if row.gf == row.ga else 0, axis=1,
+            )
+            team_results["result"] = team_results.points.map(result_letter)
+            team_results["cumulative_points"] = team_results.points.cumsum()
+
+            wins = int((team_results.points == 3).sum())
+            draws = int((team_results.points == 1).sum())
+            losses = int((team_results.points == 0).sum())
+            rc1, rc2, rc3, rc4 = st.columns(4)
+            rc1.metric("Played", len(team_results))
+            rc2.metric("W–D–L", f"{wins}–{draws}–{losses}")
+            rc3.metric("Points / match", f"{team_results.points.mean():.2f}")
+            rc4.metric("Goal difference", f"{int((team_results.gf - team_results.ga).sum()):+d}")
+
+            spotlight = []
+            recent_team_rows = list(team_results.sort_values("match_date", ascending=False).itertuples(index=False))
+            if recent_team_rows:
+                spotlight.append(match_card(recent_team_rows[0], "Latest completed match"))
+            if len(recent_team_rows) > 1:
+                spotlight.append(match_card(recent_team_rows[1], "Previous match"))
+            if not upcoming.empty:
+                team_upcoming = upcoming[
+                    upcoming.home_team.map(team_key).eq(current_key)
+                    | upcoming.away_team.map(team_key).eq(current_key)
+                ]
+                if not team_upcoming.empty:
+                    spotlight.append(match_card(team_upcoming.iloc[0], "Next listed fixture", scheduled=True))
+            if spotlight:
+                st.markdown('<div class="match-strip">' + "".join(spotlight) + "</div>", unsafe_allow_html=True)
+
+            recent_form = team_results.tail(form_window)
+            pills = "".join(
+                f'<span class="form-pill {"win" if result == "W" else "draw" if result == "D" else "loss"}">{result}</span>'
+                for result in recent_form.result
+            )
+            st.markdown(f"**Last {len(recent_form)} form**<div class=\"form-row\">{pills}</div>", unsafe_allow_html=True)
+
+            current_standings = current_table(competition_matches)
+            current_standings.insert(0, "position", range(1, len(current_standings) + 1))
+            current_standings["Club"] = current_standings.team.map(display_team)
+            team_trend = px.line(
+                team_results, x="match_date", y="cumulative_points", markers=True,
+                title=f"{display_team(current_team)} points progression",
+                labels={"match_date": "Match date", "cumulative_points": "Points"},
+            )
+            team_trend.update_traces(line=dict(color=MOCHA["mauve"], width=3), marker=dict(size=8, color=MOCHA["teal"]))
+            top_ten = current_standings.head(10).sort_values("position", ascending=False)
+            table_chart = go.Figure(go.Bar(
+                x=top_ten.points, y=top_ten.Club, orientation="h",
+                marker_color=[
+                    MOCHA["mauve"] if team_key(team) == current_key else MOCHA["blue"]
+                    for team in top_ten.team
+                ],
+                text=top_ten.points, textposition="auto",
+                hovertemplate="%{y}<br>%{x} points<extra></extra>",
+            ))
+            table_chart.update_layout(title="Current top 10 from completed results", xaxis_title="Points", yaxis_title="")
+            chart_left, chart_right = st.columns(2)
+            chart_left.plotly_chart(style_chart(team_trend, 390), width="stretch")
+            chart_right.plotly_chart(style_chart(table_chart, 390), width="stretch")
+            with st.expander("Full current table", expanded=True):
+                st.dataframe(
+                    current_standings[["position", "Club", "played", "wins", "draws", "losses", "goals_for", "goals_against", "goal_difference", "points"]],
+                    hide_index=True, width="stretch",
+                    column_config={
+                        "position": "#", "played": "P", "wins": "W", "draws": "D", "losses": "L",
+                        "goals_for": "GF", "goals_against": "GA", "goal_difference": "GD", "points": "Pts",
+                    },
+                )
+            st.markdown("#### Latest real results")
             st.dataframe(
                 latest_rows[["match_date", "Competition", "Home", "Score", "Away", "source"]].head(100),
                 hide_index=True, width="stretch",
@@ -799,10 +1052,6 @@ with recent_tab:
                     "match_date": "Date", "source": "Source",
                 },
             )
-        upcoming = recent_events[
-            recent_events.league.isin(recent_filter)
-            & (recent_events.event_kind == "next")
-        ].sort_values("match_date").copy() if not recent_events.empty else pd.DataFrame()
         if not upcoming.empty:
             upcoming["Competition"] = upcoming.league.map(RECENT_LEAGUES)
             upcoming["Home"] = upcoming.home_team.map(display_team)
@@ -824,84 +1073,172 @@ with recent_tab:
 with players_tab:
     st.subheader("Player explorer")
     st.markdown(
-        '<div class="section-note">TheSportsDB free v1 returns up to 10 listed players per team and up to 10 statistic rows per player. Coverage is a transparent sample, not a complete squad register.</div>',
+        '<div class="section-note">All tracked 2025/26 player records for the 12 featured clubs, with domestic and European appearance totals across five completed seasons.</div>',
         unsafe_allow_html=True,
     )
-    if players.empty:
-        st.info("Player profiles have not been synchronized yet. Run football-sync-players, then refresh.")
+    if open_players.empty:
+        st.info("The full player snapshot has not been synchronized yet. Run football-sync-open-players, then refresh.")
     else:
-        player_clubs = sorted(players.team.dropna().unique(), key=display_team)
-        preferred_key = team_key(selected_club) if selected_club else ""
-        preferred_club = next(
-            (club for club in player_clubs if team_key(club) == preferred_key), player_clubs[0]
-        )
-        pc1, pc2 = st.columns(2)
+        player_clubs = sorted(open_players.team.dropna().unique(), key=display_team)
+        preferred_club = selected_club if selected_club in player_clubs else player_clubs[0]
+        pc1, pc2, pc3 = st.columns([1, 1, 1.4])
         player_club = pc1.selectbox(
-            "Player club", player_clubs, index=player_clubs.index(preferred_club),
+            "Squad", player_clubs, index=player_clubs.index(preferred_club),
             format_func=display_team,
         )
-        club_players = players[players.team == player_club].sort_values("player")
-        player_id = pc2.selectbox(
-            "Player", club_players.player_id.tolist(),
-            format_func=lambda value: club_players.loc[
-                club_players.player_id == value, "player"
-            ].iloc[0],
-        )
-        profile = club_players[club_players.player_id == player_id].iloc[0]
-        image_column, profile_column = st.columns([1, 3])
-        image_url = _safe_url(profile.cutout_url) or _safe_url(profile.thumb_url)
-        with image_column:
-            if image_url:
-                player_number = html.escape(str(profile.shirt_number or ""))
-                st.markdown(
-                    f'<div class="player-stage"><span class="player-number">{player_number}</span>'
-                    f'<img src="{html.escape(image_url)}" alt="Portrait of {html.escape(str(profile.player))}"></div>',
-                    unsafe_allow_html=True,
-                )
-            else:
-                initials = "".join(part[0] for part in str(profile.player).split()[:2]).upper()
-                st.markdown(
-                    f'<div class="player-stage"><span class="no-art">{html.escape(initials)}</span></div>',
-                    unsafe_allow_html=True,
-                )
-        with profile_column:
-            st.markdown(f"### {profile.player}")
-            birth = pd.to_datetime(profile.date_born, errors="coerce")
-            age = "Unknown" if pd.isna(birth) else str(
-                pd.Timestamp.now().year - birth.year
-                - ((pd.Timestamp.now().month, pd.Timestamp.now().day) < (birth.month, birth.day))
-            )
-            pp1, pp2, pp3, pp4 = st.columns(4)
-            pp1.metric("Position", profile.position or "Unknown")
-            pp2.metric("Nationality", profile.nationality or "Unknown")
-            pp3.metric("Age", age)
-            pp4.metric("Squad number", profile.shirt_number or "—")
-            details = [value for value in [profile.height, profile.weight, profile.status] if value]
-            if details:
-                st.caption(" · ".join(details))
-        stats = player_stats[player_stats.player_id == player_id].copy()
-        if stats.empty:
-            st.info("The free feed returned no statistic rows for this player.")
+        club_players = open_players[open_players.team == player_club].copy()
+        position_options = sorted(value for value in club_players.position.dropna().unique() if value)
+        position_filter = pc2.multiselect("Positions", position_options, placeholder="All positions")
+        name_search = pc3.text_input("Find a player", placeholder="Type a name…").strip().casefold()
+        filtered_players = club_players.copy()
+        if position_filter:
+            filtered_players = filtered_players[filtered_players.position.isin(position_filter)]
+        if name_search:
+            filtered_players = filtered_players[
+                filtered_players.player.str.casefold().str.contains(name_search, regex=False, na=False)
+            ]
+
+        as_of = pd.to_datetime(club_players.data_as_of).max()
+        births = pd.to_datetime(club_players.date_born, errors="coerce")
+        ages = (as_of - births).dt.days / 365.2425
+        squad_stats = open_player_stats[open_player_stats.team == player_club].groupby(
+            "player_id", as_index=False
+        ).agg(
+            appearances=("appearances", "sum"), goals=("goals", "sum"),
+            assists=("assists", "sum"), minutes=("minutes_played", "sum"),
+        ) if not open_player_stats.empty else pd.DataFrame()
+        sq1, sq2, sq3, sq4 = st.columns(4)
+        sq1.metric("Tracked players", len(club_players))
+        sq2.metric("Average age", f"{ages.mean():.1f}" if ages.notna().any() else "—")
+        sq3.metric("Nationalities", club_players.nationality.replace("", pd.NA).nunique())
+        total_value = club_players.market_value_eur.fillna(0).sum()
+        sq4.metric("Squad value", f"€{total_value / 1_000_000:.0f}m" if total_value else "—")
+
+        if filtered_players.empty:
+            st.info("No player matches these filters.")
         else:
-            stats["Competition"] = stats.league
-            stats["Season"] = stats.season
-            stats_table = stats.pivot_table(
-                index=["Competition", "Season"], columns="statistic",
-                values="value", aggfunc="first",
-            ).reset_index()
-            st.markdown("#### Available player statistics")
-            st.dataframe(stats_table, hide_index=True, width="stretch")
-        st.markdown("#### Sampled club players")
-        sampled = club_players[["player", "position", "nationality", "shirt_number"]].rename(
-            columns={
-                "player": "Player", "position": "Position", "nationality": "Nationality",
-                "shirt_number": "Number",
-            }
+            filtered_players = filtered_players.sort_values(["position", "player"])
+            player_id = st.selectbox(
+                "Selected player", filtered_players.player_id.tolist(),
+                format_func=lambda value: filtered_players.loc[
+                    filtered_players.player_id == value, "player"
+                ].iloc[0],
+            )
+            profile = filtered_players[filtered_players.player_id == player_id].iloc[0]
+            legacy = players[
+                (players.player.map(team_key) == team_key(profile.player))
+                & (players.team.map(team_key) == team_key(profile.team))
+            ] if not players.empty else pd.DataFrame()
+            legacy_profile = legacy.iloc[0] if not legacy.empty else None
+            legacy_image = "" if legacy_profile is None else (
+                _safe_url(legacy_profile.cutout_url) or _safe_url(legacy_profile.thumb_url)
+            )
+            image_url = legacy_image or _safe_url(profile.image_url)
+            shirt_number = "" if legacy_profile is None else str(legacy_profile.shirt_number or "")
+            image_column, profile_column = st.columns([1, 3])
+            with image_column:
+                if image_url:
+                    st.markdown(
+                        f'<div class="player-stage"><span class="player-number">{html.escape(shirt_number)}</span>'
+                        f'<img src="{html.escape(image_url)}" alt="Portrait of {html.escape(str(profile.player))}"></div>',
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    initials = "".join(part[0] for part in str(profile.player).split()[:2]).upper()
+                    st.markdown(
+                        f'<div class="player-stage"><span class="no-art">{html.escape(initials)}</span></div>',
+                        unsafe_allow_html=True,
+                    )
+            with profile_column:
+                st.markdown(f"### {profile.player}")
+                birth = pd.to_datetime(profile.date_born, errors="coerce")
+                age = "Unknown" if pd.isna(birth) else str(int((as_of - birth).days / 365.2425))
+                pp1, pp2, pp3, pp4 = st.columns(4)
+                pp1.metric("Position", profile.position or "Unknown")
+                pp2.metric("Role", profile.sub_position or "Unknown")
+                pp3.metric("Nationality", profile.nationality or "Unknown")
+                pp4.metric("Age at snapshot", age)
+                detail_parts = []
+                if pd.notna(profile.height_cm):
+                    detail_parts.append(f"{int(profile.height_cm)} cm")
+                if profile.foot:
+                    detail_parts.append(f"{profile.foot.title()}-footed")
+                if pd.notna(profile.market_value_eur):
+                    detail_parts.append(f"€{profile.market_value_eur / 1_000_000:.1f}m market value")
+                if detail_parts:
+                    st.caption(" · ".join(detail_parts))
+
+            stats = open_player_stats[
+                (open_player_stats.player_id == player_id)
+                & open_player_stats.season.isin(year_filter)
+            ].copy()
+            if stats.empty:
+                st.info("No appearance rows were published for this player in the selected seasons.")
+            else:
+                stats["Competition"] = stats.competition.str.replace("-", " ").str.title()
+                competition_options = sorted(stats.Competition.unique())
+                chosen_competitions = st.multiselect(
+                    "Player competitions", competition_options, default=competition_options,
+                    help="Includes domestic leagues, cups and UEFA competitions present in the open dataset.",
+                )
+                stats = stats[stats.Competition.isin(chosen_competitions)]
+                totals = stats[["appearances", "goals", "assists", "minutes_played"]].sum()
+                ps1, ps2, ps3, ps4 = st.columns(4)
+                ps1.metric("Appearances", f"{int(totals.appearances):,}")
+                ps2.metric("Goals", f"{int(totals.goals):,}")
+                ps3.metric("Assists", f"{int(totals.assists):,}")
+                ps4.metric("Minutes", f"{int(totals.minutes_played):,}")
+                by_season = stats.groupby("season", as_index=False).agg(
+                    appearances=("appearances", "sum"), goals=("goals", "sum"),
+                    assists=("assists", "sum"), minutes=("minutes_played", "sum"),
+                )
+                by_season["Season"] = by_season.season.map(label)
+                chart_values = by_season.melt(
+                    id_vars="Season", value_vars=["goals", "assists"],
+                    var_name="Metric", value_name="Total",
+                )
+                player_chart = px.bar(
+                    chart_values, x="Season", y="Total", color="Metric", barmode="group",
+                    title="Goals and assists by season",
+                    color_discrete_map={"goals": ACCENT, "assists": "#6f9df5"},
+                )
+                left, right = st.columns([1.25, 1])
+                left.plotly_chart(style_chart(player_chart, 360), width="stretch")
+                right.dataframe(
+                    by_season[["Season", "appearances", "goals", "assists", "minutes"]],
+                    hide_index=True, width="stretch",
+                    column_config={
+                        "appearances": "Apps", "goals": "Goals", "assists": "Assists",
+                        "minutes": st.column_config.NumberColumn("Minutes", format="%d"),
+                    },
+                )
+                with st.expander("Competition detail"):
+                    st.dataframe(
+                        stats[["season", "Competition", "appearances", "goals", "assists", "minutes_played", "yellow_cards", "red_cards"]].sort_values(["season", "Competition"], ascending=[False, True]),
+                        hide_index=True, width="stretch",
+                        column_config={"season": "Season start", "minutes_played": "Minutes", "yellow_cards": "Yellow", "red_cards": "Red"},
+                    )
+
+        st.markdown("#### Full tracked squad")
+        st.caption("Totals cover each player's appearances across all clubs and source competitions during the selected five seasons.")
+        squad_table = club_players.merge(squad_stats, on="player_id", how="left") if not squad_stats.empty else club_players
+        for column in ["appearances", "goals", "assists", "minutes"]:
+            if column not in squad_table:
+                squad_table[column] = 0
+        squad_table["Club"] = squad_table.team.map(display_team)
+        st.dataframe(
+            squad_table[["image_url", "player", "position", "sub_position", "nationality", "appearances", "goals", "assists", "minutes"]].sort_values(["position", "player"]),
+            hide_index=True, width="stretch",
+            column_config={
+                "image_url": st.column_config.ImageColumn(""), "player": "Player",
+                "position": "Position", "sub_position": "Role", "nationality": "Nationality",
+                "appearances": "Apps", "goals": "Goals", "assists": "Assists", "minutes": "Minutes",
+            },
         )
-        st.dataframe(sampled, hide_index=True, width="stretch")
         st.caption(
-            f"{len(club_players)} player profiles cached for {display_team(player_club)} · "
-            f"{len(stats)} statistic rows for the selected player · Source: TheSportsDB"
+            f"{len(club_players)} tracked player records for {display_team(player_club)} · "
+            f"match data through {as_of:%d %B %Y} · Source: Transfermarkt Open Dataset (CC0). "
+            "Roster snapshot is 2025/26; transfers after the source cutoff are not included."
         )
 
 with quality:
@@ -938,11 +1275,11 @@ with quality:
     e1, e2, e3, e4, e5 = st.columns(5)
     e1.metric("Recent competitions", recent_matches.league.nunique() if not recent_matches.empty else 0)
     e2.metric("Completed results", f"{len(recent_matches):,}")
-    e3.metric("Player profiles", f"{len(players):,}", "Capped sample")
-    e4.metric("Player stat rows", f"{len(player_stats):,}", "Sparse history")
+    e3.metric("Tracked players", f"{len(open_players):,}", f"{open_players.team.nunique() if not open_players.empty else 0}/12 clubs")
+    e4.metric("Player stat rows", f"{len(open_player_stats):,}", "Five seasons")
     e5.metric("Artwork", f"{len(team_media) + len(competition_media):,}", "Cached locally")
     extended_refreshes = []
-    for dataset in (recent_matches, recent_events, players, player_stats):
+    for dataset in (recent_matches, recent_events, open_players, open_player_stats):
         if not dataset.empty and "fetched_at" in dataset:
             extended_refreshes.append(pd.to_datetime(dataset.fetched_at).max())
     if extended_refreshes:
@@ -959,11 +1296,11 @@ with quality:
         column_config={"coverage_pct": st.column_config.ProgressColumn("Coverage", min_value=0, max_value=100, format="%.1f%%")},
     )
     st.info(
-        "Player profiles and sparse historical goals, assists, appearances and minutes are shown only when TheSportsDB returns them. "
-        "The free feed is capped at 10 players per team and 10 statistic rows per player; missing values, possession and xG are never inferred."
+        "The player explorer uses the CC0 Transfermarkt Open Dataset for the 2025/26 featured-club snapshot and published appearance totals. "
+        "Its upstream updates paused in July 2026, so it does not claim current 2026/27 squads. TheSportsDB remains an artwork and profile-image fallback."
     )
 
 if len(coverage) < len(LEAGUES) * len(expected):
     st.warning(f"Coverage: {len(coverage)}/{len(LEAGUES) * len(expected)} complete league-seasons. Missing partitions are excluded.")
 st.divider()
-st.caption("Data: Football-Data.co.uk public CSV archive · TheSportsDB capped free feed · Match-derived analytics · Cached locally")
+st.caption("Data: Football-Data.co.uk public CSV archive · Transfermarkt Open Dataset (CC0) · TheSportsDB media · Match-derived analytics · Cached locally")

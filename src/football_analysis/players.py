@@ -26,7 +26,7 @@ class TheSportsDBPlayers:
     def __init__(self, interval=2.1):
         self.interval = interval
         self.session = requests.Session()
-        self.session.headers["User-Agent"] = "football-analysis/0.3 (personal analytics)"
+        self.session.headers["User-Agent"] = "football-analysis/0.4 (personal analytics)"
         retry = Retry(
             total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504],
             respect_retry_after_header=True,

@@ -1,7 +1,10 @@
 import pandas as pd
 import pytest
 
-from football_analysis.analytics import elo_history, shot_coverage, team_shot_efficiency
+from football_analysis.analytics import (
+    current_table, elo_history, shot_coverage, team_match_rows,
+    team_season_summaries, team_shot_efficiency,
+)
 
 
 def matches():
@@ -42,3 +45,23 @@ def test_shot_coverage_and_gate():
     result = team_shot_efficiency(team_matches, minimum_coverage=0.5).iloc[0]
     assert result.shot_accuracy_pct == 50
     assert result.goals_per_shot_pct == 20
+
+
+def test_current_table_uses_completed_results():
+    table = current_table(matches())
+    leader = table.iloc[0]
+    assert leader.team == "A"
+    assert leader.played == 2
+    assert leader.points == 4
+    assert leader.goal_difference == 2
+
+
+def test_current_matches_expand_and_summarize():
+    team_rows = team_match_rows(matches())
+    assert len(team_rows) == 4
+    assert team_rows.points.sum() == 5
+    summary = team_season_summaries(team_rows)
+    team_a = summary[summary.team == "A"].iloc[0]
+    assert team_a.played == 2
+    assert team_a.points == 4
+    assert team_a.clean_sheets == 1
