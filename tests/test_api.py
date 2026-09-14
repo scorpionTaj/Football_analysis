@@ -1,4 +1,5 @@
 from datetime import date, datetime
+import time
 
 import pandas as pd
 from fastapi.testclient import TestClient
@@ -131,6 +132,17 @@ def seed(path):
                       'Bukayo Saka', 'Right Wing', TRUE, FALSE, '7', NULL, current_timestamp)
         """)
         con.execute("""
+            INSERT INTO match_contexts (
+                source, match_id, competition_id, season, match_date, home_team, away_team,
+                home_coach, away_coach, home_formation, away_formation, stadium,
+                attendance, referee, source_url, fetched_at
+            ) VALUES (
+                'Transfermarkt Open Dataset', 'game-1', 'GB1', 2024, '2024-08-17',
+                'Arsenal FC', 'Liverpool FC', 'Mikel Arteta', 'Arne Slot', '4-3-3',
+                '4-2-3-1', 'Emirates Stadium', 60200, 'Example', 'memory', current_timestamp
+            )
+        """)
+        con.execute("""
             CREATE TABLE IF NOT EXISTS transfers (
                 transfer_id VARCHAR,
                 player_id VARCHAR,
@@ -177,6 +189,7 @@ def test_health_and_openapi_document_v1_routes(tmp_path):
         "/api/v1/overview", "/api/v1/transfers",
         "/api/v1/standings",
         "/api/v1/shots", "/api/v1/event-details", "/api/v1/event-details/{event_id}",
+        "/api/v1/match-detail", "/api/v1/refresh",
     ):
         assert path in spec["paths"]
     assert spec["info"]["version"] == "1.0.0"
@@ -301,6 +314,8 @@ def test_player_search_and_facets_cover_legacy_filters(tmp_path):
     assert by_nation["teams"][0]["name"] == "Arsenal"
     by_position = api.get("/api/v1/players", params={"position": "Attack"}).json()
     assert by_position["players"][0]["position"] == "Attack"
+    typo = api.get("/api/v1/players", params={"q": "Skaa"}).json()
+    assert typo["players"][0]["name"] == "Bukayo Saka"
 
 
 def test_transfers_with_all_filter(tmp_path):
@@ -328,6 +343,44 @@ def test_shots_and_event_details_contract(tmp_path):
     assert detail.json()["timeline"][0]["player"] == "Bukayo Saka"
     assert detail.json()["lineups"][0]["shirt_number"] == "7"
     assert api.get("/api/v1/event-details/missing").status_code == 404
+
+
+def test_match_centre_combines_stored_stats_context_and_events(tmp_path):
+    api = client(tmp_path)
+    detail = api.get("/api/v1/match-detail", params={
+        "competition": "E0", "season": 2024, "match_date": "2024-08-17",
+        "home": "Arsenal", "away": "Liverpool",
+    })
+    assert detail.status_code == 200
+    payload = detail.json()
+    assert payload["home_coach"] == "Mikel Arteta"
+    assert payload["away_formation"] == "4-2-3-1"
+    assert payload["stadium"] == "Emirates Stadium"
+    assert {row["statistic"] for row in payload["statistics"]} >= {"Corners", "Fouls"}
+    assert payload["timeline"][0]["player"] == "Bukayo Saka"
+    assert payload["narrative"]
+    assert payload["lineup_complete"] is False
+
+
+def test_refresh_workflow_reports_step_progress_and_reopens_database(tmp_path):
+    db = tmp_path / "api.duckdb"
+    seed(db)
+
+    def fake_runner(request, progress):
+        progress(1, "Results and fixtures", "Testing")
+        progress(2, "Tables and competitions", "Testing")
+
+    api = TestClient(create_app(db, refresh_runner=fake_runner))
+    started = api.post("/api/v1/refresh", json={"target_step": 2, "season": 2026})
+    assert started.status_code == 202
+    for _ in range(100):
+        status = api.get("/api/v1/refresh").json()
+        if status["status"] != "running":
+            break
+        time.sleep(0.01)
+    assert status["status"] == "success"
+    assert status["completed_steps"] == [1, 2]
+    assert api.get("/api/v1/health").json()["status"] == "ok"
 
 
 def test_teams_endpoint_fallback(tmp_path):

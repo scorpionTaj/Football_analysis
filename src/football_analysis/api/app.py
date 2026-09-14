@@ -1,4 +1,4 @@
-"""Read-only FastAPI application. Synchronizers stay outside request handlers."""
+"""FastAPI application with read views and one explicit local refresh workflow."""
 
 from __future__ import annotations
 
@@ -18,11 +18,14 @@ from football_analysis.api.contracts import (
     EventListResponse,
     HealthResponse,
     MatchListResponse,
+    MatchCentreDetailResponse,
     OverviewResponse,
     PlayerListResponse,
     PlayerProfileResponse,
     PredictionsResponse,
     QualityResponse,
+    RefreshRequest,
+    RefreshStatusResponse,
     ShotAnalysisResponse,
     StandingsResponse,
     TeamListResponse,
@@ -30,6 +33,7 @@ from football_analysis.api.contracts import (
     TransferListResponse,
 )
 from football_analysis.api.db import ReadOnlyStore
+from football_analysis.api.refresh import RefreshCoordinator, RefreshRunner, run_refresh_pipeline
 from football_analysis.config import DB, TOURNAMENTS, current_season
 
 
@@ -42,7 +46,10 @@ def cache_for_season(season: int | None) -> str:
     return CACHE_HISTORICAL if season is not None and season < current_season() else CACHE_SHORT
 
 
-def create_app(database_path: Path | None = None) -> FastAPI:
+def create_app(
+    database_path: Path | None = None,
+    refresh_runner: RefreshRunner | None = None,
+) -> FastAPI:
     path = Path(database_path) if database_path is not None else DB
     store: ReadOnlyStore | None
     try:
@@ -71,6 +78,7 @@ def create_app(database_path: Path | None = None) -> FastAPI:
     )
     app.state.store = store
     app.state.database_path = path
+    app.state.refresh = RefreshCoordinator()
 
     def require_store() -> ReadOnlyStore:
         current = app.state.store
@@ -142,6 +150,22 @@ def create_app(database_path: Path | None = None) -> FastAPI:
         if payload is None:
             raise HTTPException(status_code=404, detail="Event details not found")
         return with_cache(payload, request, CACHE_STABLE)
+
+    @app.get("/api/v1/match-detail", response_model=MatchCentreDetailResponse)
+    def match_detail(
+        request: Request,
+        competition: str,
+        season: int,
+        match_date: str,
+        home: str,
+        away: str,
+    ):
+        payload = queries.match_centre_detail(
+            require_store(), competition, season, match_date, home, away,
+        )
+        if payload is None:
+            raise HTTPException(status_code=404, detail="Match not found")
+        return with_cache(payload, request, cache_for_season(season))
 
     @app.post("/api/v1/analysis", response_model=AnalysisReportResponse)
     def analysis(body: AnalysisRequestBody, request: Request):
@@ -236,6 +260,30 @@ def create_app(database_path: Path | None = None) -> FastAPI:
             limit=limit,
         )
         return with_cache(payload, request)
+
+    @app.get("/api/v1/refresh", response_model=RefreshStatusResponse)
+    def refresh_status():
+        return app.state.refresh.status()
+
+    @app.post("/api/v1/refresh", response_model=RefreshStatusResponse, status_code=202)
+    def start_refresh(body: RefreshRequest):
+        def execute(refresh_request: RefreshRequest, progress):
+            current = app.state.store
+            if current is not None:
+                current.close()
+                app.state.store = None
+            try:
+                runner = refresh_runner or (
+                    lambda req, update: run_refresh_pipeline(path, req, update)
+                )
+                runner(refresh_request, progress)
+            finally:
+                app.state.store = ReadOnlyStore(path)
+
+        try:
+            return app.state.refresh.start(body, execute)
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     return app
 

@@ -1,6 +1,6 @@
 import pandas as pd
 
-from football_analysis.open_players import build_frames
+from football_analysis.open_players import build_frames, build_match_context_frame
 
 
 def _write(frame, path):
@@ -43,3 +43,21 @@ def test_open_player_snapshot_and_five_season_aggregation(tmp_path):
     assert stats.goals.sum() == 3
     assert stats.assists.sum() == 2
     assert stats.minutes_played.sum() == 170
+
+
+def test_match_context_normalizes_real_formation_and_coach_data(tmp_path):
+    games = _write(pd.DataFrame([{
+        "game_id": 42, "competition_id": "GB1", "season": 2025,
+        "date": "2026-04-11", "home_club_name": "Arsenal FC",
+        "away_club_name": "Liverpool FC", "home_club_manager_name": "Mikel Arteta",
+        "away_club_manager_name": "Arne Slot", "home_club_formation": "4-3-3",
+        "away_club_formation": "4-2-3-1", "stadium": "Emirates Stadium",
+        "attendance": 60200, "referee": "Example Referee", "url": "https://example.test/game/42",
+    }]), tmp_path / "games-context.csv.gz")
+
+    context = build_match_context_frame(games)
+
+    assert context.loc[0, "match_id"] == "42"
+    assert context.loc[0, "home_formation"] == "4-3-3"
+    assert context.loc[0, "away_coach"] == "Arne Slot"
+    assert context.loc[0, "attendance"] == 60200

@@ -12,6 +12,7 @@ export const queryKeys = {
   eventDetails: (filters: Record<string, unknown>) =>
     ['event-details', filters] as const,
   eventDetail: (id: string) => ['event-detail', id] as const,
+  matchDetail: (match: Record<string, unknown>) => ['match-detail', match] as const,
   analysis: (filters: Record<string, unknown>) =>
     ['analysis', filters] as const,
   tournament: (competition: string, season: number) =>
@@ -27,4 +28,5 @@ export const queryKeys = {
     ['overview', opts || {}] as const,
   transfers: (opts?: Record<string, unknown>) =>
     ['transfers', opts || {}] as const,
+  refreshStatus: ['refresh-status'] as const,
 } as const;

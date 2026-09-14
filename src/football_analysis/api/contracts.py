@@ -88,6 +88,16 @@ class Match(BaseModel):
     away_shots: int | None = None
     home_shots_on_target: int | None = None
     away_shots_on_target: int | None = None
+    half_time_home_goals: int | None = None
+    half_time_away_goals: int | None = None
+    home_corners: int | None = None
+    away_corners: int | None = None
+    home_fouls: int | None = None
+    away_fouls: int | None = None
+    home_yellows: int | None = None
+    away_yellows: int | None = None
+    home_reds: int | None = None
+    away_reds: int | None = None
     source: str | None = None
 
 
@@ -183,6 +193,25 @@ class EventDetailResponse(BaseModel):
     statistics: list[EventStatistic] = Field(default_factory=list)
     timeline: list[EventTimelineItem] = Field(default_factory=list)
     lineups: list[EventLineupItem] = Field(default_factory=list)
+    source: SourceMeta
+
+
+class MatchCentreDetailResponse(BaseModel):
+    match: Match
+    event_id: str | None = None
+    status: str | None = None
+    home_coach: str | None = None
+    away_coach: str | None = None
+    home_formation: str | None = None
+    away_formation: str | None = None
+    stadium: str | None = None
+    attendance: int | None = None
+    statistics: list[EventStatistic] = Field(default_factory=list)
+    timeline: list[EventTimelineItem] = Field(default_factory=list)
+    lineups: list[EventLineupItem] = Field(default_factory=list)
+    narrative: list[str] = Field(default_factory=list)
+    lineup_complete: bool = False
+    coverage_notes: list[str] = Field(default_factory=list)
     source: SourceMeta
 
 
@@ -515,3 +544,23 @@ class TransferListResponse(BaseModel):
     total_count: int
     page: PageMeta
     source: SourceMeta
+
+
+class RefreshRequest(BaseModel):
+    target_step: int = Field(default=4, ge=1, le=4)
+    season: int | None = None
+    competitions: list[str] = Field(default_factory=list)
+    force_download: bool = False
+
+
+class RefreshStatusResponse(BaseModel):
+    job_id: str | None = None
+    status: Literal["idle", "running", "success", "failed"] = "idle"
+    current_step: int = 0
+    target_step: int = 4
+    completed_steps: list[int] = Field(default_factory=list)
+    step_name: str = "Ready"
+    message: str = "Choose a refresh depth to begin."
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    error: str | None = None

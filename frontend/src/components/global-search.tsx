@@ -7,6 +7,7 @@ import { Search } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api/client';
 import { queryKeys } from '@/lib/api/query-keys';
+import { fuzzySort } from '@/lib/fuzzy';
 
 export function GlobalSearch({ onNavigate }: { onNavigate?: () => void }) {
   const [query, setQuery] = useState('');
@@ -26,10 +27,8 @@ export function GlobalSearch({ onNavigate }: { onNavigate?: () => void }) {
 
   const results = useMemo(() => {
     if (debounced.length < 2) return [];
-    const needle = debounced.toLocaleLowerCase();
     const clubMap = new Map((teams?.teams || []).map((team) => [team.team_id, team]));
-    const competitions = (catalog?.competitions || [])
-      .filter((competition) => competition.name.toLocaleLowerCase().includes(needle))
+    const competitions = fuzzySort(debounced, catalog?.competitions || [], (competition) => `${competition.name} ${competition.code}`)
       .slice(0, 3)
       .map((competition) => ({
         key: `competition-${competition.code}`,
@@ -39,8 +38,7 @@ export function GlobalSearch({ onNavigate }: { onNavigate?: () => void }) {
           ? `/tournaments?competition=${competition.code}&season=${competition.seasons.at(-1)?.season || ''}`
           : `/tables?competition=${competition.code}&season=${competition.seasons.at(-1)?.season || ''}`,
       }));
-    const clubs = Array.from(clubMap.values())
-      .filter((team) => team.name.toLocaleLowerCase().includes(needle))
+    const clubs = fuzzySort(debounced, Array.from(clubMap.values()), (team) => team.name)
       .slice(0, 5)
       .map((team) => ({
         key: `club-${team.team_id}`,

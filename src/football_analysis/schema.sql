@@ -117,6 +117,13 @@ CREATE TABLE IF NOT EXISTS event_lineups (
  is_home BOOLEAN, is_substitute BOOLEAN, shirt_number VARCHAR, cutout_url VARCHAR,
  fetched_at TIMESTAMP NOT NULL, PRIMARY KEY(source, lineup_id)
 );
+CREATE TABLE IF NOT EXISTS match_contexts (
+ source VARCHAR NOT NULL, match_id VARCHAR NOT NULL, competition_id VARCHAR,
+ season INTEGER, match_date DATE NOT NULL, home_team VARCHAR NOT NULL, away_team VARCHAR NOT NULL,
+ home_coach VARCHAR, away_coach VARCHAR, home_formation VARCHAR, away_formation VARCHAR,
+ stadium VARCHAR, attendance INTEGER, referee VARCHAR, source_url VARCHAR,
+ fetched_at TIMESTAMP NOT NULL, PRIMARY KEY(source, match_id)
+);
 CREATE TABLE IF NOT EXISTS prediction_models (
  model_id VARCHAR PRIMARY KEY, model_name VARCHAR NOT NULL, trained_at TIMESTAMP NOT NULL,
  validation_cutoff DATE NOT NULL, train_matches INTEGER NOT NULL, validation_matches INTEGER NOT NULL,

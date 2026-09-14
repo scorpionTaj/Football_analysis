@@ -136,21 +136,56 @@ def build_frames(paths, first_season=2021, last_season=None):
     return profiles, stats, latest_match, last_season
 
 
+def build_match_context_frame(games_path):
+    """Normalize the published real-match manager, formation and venue context."""
+    now = datetime.now()
+    path = _sql_path(games_path)
+    with duckdb.connect() as con:
+        return con.execute(
+            f"""
+            SELECT '{SOURCE}' AS source, game_id::VARCHAR AS match_id,
+                   coalesce(competition_id, '')::VARCHAR AS competition_id,
+                   try_cast(season AS INTEGER) AS season, try_cast(date AS DATE) AS match_date,
+                   coalesce(home_club_name, '') AS home_team,
+                   coalesce(away_club_name, '') AS away_team,
+                   coalesce(home_club_manager_name, '') AS home_coach,
+                   coalesce(away_club_manager_name, '') AS away_coach,
+                   coalesce(home_club_formation, '') AS home_formation,
+                   coalesce(away_club_formation, '') AS away_formation,
+                   coalesce(stadium, '') AS stadium,
+                   try_cast(attendance AS INTEGER) AS attendance,
+                   coalesce(referee, '') AS referee,
+                   coalesce(url, '') AS source_url,
+                   ?::TIMESTAMP AS fetched_at
+            FROM read_csv_auto('{path}', all_varchar=true)
+            WHERE try_cast(date AS DATE) IS NOT NULL
+              AND coalesce(home_club_name, '') <> ''
+              AND coalesce(away_club_name, '') <> ''
+            ORDER BY match_date DESC, match_id
+            """,
+            [now],
+        ).df()
+
+
 def sync_open_players(db=DB, directory=None, refresh=False, first_season=2021):
     directory = Path(directory or DATA / "external" / "transfermarkt")
     paths = download_snapshot(directory, refresh=refresh)
     profiles, stats, data_as_of, snapshot_season = build_frames(
         paths, first_season=first_season,
     )
+    contexts = build_match_context_frame(paths["games"])
     with connect(db) as con:
         con.register("incoming_open_players", profiles)
         con.register("incoming_open_stats", stats)
+        con.register("incoming_match_contexts", contexts)
         con.execute("BEGIN")
         try:
             con.execute("DELETE FROM open_player_stats WHERE source=?", [SOURCE])
             con.execute("DELETE FROM open_players WHERE source=?", [SOURCE])
             con.execute("INSERT INTO open_players SELECT * FROM incoming_open_players")
             con.execute("INSERT INTO open_player_stats SELECT * FROM incoming_open_stats")
+            con.execute("DELETE FROM match_contexts WHERE source=?", [SOURCE])
+            con.execute("INSERT INTO match_contexts SELECT * FROM incoming_match_contexts")
             con.execute("DELETE FROM external_source_metadata WHERE source=?", [SOURCE])
             con.execute(
                 "INSERT INTO external_source_metadata VALUES (?, ?, 'CC0-1.0', ?, ?, ?, ?, current_timestamp)",
@@ -163,10 +198,12 @@ def sync_open_players(db=DB, directory=None, refresh=False, first_season=2021):
         finally:
             con.unregister("incoming_open_players")
             con.unregister("incoming_open_stats")
+            con.unregister("incoming_match_contexts")
     report = {
         "source": SOURCE, "players": len(profiles), "stat_rows": len(stats),
         "clubs": profiles.team.nunique(), "first_season": first_season,
         "last_season": snapshot_season, "data_as_of": str(data_as_of),
+        "match_contexts": len(contexts),
     }
     print(report, flush=True)
     return report

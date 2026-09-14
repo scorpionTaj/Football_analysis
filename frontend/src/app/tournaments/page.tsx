@@ -11,6 +11,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { usePagination } from '@/components/ui/pagination';
 import { Trophy, Users, Goal, Calendar, Download, Search } from 'lucide-react';
 import { FootballBadge, CompetitionBadge, PlayerAvatar } from '@/lib/media-utils';
+import { fuzzyMatch } from '@/lib/fuzzy';
 import { Card } from '@heroui/react';
 import {
   BarChart,
@@ -90,12 +91,7 @@ function TournamentsContent() {
         return false;
       }
       if (matchSearch) {
-        const query = matchSearch.toLowerCase();
-        const homeName = m.home?.name?.toLowerCase() || '';
-        const awayName = m.away?.name?.toLowerCase() || '';
-        const stageName = m.stage?.toLowerCase() || '';
-        const venueName = m.venue?.toLowerCase() || '';
-        if (!homeName.includes(query) && !awayName.includes(query) && !stageName.includes(query) && !venueName.includes(query)) {
+        if (!fuzzyMatch(matchSearch, [m.home?.name, m.away?.name, m.stage, m.venue])) {
           return false;
         }
       }

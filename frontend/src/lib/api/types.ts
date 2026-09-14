@@ -68,6 +68,16 @@ export interface Match {
   away_shots: number | null;
   home_shots_on_target: number | null;
   away_shots_on_target: number | null;
+  half_time_home_goals: number | null;
+  half_time_away_goals: number | null;
+  home_corners: number | null;
+  away_corners: number | null;
+  home_fouls: number | null;
+  away_fouls: number | null;
+  home_yellows: number | null;
+  away_yellows: number | null;
+  home_reds: number | null;
+  away_reds: number | null;
   source: string | null;
 }
 
@@ -164,6 +174,45 @@ export interface EventDetailResponse {
   timeline: EventTimelineItem[];
   lineups: EventLineupItem[];
   source: SourceMeta;
+}
+
+export interface MatchCentreDetailResponse {
+  match: Match;
+  event_id: string | null;
+  status: string | null;
+  home_coach: string | null;
+  away_coach: string | null;
+  home_formation: string | null;
+  away_formation: string | null;
+  stadium: string | null;
+  attendance: number | null;
+  statistics: EventStatistic[];
+  timeline: EventTimelineItem[];
+  lineups: EventLineupItem[];
+  narrative: string[];
+  lineup_complete: boolean;
+  coverage_notes: string[];
+  source: SourceMeta;
+}
+
+export interface RefreshRequest {
+  target_step: number;
+  season?: number;
+  competitions: string[];
+  force_download: boolean;
+}
+
+export interface RefreshStatusResponse {
+  job_id: string | null;
+  status: 'idle' | 'running' | 'success' | 'failed';
+  current_step: number;
+  target_step: number;
+  completed_steps: number[];
+  step_name: string;
+  message: string;
+  started_at: string | null;
+  finished_at: string | null;
+  error: string | null;
 }
 
 export interface AnalysisFilters {

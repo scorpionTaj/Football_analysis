@@ -46,11 +46,14 @@ import type {
   EventListResponse,
   HealthResponse,
   MatchListResponse,
+  MatchCentreDetailResponse,
   OverviewResponse,
   PlayerListResponse,
   PlayerProfileResponse,
   PredictionsResponse,
   QualityResponse,
+  RefreshRequest,
+  RefreshStatusResponse,
   ShotAnalysisResponse,
   StandingsResponse,
   TeamListResponse,
@@ -83,6 +86,14 @@ export const api = {
 
   eventDetail: (eventId: string) =>
     request<EventDetailResponse>(`/api/v1/event-details/${encodeURIComponent(eventId)}`),
+
+  matchDetail: (match: {
+    competition: string;
+    season: number;
+    match_date: string;
+    home: string;
+    away: string;
+  }) => request<MatchCentreDetailResponse>(`/api/v1/match-detail${params(match)}`),
 
   analysis: (body: Partial<AnalysisFilters>) =>
     request<AnalysisReportResponse>('/api/v1/analysis', {
@@ -123,4 +134,11 @@ export const api = {
     cursor?: string;
     limit?: number;
   }) => request<TransferListResponse>(`/api/v1/transfers${params(opts || {})}`),
+
+  refreshStatus: () => request<RefreshStatusResponse>('/api/v1/refresh'),
+
+  startRefresh: (body: RefreshRequest) => request<RefreshStatusResponse>('/api/v1/refresh', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  }),
 };

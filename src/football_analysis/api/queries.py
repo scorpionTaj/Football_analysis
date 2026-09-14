@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
+import unicodedata
 from datetime import date, datetime
+from difflib import SequenceMatcher
 
 import numpy as np
 import pandas as pd
@@ -35,6 +38,7 @@ from football_analysis.api.contracts import (
     HealthResponse,
     LeagueTitleOutlook,
     Match,
+    MatchCentreDetailResponse,
     MatchFactorSummary,
     MatchListResponse,
     OverviewResponse,
@@ -114,6 +118,25 @@ def _mean(series: pd.Series) -> float | None:
     if numeric.dropna().empty:
         return None
     return float(numeric.mean())
+
+
+def _search_text(value) -> str:
+    text = unicodedata.normalize("NFKD", str(value or "")).encode("ascii", "ignore").decode()
+    return " ".join(re.findall(r"[a-z0-9]+", text.casefold()))
+
+
+def _fuzzy_score(query: str, value) -> float:
+    """Small dependency-free typo score used by API-backed search fields."""
+    needle, candidate = _search_text(query), _search_text(value)
+    if not needle or not candidate:
+        return 0.0
+    if needle == candidate:
+        return 1.0
+    if needle in candidate:
+        return 0.92 - min(candidate.index(needle), 20) / 200
+    words = candidate.split()
+    word_score = max((SequenceMatcher(None, needle, word).ratio() for word in words), default=0.0)
+    return max(word_score, SequenceMatcher(None, needle, candidate).ratio())
 
 
 def _has(store: ReadOnlyStore, name: str) -> bool:
@@ -374,6 +397,16 @@ def _match_from_row(row, competition_field="league", media_map: dict[str, Any] |
         away_shots=None if pd.isna(getattr(row, "away_shots", None)) else int(row.away_shots),
         home_shots_on_target=None if pd.isna(getattr(row, "home_sot", None)) else int(row.home_sot),
         away_shots_on_target=None if pd.isna(getattr(row, "away_sot", None)) else int(row.away_sot),
+        half_time_home_goals=None if pd.isna(getattr(row, "half_time_home_goals", None)) else int(row.half_time_home_goals),
+        half_time_away_goals=None if pd.isna(getattr(row, "half_time_away_goals", None)) else int(row.half_time_away_goals),
+        home_corners=None if pd.isna(getattr(row, "home_corners", None)) else int(row.home_corners),
+        away_corners=None if pd.isna(getattr(row, "away_corners", None)) else int(row.away_corners),
+        home_fouls=None if pd.isna(getattr(row, "home_fouls", None)) else int(row.home_fouls),
+        away_fouls=None if pd.isna(getattr(row, "away_fouls", None)) else int(row.away_fouls),
+        home_yellows=None if pd.isna(getattr(row, "home_yellows", None)) else int(row.home_yellows),
+        away_yellows=None if pd.isna(getattr(row, "away_yellows", None)) else int(row.away_yellows),
+        home_reds=None if pd.isna(getattr(row, "home_reds", None)) else int(row.home_reds),
+        away_reds=None if pd.isna(getattr(row, "away_reds", None)) else int(row.away_reds),
         source=getattr(row, "source", None),
     )
 
@@ -393,6 +426,8 @@ def list_matches(
         frames.append(store.query(
             "SELECT league AS competition, season, match_date, home_team, away_team, "
             "home_goals, away_goals, home_shots, away_shots, home_sot, away_sot, "
+            "half_time_home_goals, half_time_away_goals, home_corners, away_corners, "
+            "home_fouls, away_fouls, home_yellows, away_yellows, home_reds, away_reds, "
             "referee, CAST(NULL AS VARCHAR) AS stage, "
             "CAST(NULL AS VARCHAR) AS venue, 'football-data.co.uk' AS source FROM matches"
         ))
@@ -400,6 +435,8 @@ def list_matches(
         frames.append(store.query(
             "SELECT league AS competition, season, match_date, home_team, away_team, "
             "home_goals, away_goals, home_shots, away_shots, home_sot, away_sot, "
+            "half_time_home_goals, half_time_away_goals, home_corners, away_corners, "
+            "home_fouls, away_fouls, home_yellows, away_yellows, home_reds, away_reds, "
             "referee, CAST(NULL AS VARCHAR) AS stage, "
             "CAST(NULL AS VARCHAR) AS venue, source FROM recent_matches"
         ))
@@ -408,7 +445,12 @@ def list_matches(
             "SELECT competition, season, match_date, home_team, away_team, "
             "home_goals, away_goals, CAST(NULL AS INTEGER) AS home_shots, "
             "CAST(NULL AS INTEGER) AS away_shots, CAST(NULL AS INTEGER) AS home_sot, "
-            "CAST(NULL AS INTEGER) AS away_sot, CAST(NULL AS VARCHAR) AS referee, stage, venue, source "
+            "CAST(NULL AS INTEGER) AS away_sot, CAST(NULL AS INTEGER) AS half_time_home_goals, "
+            "CAST(NULL AS INTEGER) AS half_time_away_goals, CAST(NULL AS INTEGER) AS home_corners, "
+            "CAST(NULL AS INTEGER) AS away_corners, CAST(NULL AS INTEGER) AS home_fouls, "
+            "CAST(NULL AS INTEGER) AS away_fouls, CAST(NULL AS INTEGER) AS home_yellows, "
+            "CAST(NULL AS INTEGER) AS away_yellows, CAST(NULL AS INTEGER) AS home_reds, "
+            "CAST(NULL AS INTEGER) AS away_reds, CAST(NULL AS VARCHAR) AS referee, stage, venue, source "
             "FROM tournament_matches"
         ))
     if not frames:
@@ -646,6 +688,191 @@ def event_detail(store: ReadOnlyStore, event_id: str) -> EventDetailResponse | N
             cutout_url=None if pd.isna(row.cutout_url) else row.cutout_url,
         ) for row in lineups.itertuples(index=False)],
         source=_source("TheSportsDB", "free endpoint samples; collections capped at five"),
+    )
+
+
+def _present(value) -> str | None:
+    if value is None or pd.isna(value):
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _match_narrative(
+    match: Match,
+    statistics: list[EventStatistic],
+    timeline: list[EventTimelineItem],
+    home_formation: str | None,
+    away_formation: str | None,
+) -> list[str]:
+    """Build a factual overview from stored values without inventing match events."""
+    story: list[str] = []
+    if match.home_goals is not None and match.away_goals is not None:
+        if match.home_goals == match.away_goals:
+            story.append(f"{match.home.name} and {match.away.name} finished level at {match.home_goals}–{match.away_goals}.")
+        else:
+            winner = match.home.name if match.home_goals > match.away_goals else match.away.name
+            story.append(f"{winner} won {match.home_goals}–{match.away_goals}.")
+    if match.half_time_home_goals is not None and match.half_time_away_goals is not None:
+        story.append(
+            f"The half-time score was {match.half_time_home_goals}–{match.half_time_away_goals}; "
+            f"the second half added {(match.home_goals or 0) + (match.away_goals or 0) - match.half_time_home_goals - match.half_time_away_goals} goals."
+        )
+    shot = next((item for item in statistics if "shot" in item.statistic.casefold() and "target" not in item.statistic.casefold()), None)
+    if shot and shot.home_value is not None and shot.away_value is not None:
+        leader = match.home.name if shot.home_value > shot.away_value else match.away.name if shot.away_value > shot.home_value else None
+        story.append(
+            f"{leader + ' led' if leader else 'The teams were level'} in total attempts, "
+            f"{shot.home_value:g} to {shot.away_value:g}."
+        )
+    goals = [item for item in timeline if "goal" in (item.event_type or "").casefold()]
+    if goals:
+        scorers = ", ".join(
+            f"{item.player or item.team.name} {item.minute + '′' if item.minute else ''}".strip()
+            for item in goals[:4]
+        )
+        story.append(f"Recorded scoring events: {scorers}.")
+    if home_formation or away_formation:
+        story.append(
+            f"Published shapes: {match.home.name} {home_formation or 'not supplied'}; "
+            f"{match.away.name} {away_formation or 'not supplied'}."
+        )
+    return story
+
+
+def match_centre_detail(
+    store: ReadOnlyStore,
+    competition: str,
+    season: int,
+    match_date: str,
+    home: str,
+    away: str,
+) -> MatchCentreDetailResponse | None:
+    """Return the richest verified detail available for any match shown in the app."""
+    try:
+        wanted_date = pd.Timestamp(match_date).date()
+    except (TypeError, ValueError):
+        return None
+    listing = list_matches(store, competition, season, home, None, None, 200)
+    wanted_home, wanted_away = team_key(home), team_key(away)
+    match = next((
+        item for item in listing.matches
+        if item.match_date == wanted_date
+        and team_key(item.home.name) == wanted_home
+        and team_key(item.away.name) == wanted_away
+    ), None)
+    if match is None:
+        return None
+
+    context = None
+    if _has(store, "match_contexts"):
+        candidates = store.query(
+            "SELECT * FROM match_contexts WHERE match_date = ? ORDER BY fetched_at DESC",
+            [wanted_date],
+        )
+        for row in candidates.itertuples(index=False):
+            if team_key(row.home_team) == wanted_home and team_key(row.away_team) == wanted_away:
+                context = row
+                break
+
+    event_row = None
+    if _has(store, "recent_events"):
+        candidates = store.query(
+            "SELECT * FROM recent_events WHERE league = ? AND season = ? AND match_date = ? ORDER BY fetched_at DESC",
+            [competition, season, wanted_date],
+        )
+        for row in candidates.itertuples(index=False):
+            if team_key(row.home_team) == wanted_home and team_key(row.away_team) == wanted_away:
+                event_row = row
+                break
+
+    event_id = str(event_row.event_id) if event_row is not None else None
+    provider_detail = event_detail(store, event_id) if event_id else None
+    statistics = list(provider_detail.statistics) if provider_detail else []
+    known_stats = {item.statistic.casefold() for item in statistics}
+    stored_statistics = (
+        ("Shots", match.home_shots, match.away_shots),
+        ("Shots on target", match.home_shots_on_target, match.away_shots_on_target),
+        ("Corners", match.home_corners, match.away_corners),
+        ("Fouls", match.home_fouls, match.away_fouls),
+        ("Yellow cards", match.home_yellows, match.away_yellows),
+        ("Red cards", match.home_reds, match.away_reds),
+        ("Half-time goals", match.half_time_home_goals, match.half_time_away_goals),
+    )
+    for label, home_value, away_value in stored_statistics:
+        if (home_value is not None or away_value is not None) and label.casefold() not in known_stats:
+            statistics.append(EventStatistic(
+                statistic=label,
+                home_value=None if home_value is None else float(home_value),
+                away_value=None if away_value is None else float(away_value),
+            ))
+
+    timeline = list(provider_detail.timeline) if provider_detail else []
+    if not timeline and competition in TOURNAMENTS and _has(store, "tournament_goals"):
+        goals = store.query(
+            "SELECT * FROM tournament_goals WHERE competition = ? AND season = ? AND match_date = ?",
+            [competition, season, wanted_date],
+        )
+        media = _team_media_map(store)
+        goal_rows = []
+        for row in goals.itertuples(index=False):
+            if team_key(row.team) not in {wanted_home, wanted_away}:
+                continue
+            detail = "Penalty" if bool(row.penalty) else "Own goal" if bool(row.own_goal) else "Open play"
+            goal_rows.append(EventTimelineItem(
+                minute=_present(row.minute), event_type="Goal", detail=detail,
+                team=_build_team_ref(row.team, media), player=_present(row.player),
+                is_home=team_key(row.team) == wanted_home,
+            ))
+        timeline = sorted(goal_rows, key=lambda item: int("".join(filter(str.isdigit, item.minute or "999")) or 999))
+
+    lineups = list(provider_detail.lineups) if provider_detail else []
+    home_starters = sum(item.is_home is True and item.is_substitute is not True for item in lineups)
+    away_starters = sum(item.is_home is False and item.is_substitute is not True for item in lineups)
+    lineup_complete = home_starters >= 11 and away_starters >= 11
+    home_coach = _present(getattr(context, "home_coach", None))
+    away_coach = _present(getattr(context, "away_coach", None))
+    home_formation = _present(getattr(context, "home_formation", None))
+    away_formation = _present(getattr(context, "away_formation", None))
+    stadium = match.venue or _present(getattr(context, "stadium", None))
+    attendance_value = getattr(context, "attendance", None)
+    attendance = None if attendance_value is None or pd.isna(attendance_value) else int(attendance_value)
+    referee = match.referee or _present(getattr(context, "referee", None))
+    if referee != match.referee or stadium != match.venue:
+        match = match.model_copy(update={"referee": referee, "venue": stadium})
+
+    coverage_notes = []
+    if not lineups:
+        coverage_notes.append("No verified lineup was supplied for this match.")
+    elif not lineup_complete:
+        coverage_notes.append(f"The provider supplied {len(lineups)} lineup rows; the pitch shows only those verified players.")
+    if not home_formation or not away_formation:
+        coverage_notes.append("At least one published formation is unavailable.")
+    if not timeline:
+        coverage_notes.append("No event timeline was supplied.")
+
+    source_names = [match.source or "match store"]
+    if context is not None:
+        source_names.append("Transfermarkt Open Dataset")
+    if provider_detail:
+        source_names.append("TheSportsDB")
+    return MatchCentreDetailResponse(
+        match=match,
+        event_id=event_id,
+        status=_present(getattr(event_row, "status", None)),
+        home_coach=home_coach,
+        away_coach=away_coach,
+        home_formation=home_formation,
+        away_formation=away_formation,
+        stadium=stadium,
+        attendance=attendance,
+        statistics=statistics,
+        timeline=timeline,
+        lineups=lineups,
+        narrative=_match_narrative(match, statistics, timeline, home_formation, away_formation),
+        lineup_complete=lineup_complete,
+        coverage_notes=coverage_notes,
+        source=_source(" + ".join(dict.fromkeys(source_names)), "verified fields available for this match"),
     )
 
 
@@ -980,12 +1207,13 @@ def list_players(
     if position:
         frame = frame[frame.position == position]
     if query:
-        needle = query.casefold()
         search_columns = ("player", "team", "position", "nationality")
-        search_mask = pd.Series(False, index=frame.index)
-        for column in search_columns:
-            search_mask |= frame[column].fillna("").str.casefold().str.contains(needle, regex=False)
-        frame = frame[search_mask]
+        frame = frame.copy()
+        frame["_search_score"] = frame.apply(
+            lambda row: max(_fuzzy_score(query, row[column]) for column in search_columns),
+            axis=1,
+        )
+        frame = frame[frame._search_score >= 0.58]
     if sort_by == "market_value":
         frame = frame[frame.market_value_eur.notna()].sort_values(
             ["market_value_eur", "player"], ascending=[False, True]
