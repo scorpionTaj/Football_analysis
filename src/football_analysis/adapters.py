@@ -43,7 +43,11 @@ def normalize(raw, league, year, url, require_complete=True):
         df[col] = df[col].str.strip()
         if df[col].eq("").any():
             raise ValueError("Empty team name")
-    for col in ["FTHG", "FTAG", "HS", "AS", "HST", "AST"]:
+    optional_integers = [
+        "HTHG", "HTAG", "HS", "AS", "HST", "AST", "HC", "AC",
+        "HF", "AF", "HY", "AY", "HR", "AR",
+    ]
+    for col in ["FTHG", "FTAG", *optional_integers]:
         if col not in df:
             df[col] = float("nan")
         values = pd.to_numeric(df[col], errors="raise")
@@ -67,10 +71,27 @@ def normalize(raw, league, year, url, require_complete=True):
         raise ValueError(f"Incomplete/invalid season: {len(df)} results, expected {n*(n-1)}; {len(teams)} teams, expected {n}")
     if len(pairs) != len(df) or any(a == b for a, b in pairs):
         raise ValueError("Duplicate or self-referencing fixtures in source")
-    df = df.rename(columns={"HomeTeam":"home_team", "AwayTeam":"away_team", "FTHG":"home_goals", "FTAG":"away_goals", "HS":"home_shots", "AS":"away_shots", "HST":"home_sot", "AST":"away_sot"})
+    if "Referee" not in df:
+        df["Referee"] = ""
+    df["Referee"] = df.Referee.fillna("").astype(str).str.strip()
+    df = df.rename(columns={
+        "HomeTeam": "home_team", "AwayTeam": "away_team",
+        "FTHG": "home_goals", "FTAG": "away_goals",
+        "HTHG": "half_time_home_goals", "HTAG": "half_time_away_goals",
+        "HS": "home_shots", "AS": "away_shots", "HST": "home_sot", "AST": "away_sot",
+        "HC": "home_corners", "AC": "away_corners", "HF": "home_fouls", "AF": "away_fouls",
+        "HY": "home_yellows", "AY": "away_yellows", "HR": "home_reds", "AR": "away_reds",
+        "Referee": "referee",
+    })
     df["league"] = league
     df["season"] = year
-    cols = ["league", "season", "match_date", "home_team", "away_team", "home_goals", "away_goals", "home_shots", "away_shots", "home_sot", "away_sot"]
+    cols = [
+        "league", "season", "match_date", "home_team", "away_team",
+        "home_goals", "away_goals", "home_shots", "away_shots", "home_sot", "away_sot",
+        "half_time_home_goals", "half_time_away_goals", "home_corners", "away_corners",
+        "home_fouls", "away_fouls", "home_yellows", "away_yellows", "home_reds", "away_reds",
+        "referee",
+    ]
     return Batch(df[cols], url, sha256(raw).hexdigest())
 
 class FootballDataCSV:

@@ -4,13 +4,23 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "football_analysis"
-version = "0.8.0"
+version = "0.9.0"
 description = "Free-source European football analytics"
 requires-python = ">=3.11"
-dependencies = ["duckdb>=1.2,<2", "pandas>=2.2,<3", "plotly>=6,<7", "streamlit>=1.45,<2", "requests>=2.32,<3"]
+dependencies = [
+    "duckdb>=1.2,<2",
+    "numpy>=2,<3",
+    "pandas>=2.2,<3",
+    "plotly>=6,<7",
+    "streamlit>=1.45,<2",
+    "requests>=2.32,<3",
+    "fastapi>=0.115,<1",
+    "uvicorn[standard]>=0.32,<1",
+    "pydantic>=2.9,<3",
+]
 
 [project.optional-dependencies]
-dev = ["pytest>=8,<10"]
+dev = ["pytest>=8,<10", "httpx>=0.27,<1"]
 
 [project.scripts]
 football-ingest = "football_analysis.ingest:main"
@@ -21,6 +31,9 @@ football-sync-players = "football_analysis.players:main"
 football-sync-open-players = "football_analysis.open_players:main"
 football-sync-media = "football_analysis.media:main"
 football-sync-tournaments = "football_analysis.tournaments:main"
+football-sync-event-details = "football_analysis.event_details:main"
+football-train-predictions = "football_analysis.predictions:main"
+football-api = "football_analysis.api.app:main"
 
 [tool.setuptools.package-data]
 football_analysis = ["schema.sql"]

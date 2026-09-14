@@ -32,11 +32,14 @@ def test_world_cup_parser_preserves_neutral_stage_and_penalties():
         "round": "Round of 16", "date": "2026-07-01",
         "team1": "Morocco", "team2": "Spain", "ground": "Atlanta",
         "score": {"ft": [1, 1], "et": [2, 2], "p": [5, 4]},
+        "goals1": [{"name": "Player One", "minute": "90+2", "penalty": True}],
     }]}).encode()
     frame = parse_world_cup(raw, 2026).frame
     assert frame.loc[0, "neutral"]
     assert frame.loc[0, "home_goals"] == 2
     assert frame.loc[0, "home_penalties"] == 5
+    assert len(parse_world_cup(raw, 2026).goals) == 1
+    assert parse_world_cup(raw, 2026).goals.loc[0, "penalty"]
 
 
 def test_sync_replaces_only_requested_partition(tmp_path):

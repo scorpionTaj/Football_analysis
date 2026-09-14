@@ -76,7 +76,16 @@ def sync_recent(db=DB, year=None, leagues=None, refresh=True, event_adapter=None
                 con.execute("BEGIN")
                 try:
                     con.execute("DELETE FROM recent_matches WHERE league=? AND season=?", [league, year])
-                    con.execute("INSERT INTO recent_matches SELECT * FROM incoming_recent")
+                    con.execute(
+                        """INSERT INTO recent_matches (
+                            league, season, match_date, home_team, away_team,
+                            home_goals, away_goals, home_shots, away_shots, home_sot, away_sot,
+                            half_time_home_goals, half_time_away_goals,
+                            home_corners, away_corners, home_fouls, away_fouls,
+                            home_yellows, away_yellows, home_reds, away_reds, referee,
+                            source, fetched_at
+                        ) SELECT * FROM incoming_recent"""
+                    )
                     con.execute("COMMIT")
                 except Exception:
                     con.execute("ROLLBACK")
@@ -96,6 +105,12 @@ def sync_recent(db=DB, year=None, leagues=None, refresh=True, event_adapter=None
                         con.register("incoming_events", frame)
                         con.execute("BEGIN")
                         try:
+                            event_ids = frame.event_id.astype(str).tolist()
+                            if event_ids:
+                                con.execute(
+                                    f"DELETE FROM recent_events WHERE event_id IN ({','.join('?' for _ in event_ids)})",
+                                    event_ids,
+                                )
                             con.execute(
                                 "DELETE FROM recent_events WHERE league=? AND event_kind=?",
                                 [league, event_kind],

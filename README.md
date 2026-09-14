@@ -10,10 +10,12 @@ uv sync --extra dev
 uv run football-ingest
 uv run football-sync-standings
 uv run football-sync-recent
+uv run football-sync-event-details
 uv run football-sync-players
 uv run football-sync-open-players
 uv run football-sync-media
 uv run football-sync-tournaments
+uv run football-train-predictions
 uv run streamlit run app.py --server.address 127.0.0.1
 ```
 
@@ -27,9 +29,11 @@ All 182 clubs currently present across the Premier League, La Liga, Bundesliga, 
 
 The analytical range is 2021/22–2025/26 plus the live 2026/27 campaign. The July rollover selects five candidate completed seasons; each completed CSV must independently pass full double-round-robin coverage checks. Live rows are clearly labelled as partial and never presented as a completed season.
 
-Dashboard: one platform-wide search, three domestic analysis modes and nine focused pages: Overview, Champions & World Cup, Analysis lab, League tables, Club lab, Shot lab, Match explorer, Players and Data quality. The analysis lab slices domestic and tournament data by competition, edition, team and venue; ranks teams by seven metrics; builds a correlation matrix; and exports both the rankings and exact match slice.
+Dashboard: one platform-wide search, three domestic analysis modes and nine focused pages: Overview, Champions & World Cup, Analysis lab, League tables, Club lab, Shot lab, Match explorer, Players and Data quality. The Analysis lab slices domestic and tournament data by competition, edition, team and venue; ranks teams by seven metrics; builds a correlation matrix; analyzes first-half scoring, corners, fouls, cards and referee trends; and exports both the rankings and exact match slice.
 
-The tournament adapter loads five completed Champions League seasons (753 matches) and the 2018, 2022 and 2026 World Cups (232 matches) from OpenFootball's CC0 repositories without an API key. Champions League is the first tournament option and has stage, team, performance, scoring and match-result views.
+The predictive section trains a regularized three-outcome softmax model on pre-match Elo, rolling points, scoring, conceding and rest-day features. Its validation split is chronological: the latest 20% of match dates remain unseen during evaluation. The current model reaches 50.4% holdout accuracy versus a 42.9% majority-class baseline and improves log loss from 1.076 to 1.004. Ten next-listed fixtures are cached as home/draw/away probabilities. This structured dataset is too small to justify a deep neural network; the compact model is faster, more auditable and easier to serve from the future API.
+
+The tournament adapter loads five completed Champions League seasons (753 matches) and the 2018, 2022 and 2026 World Cups (232 matches) from OpenFootball's CC0 repositories without an API key. Champions League is the first tournament option and has stage, team, performance, scoring and match-result views. The World Cup view also uses 649 published goal events for scorer, penalty and own-goal analysis.
 
 The 2026/27 campaign is integrated into every match-driven page and adds the Eredivisie, Primeira Liga, Belgian Pro League, Turkish Süper Lig and Greek Super League to the core five leagues. Overview shows the selected club's two nearest completed matches and next listed fixture when available; League tables reconstruct live partial standings; Club lab, Shot lab and Match explorer use the same current rows. The player explorer contains 458 tracked 2025/26 player records for the 12 clubs and 4,633 competition-season rows covering appearances, goals, assists, minutes and cards in 41 competitions. These come from the CC0 Transfermarkt Open Dataset, whose update pause and cutoff are visible in the interface. TheSportsDB remains an image and nearby-event fallback. The Catppuccin Mocha interface respects reduced-motion preferences. The app does not claim current 2026/27 squad accuracy, xG or possession.
 
@@ -45,8 +49,12 @@ The 2026/27 campaign is integrated into every match-driven page and adds the Ere
 - `src/football_analysis/media.py`: cached club and competition artwork synchronization.
 - `src/football_analysis/tournaments.py`: no-key CC0 Champions League and World Cup adapter, parsers, cache and transactional synchronization.
 - `src/football_analysis/analysis_system.py`: reusable filtering, ranking, form and correlation interface for Streamlit and a future HTTP/Next.js frontend.
+- `src/football_analysis/event_details.py`: explicitly capped match statistics, timelines and lineup samples from the free TheSportsDB endpoints.
+- `src/football_analysis/predictions.py`: leakage-aware feature engineering, softmax training, chronological evaluation and fixture forecasts.
 - `app.py`: dashboard (read-only database access).
 - `docs/NEXTJS_READINESS.md`: migration boundary and suggested API contract.
+- `docs/NEXTJS_MIGRATION_PLAN.md`: phased FastAPI and Next.js cutover plan with validation gates.
+- `docs/SOURCE_CAPABILITY_AUDIT.md`: primary-source endpoint and dataset utilization audit.
 - `docs/SOURCES.md`: source research and constraints.
 - `docs/BACKLOG.md`: implementation tasks and next iterations.
 - `tests/`: data-quality, idempotency and dashboard tests.

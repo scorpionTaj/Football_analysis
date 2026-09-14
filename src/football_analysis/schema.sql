@@ -3,10 +3,25 @@ CREATE TABLE IF NOT EXISTS matches (
  home_team VARCHAR NOT NULL, away_team VARCHAR NOT NULL,
  home_goals INTEGER NOT NULL CHECK(home_goals >= 0), away_goals INTEGER NOT NULL CHECK(away_goals >= 0),
  home_shots INTEGER, away_shots INTEGER, home_sot INTEGER, away_sot INTEGER,
+ half_time_home_goals INTEGER, half_time_away_goals INTEGER,
+ home_corners INTEGER, away_corners INTEGER, home_fouls INTEGER, away_fouls INTEGER,
+ home_yellows INTEGER, away_yellows INTEGER, home_reds INTEGER, away_reds INTEGER,
+ referee VARCHAR,
  PRIMARY KEY(league, season, home_team, away_team), CHECK(home_team <> away_team),
  CHECK(home_sot IS NULL OR home_shots IS NULL OR home_sot <= home_shots),
  CHECK(away_sot IS NULL OR away_shots IS NULL OR away_sot <= away_shots)
 );
+ALTER TABLE matches ADD COLUMN IF NOT EXISTS half_time_home_goals INTEGER;
+ALTER TABLE matches ADD COLUMN IF NOT EXISTS half_time_away_goals INTEGER;
+ALTER TABLE matches ADD COLUMN IF NOT EXISTS home_corners INTEGER;
+ALTER TABLE matches ADD COLUMN IF NOT EXISTS away_corners INTEGER;
+ALTER TABLE matches ADD COLUMN IF NOT EXISTS home_fouls INTEGER;
+ALTER TABLE matches ADD COLUMN IF NOT EXISTS away_fouls INTEGER;
+ALTER TABLE matches ADD COLUMN IF NOT EXISTS home_yellows INTEGER;
+ALTER TABLE matches ADD COLUMN IF NOT EXISTS away_yellows INTEGER;
+ALTER TABLE matches ADD COLUMN IF NOT EXISTS home_reds INTEGER;
+ALTER TABLE matches ADD COLUMN IF NOT EXISTS away_reds INTEGER;
+ALTER TABLE matches ADD COLUMN IF NOT EXISTS referee VARCHAR;
 CREATE TABLE IF NOT EXISTS ingestion_runs (
  run_id VARCHAR PRIMARY KEY, league VARCHAR, season INTEGER, source_url VARCHAR,
  sha256 VARCHAR, row_count INTEGER, status VARCHAR, detail VARCHAR,
@@ -41,9 +56,24 @@ CREATE TABLE IF NOT EXISTS recent_matches (
  home_team VARCHAR NOT NULL, away_team VARCHAR NOT NULL,
  home_goals INTEGER NOT NULL, away_goals INTEGER NOT NULL,
  home_shots INTEGER, away_shots INTEGER, home_sot INTEGER, away_sot INTEGER,
+ half_time_home_goals INTEGER, half_time_away_goals INTEGER,
+ home_corners INTEGER, away_corners INTEGER, home_fouls INTEGER, away_fouls INTEGER,
+ home_yellows INTEGER, away_yellows INTEGER, home_reds INTEGER, away_reds INTEGER,
+ referee VARCHAR,
  source VARCHAR NOT NULL, fetched_at TIMESTAMP NOT NULL,
  PRIMARY KEY(league, season, home_team, away_team), CHECK(home_team <> away_team)
 );
+ALTER TABLE recent_matches ADD COLUMN IF NOT EXISTS half_time_home_goals INTEGER;
+ALTER TABLE recent_matches ADD COLUMN IF NOT EXISTS half_time_away_goals INTEGER;
+ALTER TABLE recent_matches ADD COLUMN IF NOT EXISTS home_corners INTEGER;
+ALTER TABLE recent_matches ADD COLUMN IF NOT EXISTS away_corners INTEGER;
+ALTER TABLE recent_matches ADD COLUMN IF NOT EXISTS home_fouls INTEGER;
+ALTER TABLE recent_matches ADD COLUMN IF NOT EXISTS away_fouls INTEGER;
+ALTER TABLE recent_matches ADD COLUMN IF NOT EXISTS home_yellows INTEGER;
+ALTER TABLE recent_matches ADD COLUMN IF NOT EXISTS away_yellows INTEGER;
+ALTER TABLE recent_matches ADD COLUMN IF NOT EXISTS home_reds INTEGER;
+ALTER TABLE recent_matches ADD COLUMN IF NOT EXISTS away_reds INTEGER;
+ALTER TABLE recent_matches ADD COLUMN IF NOT EXISTS referee VARCHAR;
 CREATE TABLE IF NOT EXISTS recent_events (
  event_id VARCHAR PRIMARY KEY, league VARCHAR NOT NULL, season INTEGER NOT NULL,
  match_date DATE NOT NULL, home_team VARCHAR NOT NULL, away_team VARCHAR NOT NULL,
@@ -62,6 +92,43 @@ CREATE TABLE IF NOT EXISTS tournament_matches (
  fetched_at TIMESTAMP NOT NULL,
  PRIMARY KEY(competition, season, match_date, home_team, away_team),
  CHECK(home_team <> away_team)
+);
+CREATE TABLE IF NOT EXISTS tournament_goals (
+ competition VARCHAR NOT NULL, season INTEGER NOT NULL, match_date DATE NOT NULL,
+ team VARCHAR NOT NULL, player VARCHAR NOT NULL, minute VARCHAR,
+ penalty BOOLEAN NOT NULL, own_goal BOOLEAN NOT NULL,
+ source VARCHAR NOT NULL, source_url VARCHAR NOT NULL, fetched_at TIMESTAMP NOT NULL,
+ PRIMARY KEY(competition, season, match_date, team, player, minute)
+);
+CREATE TABLE IF NOT EXISTS event_statistics (
+ source VARCHAR NOT NULL, event_id VARCHAR NOT NULL, statistic VARCHAR NOT NULL,
+ home_value DOUBLE, away_value DOUBLE, fetched_at TIMESTAMP NOT NULL,
+ PRIMARY KEY(source, event_id, statistic)
+);
+CREATE TABLE IF NOT EXISTS event_timeline (
+ source VARCHAR NOT NULL, timeline_id VARCHAR NOT NULL, event_id VARCHAR NOT NULL,
+ minute VARCHAR, event_type VARCHAR, detail VARCHAR, team VARCHAR, player_id VARCHAR,
+ player VARCHAR, assist VARCHAR, is_home BOOLEAN, comment VARCHAR, fetched_at TIMESTAMP NOT NULL,
+ PRIMARY KEY(source, timeline_id)
+);
+CREATE TABLE IF NOT EXISTS event_lineups (
+ source VARCHAR NOT NULL, lineup_id VARCHAR NOT NULL, event_id VARCHAR NOT NULL,
+ team VARCHAR, player_id VARCHAR, player VARCHAR, position VARCHAR,
+ is_home BOOLEAN, is_substitute BOOLEAN, shirt_number VARCHAR, cutout_url VARCHAR,
+ fetched_at TIMESTAMP NOT NULL, PRIMARY KEY(source, lineup_id)
+);
+CREATE TABLE IF NOT EXISTS prediction_models (
+ model_id VARCHAR PRIMARY KEY, model_name VARCHAR NOT NULL, trained_at TIMESTAMP NOT NULL,
+ validation_cutoff DATE NOT NULL, train_matches INTEGER NOT NULL, validation_matches INTEGER NOT NULL,
+ feature_names VARCHAR NOT NULL, parameters VARCHAR NOT NULL, metrics VARCHAR NOT NULL
+);
+CREATE TABLE IF NOT EXISTS match_predictions (
+ model_id VARCHAR NOT NULL, prediction_kind VARCHAR NOT NULL, league VARCHAR NOT NULL,
+ season INTEGER NOT NULL, match_date DATE NOT NULL, home_team VARCHAR NOT NULL,
+ away_team VARCHAR NOT NULL, actual_result VARCHAR, predicted_result VARCHAR NOT NULL,
+ home_probability DOUBLE NOT NULL, draw_probability DOUBLE NOT NULL,
+ away_probability DOUBLE NOT NULL,
+ PRIMARY KEY(model_id, prediction_kind, league, match_date, home_team, away_team)
 );
 CREATE TABLE IF NOT EXISTS players (
  source VARCHAR NOT NULL, player_id VARCHAR NOT NULL, team_id VARCHAR NOT NULL,

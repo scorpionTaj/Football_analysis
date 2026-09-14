@@ -71,6 +71,18 @@ def test_impossible_shot_pair_is_quarantined():
     assert batch.frame.loc[1, "home_shots"] == 10
 
 
+def test_optional_match_context_is_preserved():
+    df = fixture()
+    df["HTHG"], df["HTAG"], df["HC"], df["AC"] = 1, 0, 7, 4
+    df["HF"], df["AF"], df["HY"], df["AY"], df["HR"], df["AR"] = 11, 9, 2, 3, 0, 1
+    df["Referee"] = "Example Referee"
+    frame = normalize(raw(df), "E0", 2024, "test").frame
+    assert frame.loc[0, "half_time_home_goals"] == 1
+    assert frame.loc[0, "home_corners"] == 7
+    assert frame.loc[0, "away_reds"] == 1
+    assert frame.loc[0, "referee"] == "Example Referee"
+
+
 def test_partial_current_season_keeps_only_completed_matches():
     df = fixture().head(3).copy()
     pending = df.iloc[[0]].copy()

@@ -51,6 +51,45 @@ def tournament_team_matches(matches: pd.DataFrame) -> pd.DataFrame:
     return frame
 
 
+def team_match_factors(matches: pd.DataFrame) -> pd.DataFrame:
+    """Expand optional Football-Data match context into one row per team."""
+    columns = [
+        "league", "season", "match_date", "team", "opponent", "venue",
+        "first_half_goals", "second_half_goals", "corners", "fouls",
+        "yellow_cards", "red_cards", "referee",
+    ]
+    if matches.empty:
+        return pd.DataFrame(columns=columns)
+    data = matches.copy()
+    for column in (
+        "half_time_home_goals", "half_time_away_goals", "home_corners", "away_corners",
+        "home_fouls", "away_fouls", "home_yellows", "away_yellows", "home_reds", "away_reds",
+    ):
+        if column not in data:
+            data[column] = pd.NA
+    if "referee" not in data:
+        data["referee"] = ""
+    home = pd.DataFrame({
+        "league": data.league, "season": data.season, "match_date": data.match_date,
+        "team": data.home_team, "opponent": data.away_team, "venue": "Home",
+        "first_half_goals": data.half_time_home_goals,
+        "second_half_goals": data.home_goals - data.half_time_home_goals,
+        "corners": data.home_corners, "fouls": data.home_fouls,
+        "yellow_cards": data.home_yellows, "red_cards": data.home_reds,
+        "referee": data.referee,
+    })
+    away = pd.DataFrame({
+        "league": data.league, "season": data.season, "match_date": data.match_date,
+        "team": data.away_team, "opponent": data.home_team, "venue": "Away",
+        "first_half_goals": data.half_time_away_goals,
+        "second_half_goals": data.away_goals - data.half_time_away_goals,
+        "corners": data.away_corners, "fouls": data.away_fouls,
+        "yellow_cards": data.away_yellows, "red_cards": data.away_reds,
+        "referee": data.referee,
+    })
+    return pd.concat([home, away], ignore_index=True)[columns]
+
+
 class AnalysisSystem:
     """Filters, aggregates and compares match rows through one stable interface."""
 

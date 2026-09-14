@@ -1,4 +1,5 @@
 import html
+import json
 
 import duckdb
 import pandas as pd
@@ -10,7 +11,9 @@ from football_analysis.config import (
     CLUBS, COMPETITIONS, DB, LEAGUES, RECENT_LEAGUES, TOURNAMENTS,
     current_season, label, seasons,
 )
-from football_analysis.analysis_system import AnalysisRequest, AnalysisSystem, tournament_team_matches
+from football_analysis.analysis_system import (
+    AnalysisRequest, AnalysisSystem, team_match_factors, tournament_team_matches,
+)
 from football_analysis.analytics import (
     elo_history,
     shot_coverage,
@@ -111,6 +114,30 @@ def load_data():
                 con.sql("SELECT * FROM tournament_matches").df()
                 if "tournament_matches" in tables else pd.DataFrame()
             )
+            tournament_goals = (
+                con.sql("SELECT * FROM tournament_goals").df()
+                if "tournament_goals" in tables else pd.DataFrame()
+            )
+            event_statistics = (
+                con.sql("SELECT * FROM event_statistics").df()
+                if "event_statistics" in tables else pd.DataFrame()
+            )
+            event_timeline = (
+                con.sql("SELECT * FROM event_timeline").df()
+                if "event_timeline" in tables else pd.DataFrame()
+            )
+            event_lineups = (
+                con.sql("SELECT * FROM event_lineups").df()
+                if "event_lineups" in tables else pd.DataFrame()
+            )
+            prediction_models = (
+                con.sql("SELECT * FROM prediction_models ORDER BY trained_at DESC").df()
+                if "prediction_models" in tables else pd.DataFrame()
+            )
+            match_predictions = (
+                con.sql("SELECT * FROM match_predictions").df()
+                if "match_predictions" in tables else pd.DataFrame()
+            )
             return (
                 con.sql("SELECT * FROM team_seasons").df(),
                 con.sql("SELECT * FROM team_matches").df(),
@@ -130,6 +157,12 @@ def load_data():
                 open_player_stats,
                 source_metadata,
                 tournament_matches,
+                tournament_goals,
+                event_statistics,
+                event_timeline,
+                event_lineups,
+                prediction_models,
+                match_predictions,
             )
     except duckdb.Error as exc:
         st.error(f"Database unavailable: {exc}")
@@ -218,6 +251,8 @@ if data is None:
     players, player_stats, team_media, competition_media,
     open_players, open_player_stats, source_metadata,
     tournament_matches,
+    tournament_goals, event_statistics, event_timeline, event_lineups,
+    prediction_models, match_predictions,
 ) = data
 
 
@@ -305,6 +340,9 @@ reference_standings = reference_standings[
 fixture_columns = [
     "league", "season", "match_date", "home_team", "away_team",
     "home_goals", "away_goals", "home_shots", "away_shots", "home_sot", "away_sot",
+    "half_time_home_goals", "half_time_away_goals", "home_corners", "away_corners",
+    "home_fouls", "away_fouls", "home_yellows", "away_yellows", "home_reds", "away_reds",
+    "referee",
 ]
 current_fixtures = recent_matches[
     recent_matches.league.isin(RECENT_LEAGUES) & (recent_matches.season == live_season)
@@ -360,6 +398,7 @@ analysis_games = (
     if not tournament_games.empty else games.copy()
 )
 analysis_system = AnalysisSystem(analysis_games)
+factor_games = team_match_factors(fixtures)
 
 
 elo = cached_elo if not cached_elo.empty else elo_history(fixtures)
@@ -766,6 +805,27 @@ with tournaments_tab:
                     "goal_difference": "GD", "form": "Recent form",
                 },
             )
+            goal_view = tournament_goals[
+                (tournament_goals.competition == tournament_code)
+                & (tournament_goals.season == tournament_year)
+                & tournament_goals.match_date.isin(tournament_slice.match_date)
+            ].copy() if not tournament_goals.empty else pd.DataFrame()
+            if team_focus != "All teams" and not goal_view.empty:
+                goal_view = goal_view[goal_view.team == team_focus]
+            if not goal_view.empty:
+                scorers = goal_view[~goal_view.own_goal].groupby("player", as_index=False).agg(
+                    Goals=("player", "size"), Penalties=("penalty", "sum"),
+                    Teams=("team", lambda values: " · ".join(sorted(set(values)))),
+                ).sort_values(["Goals", "Penalties"], ascending=[False, True]).head(12)
+                st.markdown("#### Tournament scorers")
+                scorer_chart = px.bar(
+                    scorers.sort_values("Goals"), x="Goals", y="player", orientation="h",
+                    color="Penalties", color_continuous_scale=[MOCHA["blue"], ACCENT],
+                    title="Leading scorers in this view", labels={"player": "Player"},
+                    hover_data=["Teams"],
+                )
+                st.plotly_chart(style_chart(scorer_chart, max(350, len(scorers) * 31)), width="stretch")
+                st.caption("Own goals are stored in the goal-event feed and excluded from scorer totals.")
             results = tournament_slice[[
                 "match_date", "stage", "home_team", "away_team", "home_goals",
                 "away_goals", "home_penalties", "away_penalties", "venue",
@@ -901,6 +961,134 @@ with analysis_tab:
             "Download match slice", report.matches.to_csv(index=False), "analysis_matches.csv",
             "text/csv", key="download_analysis_matches",
         )
+
+    st.markdown("#### Match factors")
+    st.caption("First-half scoring, corners, fouls, cards and referee trends from fields already published in the domestic CSV files.")
+    factor_slice = factor_games[
+        factor_games.league.isin(analysis_competitions)
+        & factor_games.season.isin(analysis_seasons)
+    ].copy()
+    if analysis_teams:
+        factor_slice = factor_slice[factor_slice.team.isin(analysis_teams)]
+    factor_coverage = factor_slice[[
+        "first_half_goals", "corners", "fouls", "yellow_cards", "red_cards",
+    ]].notna().mean().mean() if not factor_slice.empty else 0
+    if factor_slice.empty or factor_coverage == 0:
+        st.info("Match-context fields are unavailable for this tournament-only or uncovered slice.")
+    else:
+        factors = factor_slice.groupby("team", as_index=False).agg(
+            matches=("team", "size"), first_half_goals=("first_half_goals", "mean"),
+            second_half_goals=("second_half_goals", "mean"), corners=("corners", "mean"),
+            fouls=("fouls", "mean"), yellow_cards=("yellow_cards", "mean"),
+            red_cards=("red_cards", "mean"),
+        )
+        factors["Club"] = factors.team.map(display_team)
+        mf1, mf2, mf3, mf4 = st.columns(4)
+        mf1.metric("Field coverage", f"{100 * factor_coverage:.1f}%")
+        mf2.metric("Corners / team-match", f"{factor_slice.corners.mean():.2f}")
+        mf3.metric("Fouls / team-match", f"{factor_slice.fouls.mean():.2f}")
+        mf4.metric("Cards / team-match", f"{(factor_slice.yellow_cards + factor_slice.red_cards).mean():.2f}")
+        factor_metric = st.selectbox(
+            "Compare match factor",
+            ["corners", "fouls", "yellow_cards", "red_cards", "first_half_goals", "second_half_goals"],
+            format_func=lambda value: value.replace("_", " ").title(), key="factor_metric",
+        )
+        factor_chart = px.bar(
+            factors.sort_values(factor_metric).tail(20), x=factor_metric, y="Club",
+            orientation="h", color=factor_metric,
+            color_continuous_scale=[MOCHA["blue"], ACCENT],
+            title=f"Top clubs by {factor_metric.replace('_', ' ')}",
+        )
+        st.plotly_chart(style_chart(factor_chart, 520), width="stretch")
+        referee_rows = factor_slice[factor_slice.referee.fillna("").ne("")].copy()
+        if not referee_rows.empty:
+            referee_summary = referee_rows.groupby("referee", as_index=False).agg(
+                team_rows=("team", "size"), yellow_cards=("yellow_cards", "sum"),
+                red_cards=("red_cards", "sum"), fouls=("fouls", "sum"),
+            )
+            referee_summary["Matches"] = referee_summary.team_rows / 2
+            referee_summary["Cards / match"] = (
+                referee_summary.yellow_cards + referee_summary.red_cards
+            ) / referee_summary.Matches
+            st.dataframe(
+                referee_summary[referee_summary.Matches >= 5][[
+                    "referee", "Matches", "Cards / match", "fouls",
+                ]].sort_values("Cards / match", ascending=False).head(15),
+                hide_index=True, width="stretch",
+                column_config={
+                    "referee": "Referee", "Matches": st.column_config.NumberColumn(format="%d"),
+                    "Cards / match": st.column_config.NumberColumn(format="%.2f"), "fouls": "Fouls",
+                },
+            )
+
+    st.markdown("#### Predictive model")
+    st.caption("Regularized multiclass machine learning using pre-match Elo, rolling form, scoring, conceding and rest. Evaluation is chronological and every output remains probabilistic.")
+    if prediction_models.empty or match_predictions.empty:
+        st.info("No trained model is cached. Run football-train-predictions, then refresh.")
+    else:
+        model_row = prediction_models.iloc[0]
+        model_metrics = json.loads(model_row.metrics)
+        pm1, pm2, pm3, pm4 = st.columns(4)
+        pm1.metric("Validation accuracy", f"{100 * model_metrics['accuracy']:.1f}%", f"baseline {100 * model_metrics['baseline_accuracy']:.1f}%")
+        pm2.metric("Log loss", f"{model_metrics['log_loss']:.3f}", f"baseline {model_metrics['baseline_log_loss']:.3f}", delta_color="inverse")
+        pm3.metric("Training matches", f"{int(model_row.train_matches):,}")
+        pm4.metric("Holdout matches", f"{int(model_row.validation_matches):,}")
+        st.caption(
+            f"Holdout begins after {pd.to_datetime(model_row.validation_cutoff):%d %B %Y}. "
+            "Deep learning was not selected because this structured sample is better suited to a compact, auditable model."
+        )
+        forecasts = match_predictions[match_predictions.prediction_kind == "forecast"].copy()
+        if not forecasts.empty:
+            forecasts["Match"] = forecasts.home_team.map(display_team) + " vs " + forecasts.away_team.map(display_team)
+            forecasts["Competition"] = forecasts.league.map(RECENT_LEAGUES)
+            forecasts["Home %"] = 100 * forecasts.home_probability
+            forecasts["Draw %"] = 100 * forecasts.draw_probability
+            forecasts["Away %"] = 100 * forecasts.away_probability
+            forecast_chart = forecasts.melt(
+                id_vars=["Match", "Competition", "match_date"],
+                value_vars=["Home %", "Draw %", "Away %"],
+                var_name="Outcome", value_name="Probability",
+            )
+            st.plotly_chart(style_chart(px.bar(
+                forecast_chart, x="Probability", y="Match", color="Outcome", orientation="h",
+                barmode="stack", facet_col="Competition", facet_col_wrap=2,
+                title="Next listed fixtures · outcome probabilities",
+                color_discrete_map={"Home %": MOCHA["blue"], "Draw %": MOCHA["surface2"], "Away %": ACCENT},
+            ), max(520, len(forecasts) * 58)), width="stretch")
+            st.dataframe(
+                forecasts[["match_date", "Competition", "Match", "predicted_result", "Home %", "Draw %", "Away %"]],
+                hide_index=True, width="stretch",
+                column_config={
+                    "match_date": "Date", "predicted_result": "Most likely",
+                    "Home %": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f%%"),
+                    "Draw %": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f%%"),
+                    "Away %": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f%%"),
+                },
+            )
+        validation_predictions = match_predictions[
+            match_predictions.prediction_kind == "validation"
+        ].copy()
+        if not validation_predictions.empty:
+            probability_columns = ["home_probability", "draw_probability", "away_probability"]
+            validation_predictions["Confidence"] = validation_predictions[probability_columns].max(axis=1)
+            validation_predictions["Correct"] = (
+                validation_predictions.predicted_result == validation_predictions.actual_result
+            ).astype(int)
+            validation_predictions["Confidence band"] = pd.cut(
+                validation_predictions.Confidence, bins=[0, .4, .5, .6, .7, .8, 1],
+                include_lowest=True,
+            ).astype(str)
+            calibration = validation_predictions.groupby("Confidence band", as_index=False, observed=True).agg(
+                Predictions=("Correct", "size"), Confidence=("Confidence", "mean"), Accuracy=("Correct", "mean"),
+            )
+            calibration[["Confidence", "Accuracy"]] *= 100
+            calibration_chart = px.scatter(
+                calibration, x="Confidence", y="Accuracy",
+                size="Predictions", title="Holdout confidence vs observed accuracy",
+                labels={"Confidence": "Mean confidence (%)", "Accuracy": "Observed accuracy (%)"},
+            )
+            calibration_chart.update_traces(mode="lines+markers")
+            st.plotly_chart(style_chart(calibration_chart, 390), width="stretch")
 
 with standings_tab:
     st.subheader("Reconstructed league table")
@@ -1198,6 +1386,59 @@ with matches_tab:
             f"{match_club.lower().replace(' ', '_')}_matches.csv", "text/csv",
         )
 
+    detail_ids = set(event_statistics.event_id if not event_statistics.empty else [])
+    detail_ids |= set(event_timeline.event_id if not event_timeline.empty else [])
+    detail_ids |= set(event_lineups.event_id if not event_lineups.empty else [])
+    detail_events = recent_events[
+        recent_events.event_id.isin(detail_ids)
+    ].sort_values("match_date", ascending=False) if detail_ids else pd.DataFrame()
+    if not detail_events.empty:
+        st.markdown("#### Latest event-detail samples")
+        st.caption("The free TheSportsDB endpoints return at most five statistics, timeline events and lineup rows per match; these are displayed as capped samples.")
+        detail_lookup = detail_events.drop_duplicates("event_id").set_index("event_id")
+        detail_event_id = st.selectbox(
+            "Detailed match", detail_lookup.index.tolist(),
+            format_func=lambda event_id: (
+                f"{pd.to_datetime(detail_lookup.loc[event_id, 'match_date']):%d %b %Y} · "
+                f"{display_team(detail_lookup.loc[event_id, 'home_team'])} vs "
+                f"{display_team(detail_lookup.loc[event_id, 'away_team'])}"
+            ), key="detailed_match",
+        )
+        ds = event_statistics[event_statistics.event_id == detail_event_id].copy()
+        dt = event_timeline[event_timeline.event_id == detail_event_id].copy()
+        dl = event_lineups[event_lineups.event_id == detail_event_id].copy()
+        if not ds.empty:
+            stat_chart = ds.melt(
+                id_vars="statistic", value_vars=["home_value", "away_value"],
+                var_name="Side", value_name="Value",
+            )
+            stat_chart["Side"] = stat_chart.Side.map({"home_value": "Home", "away_value": "Away"})
+            st.plotly_chart(style_chart(px.bar(
+                stat_chart, x="statistic", y="Value", color="Side", barmode="group",
+                title="Published match-stat sample",
+                color_discrete_map={"Home": MOCHA["blue"], "Away": ACCENT},
+            ), 380), width="stretch")
+        if not dt.empty:
+            dt["Minute"] = dt.minute.astype(str) + "′"
+            st.dataframe(
+                dt[["Minute", "event_type", "detail", "team", "player", "assist", "comment"]],
+                hide_index=True, width="stretch",
+                column_config={
+                    "event_type": "Event", "detail": "Detail", "team": "Team",
+                    "player": "Player", "assist": "Assist", "comment": "Comment",
+                },
+            )
+        if not dl.empty:
+            st.dataframe(
+                dl[["cutout_url", "team", "shirt_number", "player", "position", "is_substitute"]],
+                hide_index=True, width="stretch",
+                column_config={
+                    "cutout_url": st.column_config.ImageColumn(""), "team": "Team",
+                    "shirt_number": "#", "player": "Player", "position": "Position",
+                    "is_substitute": "Substitute",
+                },
+            )
+
 with players_tab:
     st.subheader("Player explorer")
     st.markdown(
@@ -1420,6 +1661,14 @@ with quality:
         tq2.metric("Champions League", f"{len(tournament_matches[tournament_matches.competition == 'UCL']):,}", "5 seasons")
         tq3.metric("FIFA World Cup", f"{len(tournament_matches[tournament_matches.competition == 'WC']):,}", "3 editions")
         tq4.metric("Tournament teams", len(set(tournament_matches.home_team) | set(tournament_matches.away_team)))
+    st.markdown("#### Extended source capabilities")
+    xq1, xq2, xq3, xq4, xq5 = st.columns(5)
+    context_matches = int(fixtures.home_corners.notna().sum()) if "home_corners" in fixtures else 0
+    xq1.metric("Context-rich matches", f"{context_matches:,}", "Corners · fouls · cards")
+    xq2.metric("World Cup goals", f"{len(tournament_goals):,}", "Scorer events")
+    xq3.metric("Detailed event stats", f"{len(event_statistics):,}", "Free feed capped")
+    xq4.metric("Timeline events", f"{len(event_timeline):,}", "Free feed capped")
+    xq5.metric("Model predictions", f"{len(match_predictions):,}", "Holdout + forecasts")
     with st.expander("Ingestion history"):
         st.dataframe(runs.drop(columns=["run_id"]), hide_index=True, width="stretch")
     st.markdown("#### Shot-field coverage")

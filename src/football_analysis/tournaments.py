@@ -6,7 +6,7 @@ import argparse
 import hashlib
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Iterable
@@ -27,6 +27,10 @@ class TournamentBatch:
     frame: pd.DataFrame
     url: str
     digest: str
+    goals: pd.DataFrame = field(default_factory=lambda: pd.DataFrame(columns=[
+        "competition", "season", "match_date", "team", "player", "minute",
+        "penalty", "own_goal", "source", "source_url", "fetched_at",
+    ]))
 
 
 def _season_slug(year: int) -> str:
@@ -102,6 +106,7 @@ def parse_world_cup(raw: bytes, year: int, url: str = "memory") -> TournamentBat
     matches = document.get("matches", document) if isinstance(document, dict) else document
     now = datetime.now()
     rows = []
+    goal_rows = []
     for match in matches:
         score = match.get("score") or {}
         if isinstance(score, list):
@@ -125,12 +130,24 @@ def parse_world_cup(raw: bytes, year: int, url: str = "memory") -> TournamentBat
             "status": "FINISHED", "source": SOURCE, "source_url": url,
             "fetched_at": now,
         })
+        for side, team in (("goals1", match["team1"]), ("goals2", match["team2"])):
+            for goal in match.get(side) or []:
+                goal_rows.append({
+                    "competition": "WC", "season": year,
+                    "match_date": pd.to_datetime(match["date"]).date(),
+                    "team": team, "player": goal.get("name") or "Unknown",
+                    "minute": str(goal.get("minute") or ""),
+                    "penalty": bool(goal.get("penalty", False)),
+                    "own_goal": bool(goal.get("owngoal", False)),
+                    "source": SOURCE, "source_url": url, "fetched_at": now,
+                })
     frame = pd.DataFrame(rows) if rows else _empty_frame()
     if frame.empty:
         raise ValueError(f"No completed World Cup matches found for {year}")
     if frame.duplicated(["competition", "season", "match_date", "home_team", "away_team"]).any():
         raise ValueError("Duplicate World Cup matches in source")
-    return TournamentBatch(frame, url, hashlib.sha256(raw).hexdigest())
+    goals = pd.DataFrame(goal_rows, columns=TournamentBatch.__dataclass_fields__["goals"].default_factory().columns)
+    return TournamentBatch(frame, url, hashlib.sha256(raw).hexdigest(), goals)
 
 
 class OpenFootballTournaments:
@@ -188,6 +205,8 @@ def sync_tournaments(
             try:
                 batch = adapter.fetch(competition, season)
                 con.register("incoming_tournament", batch.frame)
+                if not batch.goals.empty:
+                    con.register("incoming_tournament_goals", batch.goals)
                 con.execute("BEGIN")
                 try:
                     con.execute(
@@ -195,12 +214,20 @@ def sync_tournaments(
                         [competition, season],
                     )
                     con.execute("INSERT INTO tournament_matches SELECT * FROM incoming_tournament")
+                    con.execute(
+                        "DELETE FROM tournament_goals WHERE competition=? AND season=?",
+                        [competition, season],
+                    )
+                    if not batch.goals.empty:
+                        con.execute("INSERT INTO tournament_goals SELECT * FROM incoming_tournament_goals")
                     con.execute("COMMIT")
                 except Exception:
                     con.execute("ROLLBACK")
                     raise
                 finally:
                     con.unregister("incoming_tournament")
+                    if not batch.goals.empty:
+                        con.unregister("incoming_tournament_goals")
                 report.append({
                     "competition": competition, "season": season,
                     "status": "success", "rows": len(batch.frame),

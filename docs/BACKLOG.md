@@ -86,6 +86,17 @@
 - [x] FA-071 Keep tournament and analysis logic independent of Streamlit and document the Next.js migration seam.
 - [x] FA-072 Add parser, transaction, analysis-engine and nine-page dashboard tests.
 
+## Iteration 2.8 — source utilization and predictive analysis
+- [x] FA-075 Audit every active free source against its current first-party documentation and record used, newly used and intentionally excluded capabilities.
+- [x] FA-076 Preserve first-half scores, corners, fouls, yellow/red cards and referees from Football-Data.co.uk.
+- [x] FA-077 Add match-factor and referee analysis to the existing Analysis lab without another navigation page.
+- [x] FA-078 Import World Cup scorer events, penalty flags and own-goal flags from the CC0 feed.
+- [x] FA-079 Add explicitly capped TheSportsDB event-statistic, timeline and lineup sample adapters.
+- [x] FA-080 Fix event refreshes when a provider ID moves from the upcoming collection into completed results.
+- [x] FA-081 Add chronological pre-match feature engineering and a regularized three-outcome probability model.
+- [x] FA-082 Publish holdout accuracy, log loss, Brier score, baseline comparisons, calibration and ten upcoming forecasts.
+- [x] FA-083 Document why deep learning is deferred and complete a phased Next.js migration plan.
+
 ## Iteration 3 — packaging and operations
 - [ ] FA-014 CI with offline tests, dependency updates and scheduled source availability checks.
 - [ ] FA-015 Optional PostgreSQL deployment adapter when multi-user writing is needed.
@@ -93,5 +104,6 @@
 - [ ] FA-017 Optional StatsBomb event exploration with explicit partial coverage and required branding.
 - [ ] FA-073 Add a read-only FastAPI layer over `AnalysisSystem` before starting the Next.js frontend.
 - [ ] FA-074 Add cursor pagination and response-cache headers for match and player API routes.
+- [ ] FA-084 Add a prediction retraining schedule only after the read-only API and ingestion job are deployed separately.
 
 Tasks are local backlog items; no external issue tracker or recurring automation was created.
