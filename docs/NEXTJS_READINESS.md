@@ -56,4 +56,30 @@ All core analytical views have been migrated to the Next.js frontend with full s
 - [x] **Players** ([`frontend/src/app/players/page.tsx`](frontend/src/app/players/page.tsx)): Real-time search & cursor pagination, bio drawer, market valuation formatting in EUR, and historical career season statistics.
 - [x] **Data Quality** ([`frontend/src/app/quality/page.tsx`](frontend/src/app/quality/page.tsx)): 60-cell competition completeness grid, source governance notes, null rate metrics, and SHA-256 ingestion audit logs.
 
+## Phase 5: Multi-Theme Engine & Settings Dashboard ✅
+
+A complete customization and theme system has been implemented across the application:
+- [x] **Theme Engine**: 6 distinct curated color themes (`mocha`, `latte`, `tokyo-night`, `nord`, `dracula`, `github-light`) spanning dark and light modes.
+- [x] **Theme Modes**: 3 operational modes (`auto` system detection via `prefers-color-scheme`, force `dark`, and force `light`).
+- [x] **Persistence**: Client `localStorage` caching with zero hydration mismatch warnings.
+- [x] **Settings Page** ([`frontend/src/app/settings/page.tsx`](frontend/src/app/settings/page.tsx)): Interactive palette cards with live swatch previews, mode toggles, pagination standard overview, and live API connectivity test.
+- [x] **Quick Switcher**: Integrated in both desktop sidebar and mobile navigation header.
+
+## Phase 6: Universal Pagination (10 Entries Standard) ✅
+
+In accordance with dashboard usability standards, all views displaying collections greater than 10 rows enforce 10-entries-per-page pagination:
+- [x] **Reusable Pagination Infrastructure**: Accessible `<Pagination />` component with page numbers, ellipsis collapse, and `usePagination(items, pageSize = 10)` hook.
+- [x] **League Tables** (`/tables`): Standings table paginated at 10 clubs per page.
+- [x] **Tournaments** (`/tournaments`): Matches list paginated at 10/page and Top Scorers paginated at 10/page.
+- [x] **Analysis Lab** (`/analysis`): Metric rankings table paginated at 10 teams per page.
+- [x] **Club Lab** (`/clubs`): Historical multi-season records (10/page), recent fixtures (10/page), and Head-to-Head direct encounters (10/page).
+- [x] **Match Explorer** (`/matches`): Cursor pagination set to 10 fixtures per page.
+- [x] **Players** (`/players`): Player discovery cursor list (10/page) and player career stats table (10/page).
+- [x] **Data Quality** (`/quality`): Ingestion checksums and audit records paginated at 10/page.
+
+## Phase 7: Streamlit Deep Integrations ✅
+
+- [x] **Head-to-Head Club Comparison** ([`frontend/src/app/clubs/page.tsx`](frontend/src/app/clubs/page.tsx)): Toggle between individual Club Profile and direct Head-to-Head comparison between any two clubs. Includes direct clashes record, goals distribution bar, side-by-side PPG / Win % / Goals scored / Clean sheet benchmarking, and paginated match encounters.
+
 The Next.js client should consume these routes rather than query DuckDB or reproduce football calculations. That keeps rankings and source semantics identical during the migration and allows Streamlit to remain available as a validation client until the replacement is complete.
+

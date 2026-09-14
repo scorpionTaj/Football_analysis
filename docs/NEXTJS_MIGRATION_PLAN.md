@@ -69,7 +69,24 @@ Migrated in order with full selector parity, interactive Recharts, responsive Ca
 
 Exit gate: ✅ API contract test, selector parity, empty-data behavior, download parity and matching metric totals verified across all 8 views.
 
-## Phase 5 — operations and cutover
+## Phase 5 — multi-theme engine and settings ✅
+
+1. [x] **Theme Engine**: 6 curated color themes (`mocha`, `latte`, `tokyo-night`, `nord`, `dracula`, `github-light`) mapped to Tailwind CSS v4 variables.
+2. [x] **Theme Modes**: 3 operational modes (`auto` system media detection, `dark`, `light`) with `localStorage` persistence.
+3. [x] **Settings Dashboard** (`/settings`): Live theme previews, mode toggles, pagination standard overview, and live API connectivity test.
+4. [x] **Quick Switcher**: Integrated in navigation sidebar and header.
+
+## Phase 6 — universal pagination standard ✅
+
+1. [x] Standardize on 10 entries per page for all views displaying collections exceeding 10 rows.
+2. [x] Reusable `<Pagination />` component with page numbers and ellipsis truncation.
+3. [x] Applied across League Tables (`/tables`), Tournaments (`/tournaments`), Analysis Lab (`/analysis`), Club Lab (`/clubs`), Match Explorer (`/matches`), Player Profiles (`/players`), and Data Quality (`/quality`).
+
+## Phase 7 — Streamlit deep integrations ✅
+
+1. [x] **Head-to-Head Club Comparison** (`/clubs`): Direct clashes history, goals distribution bar, side-by-side PPG / Win % / Goals scored / Clean sheet benchmarking, and paginated match encounters.
+
+## Phase 8 — operations and cutover
 
 1. Run ingestion, event-detail refresh and prediction training as separate scheduled jobs with an atomic database snapshot swap.
 2. Containerize FastAPI and Next.js separately; keep raw data and DuckDB outside the frontend image.

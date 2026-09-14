@@ -100,7 +100,7 @@ export function ClubLabContent() {
     const pts = seasonsList.reduce((acc, s) => acc + s.points, 0);
     const gf = seasonsList.reduce((acc, s) => acc + s.goals_for, 0);
     const ga = seasonsList.reduce((acc, s) => acc + s.goals_against, 0);
-    const cs = seasonsList.reduce((acc, s) => acc + (s.clean_sheets || 0), 0);
+    const csWeighted = seasonsList.reduce((acc, s) => acc + (s.clean_sheet_rate * s.played), 0);
     return {
       played: p,
       wins: w,
@@ -113,7 +113,7 @@ export function ClubLabContent() {
       winRate: p > 0 ? ((w / p) * 100).toFixed(1) : '0',
       gfPerMatch: p > 0 ? (gf / p).toFixed(2) : '0',
       gaPerMatch: p > 0 ? (ga / p).toFixed(2) : '0',
-      cleanSheetRate: p > 0 ? ((cs / p) * 100).toFixed(1) : '0',
+      cleanSheetRate: p > 0 ? (csWeighted / p).toFixed(1) : '0',
     };
   }, [seasonsList]);
 
@@ -127,7 +127,7 @@ export function ClubLabContent() {
     const pts = oppSeasons.reduce((acc, s) => acc + s.points, 0);
     const gf = oppSeasons.reduce((acc, s) => acc + s.goals_for, 0);
     const ga = oppSeasons.reduce((acc, s) => acc + s.goals_against, 0);
-    const cs = oppSeasons.reduce((acc, s) => acc + (s.clean_sheets || 0), 0);
+    const oppCsWeighted = oppSeasons.reduce((acc, s) => acc + (s.clean_sheet_rate * s.played), 0);
     return {
       played: p,
       wins: w,
@@ -140,7 +140,7 @@ export function ClubLabContent() {
       winRate: p > 0 ? ((w / p) * 100).toFixed(1) : '0',
       gfPerMatch: p > 0 ? (gf / p).toFixed(2) : '0',
       gaPerMatch: p > 0 ? (ga / p).toFixed(2) : '0',
-      cleanSheetRate: p > 0 ? ((cs / p) * 100).toFixed(1) : '0',
+      cleanSheetRate: p > 0 ? (oppCsWeighted / p).toFixed(1) : '0',
     };
   }, [opponentAnalysis?.rankings]);
 
