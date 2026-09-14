@@ -1,15 +1,15 @@
-# Validation — 13 September 2026
+# Validation — 14 September 2026
 
 - Live public CSV ingestion: 25/25 league-season partitions succeeded.
 - Matches loaded: 8,908 across five leagues and 2021/22–2025/26.
 - Elite coverage: 60 club-season records (12 clubs × 5 seasons).
-- Automated tests: 26 passed. Covers date rollover, complete and partial-season normalization, corruption cases, repeat ingestion, failed refresh preservation, known-score calculations, NULL optional stats, canonical teams, player and artwork normalization, open-snapshot aggregation, partial current tables, dashboard filters and missing database.
+- Automated tests: 27 passed. Covers date rollover, complete and partial-season normalization, corruption cases, repeat ingestion, failed refresh preservation, known-score calculations, NULL optional stats, canonical teams, player and artwork normalization, open-snapshot aggregation, current team summaries, dashboard filters and missing database.
 - Real database Streamlit AppTest: 12 clubs, no coverage warning, no application exception.
 - Connected browser: page, filters, metrics, season chart and comparison charts rendered; comparison tab navigation worked. No warning/error console entries were returned.
 - Iteration 2: 15 automated tests passed, including Elo chronology, same-day snapshot behavior, shot coverage, and the 95% metric gate.
 - Real-data analytics: 17,816 Elo team-match rows from 8,908 fixtures; 484 eligible club-seasons for shot analysis, including all 60 selected elite club-seasons.
 - External standings: 125 TheSportsDB reference rows; exactly five rows for each of 25 league-season partitions, matching the documented free-response cap.
-- Streamlit test suite: nine tabs load against an isolated database with no application exception. A second-process AppTest against the live database is intentionally avoided while Streamlit owns DuckDB's read lock.
+- Streamlit test suite: seven focused pages load against an isolated database with no application exception. A real-database AppTest also loaded all seven pages and the 2021/22–2026/27 selector without an exception.
 - Database validates completeness and internal consistency, not independent reconciliation against a second provider.
 - Preferred agent-browser CLI was unavailable; visual verification used the connected in-app browser instead.
 - Iteration 2.1: 19 automated tests passed, including canonical team identities, impossible-shot quarantine and persisted analytics.
@@ -22,9 +22,13 @@
 - Iteration 2.3 artwork: 12/12 featured clubs have cached badge and logo URLs; 10/10 competitions have cached badge and logo URLs.
 - Connected browser: the comparison hero displayed the selected club emblem, Club focus displayed a responsive identity card, Competition view displayed the competition emblem, and Player explorer displayed the player cutout and shirt-number treatment. Motion CSS includes a `prefers-reduced-motion` fallback.
 - Iteration 2.4 player snapshot: 458 tracked 2025/26 player records across all 12 clubs and 4,633 competition-season statistic rows across 41 domestic, cup, UEFA and international competitions. The appearance rows total 46,545 appearances, 6,744 goals, 5,221 assists and 3,244,816 minutes from 2021/22 through 2025/26.
-- Connected browser: Discover reports 458 searchable players, 12 clubs and ten current-result competitions; global search returned Kylian Mbappé; the Real Madrid squad view reported 44 records and rendered profile media, season charts, competition selection and full-squad totals.
+- Connected browser: global search returned Kylian Mbappé; the Real Madrid squad view reported 44 records and rendered profile media, season charts, competition selection and full-squad totals.
 - Iteration 2.5 current season: all ten 2026/27 CSV partitions refreshed successfully on 13 September 2026, retaining 336 completed result rows through 10 September. Ten supplemental latest completed events extend the visible result timeline through 13 September, and ten next-event records extend through 19 September.
 - Current-season analytics: the selected club always exposes its nearest completed result when present, plus the previous result, W/D/L form, cumulative points and a partial league table derived only from completed matches. Upcoming cards appear only for source-returned fixtures.
 - Visual system: Streamlit configuration, custom cards, navigation, inputs and Plotly charts use Catppuccin Mocha colors. The existing reduced-motion fallback remains active.
+- Iteration 2.6 integrated season: the shared selector lists 2021/22 through `2026/27 · Live`; 336 current results across ten competitions feed the same summary, table, club, shot and match views as historical results.
+- Integrated current analytics: 672 current Elo team-match rows across 182 clubs and 182 current shot-efficiency rows were rebuilt from 336 matches. The combined analytics cache records 9,244 fixtures.
+- Direct navigation: Discover and the standalone Current season centre were removed. Overview now owns the selected club's live W/D/L and match cards; seven primary pages remain.
+- Connected browser: the Catppuccin Overview rendered the 2026/27 Real Madrid live metrics and two completed-match cards, all seven tabs were visible, and no browser warning/error console entries were returned.
 
 The working installation is /home/scorpiontaj/Projects/Football_analysis. The outputs copy contains the same source, documentation, lockfile and downloaded data as the initial deliverable; future development should use the working installation.

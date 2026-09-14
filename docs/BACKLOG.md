@@ -69,6 +69,14 @@
 - [x] FA-058 Verify the current-season workflow, responsive visual hierarchy and browser console.
 - [ ] FA-059 Add full fixture calendars only when a free source provides complete, permitted coverage; keep one-next-event labels explicit meanwhile.
 
+## Iteration 2.6 — integrated live season and direct navigation
+- [x] FA-060 Add 2026/27 to the shared season selector and every match-driven analytical page.
+- [x] FA-061 Expand current results into team summaries and rebuild Elo and shot analytics from historical plus live matches.
+- [x] FA-062 Expose all ten current competitions through the main competition selector and partial league tables.
+- [x] FA-063 Move latest, previous and next-match context into Overview and label all current metrics as live partial data.
+- [x] FA-064 Remove the redundant Discover and Current season pages; keep one search and seven focused pages.
+- [x] FA-065 Verify the consolidated navigation, live calculations, tests and connected-browser rendering.
+
 ## Iteration 3 — packaging and operations
 - [ ] FA-014 CI with offline tests, dependency updates and scheduled source availability checks.
 - [ ] FA-015 Optional PostgreSQL deployment adapter when multi-user writing is needed.

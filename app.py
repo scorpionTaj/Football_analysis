@@ -7,7 +7,13 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from football_analysis.config import CLUBS, DB, LEAGUES, RECENT_LEAGUES, current_season, label, seasons
-from football_analysis.analytics import current_table, elo_history, shot_coverage, team_shot_efficiency
+from football_analysis.analytics import (
+    elo_history,
+    shot_coverage,
+    team_match_rows,
+    team_season_summaries,
+    team_shot_efficiency,
+)
 from football_analysis.teams import display_team, team_key
 
 
@@ -169,9 +175,6 @@ st.markdown(
     .player-stage img {position:relative; z-index:2; width:94%; max-height:310px; object-fit:contain; object-position:center bottom; filter:drop-shadow(0 18px 22px rgba(0,0,0,.42)); animation:player-float 5s ease-in-out infinite;}
     .player-number {position:absolute; z-index:1; right:15px; top:7px; font-size:5.6rem; line-height:1; font-weight:900; color:rgba(255,255,255,.07); letter-spacing:-.08em;}
     .no-art {width:82px;height:82px;display:grid;place-items:center;border-radius:50%;background:linear-gradient(145deg,var(--ctp-blue),var(--ctp-mauve));color:var(--ctp-crust);font-size:1.6rem;font-weight:900;}
-    .feature-grid {display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:10px 0 22px;}
-    .feature-card {min-height:115px;padding:16px;border-radius:16px;background:linear-gradient(145deg,rgba(49,50,68,.94),rgba(24,24,37,.92));border:1px solid var(--ctp-surface1);box-shadow:0 12px 30px rgba(0,0,0,.22);}
-    .feature-icon {font-size:1.35rem;margin-bottom:8px}.feature-card b {display:block;color:var(--ctp-text);margin-bottom:4px}.feature-card span {color:var(--ctp-subtext);font-size:.82rem;line-height:1.35;}
     .search-banner {padding:14px 18px;border-radius:16px;background:rgba(203,166,247,.1);border:1px solid rgba(203,166,247,.32);margin:0 0 18px;color:var(--ctp-text);}
     .match-strip {display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin:10px 0 20px;}
     .match-card {position:relative;overflow:hidden;padding:18px;border-radius:18px;background:linear-gradient(145deg,rgba(49,50,68,.96),rgba(24,24,37,.96));border:1px solid var(--ctp-surface1);box-shadow:0 14px 34px rgba(0,0,0,.22);}
@@ -188,8 +191,8 @@ st.markdown(
     @keyframes player-float {0%,100%{transform:translateY(0)} 50%{transform:translateY(-7px)}}
     @keyframes ring-pulse {0%,100%{transform:scale(.92);opacity:.42} 50%{transform:scale(1.08);opacity:.8}}
     @media (prefers-reduced-motion: reduce) {.hero-mark,.identity-card,.badge-chip,.player-stage,.player-stage img,.player-stage::before{animation:none!important;transition:none!important}}
-    @media (max-width:900px) {.feature-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.match-strip{grid-template-columns:1fr}}
-    @media (max-width:700px) {.hero-mark{width:82px;height:82px;flex-basis:82px}.hero-mark img{width:60px;height:60px}.hero h1{font-size:1.8rem}.identity-card img{width:58px;height:58px}.player-stage{min-height:240px}.feature-grid{grid-template-columns:1fr}}
+    @media (max-width:900px) {.match-strip{grid-template-columns:1fr}}
+    @media (max-width:700px) {.hero-mark{width:82px;height:82px;flex-basis:82px}.hero-mark img{width:60px;height:60px}.hero h1{font-size:1.8rem}.identity-card img{width:58px;height:58px}.player-stage{min-height:240px}}
     </style>
     """,
     unsafe_allow_html=True,
@@ -268,19 +271,74 @@ def match_card(row, title, scheduled=False):
         f'<div class="score-team"><span>{html.escape(away)}</span>{away_mark}</div></div>'
         f'<div class="match-meta">{status}</div></div>'
     )
-expected = seasons()
-summaries = summaries[summaries.season.isin(expected)].copy()
-games = games[games.season.isin(expected)].copy()
-fixtures = fixtures[fixtures.season.isin(expected)].copy()
+completed_seasons = seasons()
+live_season = current_season()
+expected = completed_seasons + ([live_season] if live_season not in completed_seasons else [])
+
+
+def season_label(year):
+    text = label(int(year))
+    return f"{text} · Live" if int(year) == live_season else text
+
+
+summaries = summaries[summaries.season.isin(completed_seasons)].copy()
+games = games[games.season.isin(completed_seasons)].copy()
+fixtures = fixtures[fixtures.season.isin(completed_seasons)].copy()
 reference_standings = reference_standings[
-    reference_standings.season.isin(expected)
+    reference_standings.season.isin(completed_seasons)
 ].copy() if not reference_standings.empty else reference_standings
+
+fixture_columns = [
+    "league", "season", "match_date", "home_team", "away_team",
+    "home_goals", "away_goals", "home_shots", "away_shots", "home_sot", "away_sot",
+]
+current_fixtures = recent_matches[
+    recent_matches.league.isin(RECENT_LEAGUES) & (recent_matches.season == live_season)
+][fixture_columns].copy() if not recent_matches.empty else pd.DataFrame(columns=fixture_columns)
+current_games = team_match_rows(current_fixtures)
+current_summaries = team_season_summaries(current_games)
+if not current_fixtures.empty:
+    fixtures = pd.concat([fixtures, current_fixtures], ignore_index=True)
+    games = pd.concat([games, current_games], ignore_index=True)
+    summaries = pd.concat([summaries, current_summaries], ignore_index=True)
+
+spotlight_columns = [
+    "league", "season", "match_date", "home_team", "away_team",
+    "home_goals", "away_goals", "source", "fetched_at",
+]
+spotlight_matches = recent_matches[
+    recent_matches.league.isin(RECENT_LEAGUES) & (recent_matches.season == live_season)
+][spotlight_columns].copy() if not recent_matches.empty else pd.DataFrame(columns=spotlight_columns)
+event_results = recent_events[
+    recent_events.league.isin(RECENT_LEAGUES)
+    & (recent_events.season == live_season)
+    & (recent_events.event_kind == "past")
+    & recent_events.home_goals.notna()
+    & recent_events.away_goals.notna()
+][spotlight_columns].copy() if not recent_events.empty else pd.DataFrame(columns=spotlight_columns)
+spotlight_matches = pd.concat([spotlight_matches, event_results], ignore_index=True)
+if not spotlight_matches.empty:
+    spotlight_matches["home_key"] = spotlight_matches.home_team.map(team_key)
+    spotlight_matches["away_key"] = spotlight_matches.away_team.map(team_key)
+    spotlight_matches = spotlight_matches.sort_values(["match_date", "fetched_at"]).drop_duplicates(
+        ["league", "match_date", "home_key", "away_key"], keep="last",
+    )
+upcoming_events = recent_events[
+    recent_events.league.isin(RECENT_LEAGUES)
+    & (recent_events.season == live_season)
+    & (recent_events.event_kind == "next")
+].sort_values("match_date").copy() if not recent_events.empty else pd.DataFrame()
+
+completed_coverage = summaries[
+    summaries.season.isin(completed_seasons)
+][["league", "season"]].drop_duplicates()
 coverage = summaries[["league", "season"]].drop_duplicates()
 if summaries.empty:
     st.info("No complete seasons are loaded yet. Run ingestion, then return to this page.")
     st.stop()
 
 elite_available = [team for team in CLUBS if team in set(summaries.team)]
+available_competitions = [code for code in RECENT_LEAGUES if code in set(summaries.league)]
 
 
 elo = cached_elo if not cached_elo.empty else elo_history(fixtures)
@@ -307,13 +365,13 @@ with st.sidebar:
     st.divider()
     year_range = st.select_slider(
         "Season range", options=expected, value=(expected[0], expected[-1]),
-        format_func=label, help="Choose the first and last completed season.",
+        format_func=season_label, help="Choose completed seasons and the live 2026/27 season.",
     )
     year_filter = list(range(year_range[0], year_range[1] + 1))
     if analysis_mode == "Competition view":
         competition_focus = st.selectbox(
-            "Competition", options=list(LEAGUES),
-            format_func=lambda code: LEAGUES[code],
+            "Competition", options=available_competitions,
+            format_func=lambda code: RECENT_LEAGUES[code],
         )
         league_filter = [competition_focus]
         chart_limit = st.selectbox(
@@ -323,8 +381,9 @@ with st.sidebar:
         )
     else:
         league_filter = st.multiselect(
-            "Competitions", options=list(LEAGUES), default=list(LEAGUES),
-            format_func=lambda code: LEAGUES[code], placeholder="Select competitions",
+            "Competitions", options=available_competitions,
+            default=[code for code in LEAGUES if code in available_competitions],
+            format_func=lambda code: RECENT_LEAGUES[code], placeholder="Select competitions",
         )
         chart_limit = None
     all_available_clubs = sorted(
@@ -366,7 +425,7 @@ with st.sidebar:
         selected_club = compare_clubs[0] if compare_clubs else None
     form_window = st.slider("Recent form window", 3, 10, 5)
     st.divider()
-    st.caption("Domestic leagues · Free public data · Five completed seasons")
+    st.caption("Five completed seasons + live 2026/27 · Free public data")
 
 selected = summaries[
     summaries.league.isin(league_filter) & summaries.season.isin(year_filter)
@@ -380,17 +439,17 @@ selected_games = games[
 if analysis_mode == "Club focus":
     hero_title = display_team(selected_club)
     hero_eyebrow = "Club performance room"
-    hero_text = "Follow form, strength, scoring and every league result across five completed seasons."
+    hero_text = "Follow form, strength, scoring and league results across five completed seasons plus live 2026/27."
     hero_image = team_badge(selected_club)
 elif analysis_mode == "Competition view":
-    hero_title = LEAGUES[league_filter[0]]
+    hero_title = RECENT_LEAGUES[league_filter[0]]
     hero_eyebrow = "Competition intelligence"
     hero_text = "Explore the complete table, season trends and every club in the selected domestic league."
     hero_image = competition_badge(league_filter[0])
 else:
     hero_title = "Football Intelligence"
     hero_eyebrow = "European club performance lab"
-    hero_text = "Compare elite clubs, inspect league tables, and follow match-by-match form across five seasons."
+    hero_text = "Compare elite clubs across five completed seasons and the live 2026/27 campaign."
     hero_image = team_badge(selected_club)
 
 hero_mark = (
@@ -461,69 +520,17 @@ m1.metric("Clubs covered" if analysis_mode == "Competition view" else "Selected 
 m2.metric("Matches analysed", f"{played if analysis_mode != 'Competition view' else played // 2:,}")
 m3.metric("Goals scored", f"{goals:,}")
 m4.metric("Average PPG", f"{hero_rows.points.sum()/played:.2f}")
-m5.metric("Peak season", f"{best_row.points_per_game:.2f}", f"{best_row.team} · {label(best_row.season)}")
+m5.metric("Peak season", f"{best_row.points_per_game:.2f}", f"{best_row.team} · {season_label(best_row.season)}")
 if analysis_mode == "Competition view":
     st.caption(f"Results through {latest_date:%d %B %Y}. Competition totals include every club in the selected league.")
 else:
     st.caption(f"Results through {latest_date:%d %B %Y}. Each selected club's performance is counted independently.")
 
-discover, overview, standings_tab, club_lab, shots_tab, matches_tab, recent_tab, players_tab, quality = st.tabs(
+overview, standings_tab, club_lab, shots_tab, matches_tab, players_tab, quality = st.tabs(
     [
-        "Discover", "Overview", "League tables", "Club lab", "Shot lab", "Match explorer",
-        "Current season", "Players", "Data quality",
+        "Overview", "League tables", "Club lab", "Shot lab", "Match explorer", "Players", "Data quality",
     ]
 )
-
-with discover:
-    st.subheader("Explore the platform")
-    st.markdown(
-        """
-        <div class="feature-grid">
-          <div class="feature-card"><div class="feature-icon">👤</div><b>Player intelligence</b><span>Search full featured-club squads and follow five-season appearances, goals, assists, minutes and cards.</span></div>
-          <div class="feature-card"><div class="feature-icon">⚔️</div><b>Club comparison</b><span>Benchmark attack, defence, form, Elo strength and clean-sheet performance across elite clubs.</span></div>
-          <div class="feature-card"><div class="feature-icon">🏆</div><b>Competition rooms</b><span>Open complete reconstructed tables for five major leagues and current results across ten competitions.</span></div>
-          <div class="feature-card"><div class="feature-icon">🔎</div><b>Match explorer</b><span>Filter every result by club, opponent, venue and season, then export the selected view.</span></div>
-          <div class="feature-card"><div class="feature-icon">🟢</div><b>Current season</b><span>Follow real 2026/27 results, the last two club matches, current form, points progress and partial league tables.</span></div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    d1, d2, d3, d4, d5 = st.columns(5)
-    d1.metric("Searchable players", f"{len(open_players):,}")
-    d2.metric("Featured clubs", open_players.team.nunique() if not open_players.empty else len(CLUBS))
-    d3.metric("Competitions", len(RECENT_LEAGUES))
-    d4.metric("Completed matches", f"{len(fixtures):,}")
-    d5.metric("Current results", f"{len(recent_matches):,}")
-    discover_query = st.text_input(
-        "Search players, clubs, positions or nationalities",
-        value=platform_search, placeholder="Try Vinicius, goalkeeper, Spain, Arsenal…",
-        key="discover_search",
-    ).strip()
-    if discover_query:
-        needle = discover_query.casefold()
-        discovery_players = open_players[
-            open_players.player.str.casefold().str.contains(needle, regex=False, na=False)
-            | open_players.team.map(display_team).str.casefold().str.contains(needle, regex=False, na=False)
-            | open_players.position.str.casefold().str.contains(needle, regex=False, na=False)
-            | open_players.sub_position.str.casefold().str.contains(needle, regex=False, na=False)
-            | open_players.nationality.str.casefold().str.contains(needle, regex=False, na=False)
-        ].copy() if not open_players.empty else pd.DataFrame()
-        if discovery_players.empty:
-            st.info("No player matched this search. Club and competition matches still appear in the sidebar result banner.")
-        else:
-            discovery_players["Club"] = discovery_players.team.map(display_team)
-            discovery_players["Value"] = discovery_players.market_value_eur
-            st.dataframe(
-                discovery_players[["image_url", "player", "Club", "position", "sub_position", "nationality", "Value"]].head(100),
-                hide_index=True, width="stretch",
-                column_config={
-                    "image_url": st.column_config.ImageColumn(""), "player": "Player",
-                    "position": "Position", "sub_position": "Role", "nationality": "Nationality",
-                    "Value": st.column_config.NumberColumn("Market value", format="€%d"),
-                },
-            )
-    else:
-        st.caption("Use search to discover any player in the 12-club snapshot. Open the Players tab for a full profile and season trends.")
 
 with overview:
     if analysis_mode == "Competition view":
@@ -533,13 +540,46 @@ with overview:
         ].copy()
         overview_rows["Club"] = overview_rows.team.map(display_team)
         st.caption(
-            f"Charts show {len(compare_clubs)} clubs from the {label(latest_competition_year)} table. "
+            f"Charts show {len(compare_clubs)} clubs from the {season_label(latest_competition_year)} table. "
             "The League tables tab still shows every club."
         )
     else:
         overview_rows = selected.copy()
         overview_rows["Club"] = overview_rows.team.map(display_team)
-    overview_rows["Season"] = overview_rows.season.map(label)
+    overview_rows["Season"] = overview_rows.season.map(season_label)
+
+    live_focus = selected_club
+    if live_season in year_filter and live_focus and not current_summaries.empty:
+        live_key = team_key(live_focus)
+        live_rows = current_summaries[
+            current_summaries.team.map(team_key).eq(live_key)
+            & current_summaries.league.isin(league_filter)
+        ]
+        live_results = spotlight_matches[
+            spotlight_matches.home_key.eq(live_key) | spotlight_matches.away_key.eq(live_key)
+        ].sort_values("match_date", ascending=False) if not spotlight_matches.empty else pd.DataFrame()
+        live_upcoming = upcoming_events[
+            upcoming_events.home_team.map(team_key).eq(live_key)
+            | upcoming_events.away_team.map(team_key).eq(live_key)
+        ] if not upcoming_events.empty else pd.DataFrame()
+        if not live_rows.empty or not live_results.empty:
+            st.markdown(f"#### {season_label(live_season)} · {display_team(live_focus)}")
+            if not live_rows.empty:
+                live_row = live_rows.iloc[0]
+                lc1, lc2, lc3, lc4 = st.columns(4)
+                lc1.metric("Played", int(live_row.played))
+                lc2.metric("W–D–L", f"{int(live_row.wins)}–{int(live_row.draws)}–{int(live_row.losses)}")
+                lc3.metric("Points / match", f"{live_row.points_per_game:.2f}")
+                lc4.metric("Goal difference", f"{int(live_row.goal_difference):+d}")
+            cards = [
+                match_card(row, "Latest completed match" if index == 0 else "Previous match")
+                for index, row in enumerate(live_results.head(2).itertuples(index=False))
+            ]
+            if not live_upcoming.empty:
+                cards.append(match_card(live_upcoming.iloc[0], "Next listed fixture", scheduled=True))
+            if cards:
+                st.markdown('<div class="match-strip">' + "".join(cards) + "</div>", unsafe_allow_html=True)
+            st.caption("2026/27 values are live and partial; they update from completed free-source results.")
     left, right = st.columns([1.35, 1])
     with left:
         trend = px.line(
@@ -584,7 +624,7 @@ with overview:
         & season_elo.team.isin(overview_rows.team.unique())
     ].copy()
     elo_rows["Club"] = elo_rows.team.map(display_team)
-    elo_rows["Season"] = elo_rows.season.map(label)
+    elo_rows["Season"] = elo_rows.season.map(season_label)
     elo_chart = px.line(
         elo_rows.sort_values("season"), x="Season", y="post_elo", color="Club",
         markers=True, title="Opponent-adjusted season-end Elo",
@@ -604,13 +644,13 @@ with standings_tab:
     )
     c1, c2 = st.columns(2)
     table_league = c1.selectbox(
-        "Competition", league_filter, format_func=lambda code: LEAGUES[code], key="table_league",
+        "Competition", league_filter, format_func=lambda code: RECENT_LEAGUES[code], key="table_league",
     )
     valid_years = [
         year for year in sorted(summaries.loc[summaries.league == table_league, "season"].unique(), reverse=True)
         if year in year_filter
     ]
-    table_year = c2.selectbox("Season", valid_years, format_func=label, key="table_year")
+    table_year = c2.selectbox("Season", valid_years, format_func=season_label, key="table_year")
     st.markdown(badge_rail([table_league]), unsafe_allow_html=True)
     table = summaries[(summaries.league == table_league) & (summaries.season == table_year)].copy()
     table = table.sort_values(["points", "goal_difference", "goals_for"], ascending=False).reset_index(drop=True)
@@ -644,14 +684,22 @@ with standings_tab:
             ),
         },
     )
-    st.caption("Results-derived points exclude administrative deductions and official competition-specific tiebreakers.")
+    if table_year == live_season:
+        st.caption("Live partial table from completed 2026/27 results. Rankings can change after every match.")
+    else:
+        st.caption("Results-derived points exclude administrative deductions and official competition-specific tiebreakers.")
     st.markdown("#### External reference table")
     reference = reference_standings[
         (reference_standings.league == table_league)
         & (reference_standings.season == table_year)
     ].sort_values("rank") if not reference_standings.empty else pd.DataFrame()
     if reference.empty:
-        st.info("No external reference table is cached for this competition and season.")
+        message = (
+            "External reference validation is added after the season is complete."
+            if table_year == live_season else
+            "No external reference table is cached for this competition and season."
+        )
+        st.info(message)
     else:
         reference_display = reference[[
             "rank", "team", "played", "points", "goal_difference", "form", "description"
@@ -710,7 +758,7 @@ with club_lab:
     st.markdown(
         f'<div class="identity-card">{badge_visual}<div><span class="art-kicker">Club focus</span>'
         f'<h2>{html.escape(display_team(focus_club))}</h2>'
-        f'<p>{html.escape(" · ".join(LEAGUES[code] for code in focus_leagues))}</p></div></div>',
+        f'<p>{html.escape(" · ".join(RECENT_LEAGUES[code] for code in focus_leagues))}</p></div></div>',
         unsafe_allow_html=True,
     )
     recent = club_games.tail(form_window)
@@ -778,8 +826,8 @@ with shots_tab:
         shot_coverage_frame.league.isin(league_filter)
         & shot_coverage_frame.season.isin(year_filter)
     ].copy()
-    coverage_rows["Competition"] = coverage_rows.league.map(LEAGUES)
-    coverage_rows["Season"] = coverage_rows.season.map(label)
+    coverage_rows["Competition"] = coverage_rows.league.map(RECENT_LEAGUES)
+    coverage_rows["Season"] = coverage_rows.season.map(season_label)
     gated = shot_efficiency[
         shot_efficiency.league.isin(league_filter)
         & shot_efficiency.season.isin(year_filter)
@@ -789,7 +837,7 @@ with shots_tab:
         st.info("No selected club-season passes the 95% shot-data coverage gate.")
     else:
         gated["Club"] = gated.team.map(CLUBS).fillna(gated.team)
-        gated["Season"] = gated.season.map(label)
+        gated["Season"] = gated.season.map(season_label)
         s1, s2, s3 = st.columns(3)
         s1.metric("Eligible club-seasons", len(gated))
         s2.metric("Average shot coverage", f"{gated.coverage_pct.mean():.1f}%")
@@ -870,7 +918,7 @@ with matches_tab:
             "shots", "shots_on_target",
         ]].copy()
         display["opponent"] = display.opponent.map(display_team)
-        display["season"] = display.season.map(label)
+        display["season"] = display.season.map(season_label)
         st.dataframe(
             display, hide_index=True, width="stretch",
             column_config={
@@ -883,192 +931,6 @@ with matches_tab:
             "Download this match view", display.to_csv(index=False),
             f"{match_club.lower().replace(' ', '_')}_matches.csv", "text/csv",
         )
-
-with recent_tab:
-    st.subheader(f"{label(current_season())} current-season centre")
-    st.markdown(
-        '<div class="section-note">Real completed results with the selected club’s two nearest previous matches, current form, a live partial table and the next listed fixture when available.</div>',
-        unsafe_allow_html=True,
-    )
-    if recent_matches.empty and recent_events.empty:
-        st.info("Current-season data has not been synchronized yet. Run football-sync-recent, then refresh.")
-    else:
-        recent_options = [
-            code for code in RECENT_LEAGUES
-            if code in set(recent_matches.get("league", pd.Series(dtype=str)))
-            or code in set(recent_events.get("league", pd.Series(dtype=str)))
-        ]
-        recent_filter = st.multiselect(
-            "Recent competitions", recent_options, default=recent_options,
-            format_func=lambda code: RECENT_LEAGUES[code],
-        )
-        st.markdown(badge_rail(recent_filter), unsafe_allow_html=True)
-        if not recent_filter:
-            st.info("Select at least one current competition.")
-            st.stop()
-        history = recent_matches[
-            recent_matches.league.isin(recent_filter)
-        ][[
-            "league", "season", "match_date", "home_team", "away_team",
-            "home_goals", "away_goals", "source", "fetched_at",
-        ]].copy() if not recent_matches.empty else pd.DataFrame()
-        event_history = recent_events[
-            recent_events.league.isin(recent_filter)
-            & (recent_events.event_kind == "past")
-            & recent_events.home_goals.notna()
-            & recent_events.away_goals.notna()
-        ][[
-            "league", "season", "match_date", "home_team", "away_team",
-            "home_goals", "away_goals", "source", "fetched_at",
-        ]].copy() if not recent_events.empty else pd.DataFrame()
-        combined = pd.concat([history, event_history], ignore_index=True)
-        upcoming = recent_events[
-            recent_events.league.isin(recent_filter)
-            & (recent_events.event_kind == "next")
-        ].sort_values("match_date").copy() if not recent_events.empty else pd.DataFrame()
-        if combined.empty:
-            st.info("No completed current-season matches fit these competitions.")
-        else:
-            combined["home_key"] = combined.home_team.map(team_key)
-            combined["away_key"] = combined.away_team.map(team_key)
-            combined = combined.sort_values(["match_date", "fetched_at"]).drop_duplicates(
-                ["league", "match_date", "home_key", "away_key"], keep="last"
-            )
-            combined["Competition"] = combined.league.map(RECENT_LEAGUES)
-            combined["Home"] = combined.home_team.map(display_team)
-            combined["Away"] = combined.away_team.map(display_team)
-            combined["Score"] = (
-                combined.home_goals.astype(int).astype(str)
-                + "–" + combined.away_goals.astype(int).astype(str)
-            )
-            latest_match_date = pd.to_datetime(combined.match_date).max()
-            latest_rows = combined.sort_values("match_date", ascending=False)
-
-            domestic_default = None
-            if selected_club:
-                club_leagues = summaries.loc[summaries.team == selected_club, "league"]
-                domestic_default = club_leagues.iloc[0] if not club_leagues.empty else None
-            competition_index = recent_filter.index(domestic_default) if domestic_default in recent_filter else 0
-            current_competition = st.selectbox(
-                "Current-season competition", recent_filter, index=competition_index,
-                format_func=lambda code: RECENT_LEAGUES[code],
-            )
-            competition_matches = combined[combined.league == current_competition].copy()
-            team_options = sorted(
-                set(competition_matches.home_team) | set(competition_matches.away_team),
-                key=display_team,
-            )
-            preferred_key = team_key(selected_club) if selected_club else ""
-            preferred_team = next(
-                (team for team in team_options if team_key(team) == preferred_key), team_options[0]
-            )
-            current_team = st.selectbox(
-                "Current-season club", team_options, index=team_options.index(preferred_team),
-                format_func=display_team,
-            )
-            current_key = team_key(current_team)
-            team_results = competition_matches[
-                competition_matches.home_team.map(team_key).eq(current_key)
-                | competition_matches.away_team.map(team_key).eq(current_key)
-            ].sort_values("match_date").copy()
-            team_results["is_home"] = team_results.home_team.map(team_key).eq(current_key)
-            team_results["gf"] = team_results.home_goals.where(team_results.is_home, team_results.away_goals)
-            team_results["ga"] = team_results.away_goals.where(team_results.is_home, team_results.home_goals)
-            team_results["points"] = team_results.apply(
-                lambda row: 3 if row.gf > row.ga else 1 if row.gf == row.ga else 0, axis=1,
-            )
-            team_results["result"] = team_results.points.map(result_letter)
-            team_results["cumulative_points"] = team_results.points.cumsum()
-
-            wins = int((team_results.points == 3).sum())
-            draws = int((team_results.points == 1).sum())
-            losses = int((team_results.points == 0).sum())
-            rc1, rc2, rc3, rc4 = st.columns(4)
-            rc1.metric("Played", len(team_results))
-            rc2.metric("W–D–L", f"{wins}–{draws}–{losses}")
-            rc3.metric("Points / match", f"{team_results.points.mean():.2f}")
-            rc4.metric("Goal difference", f"{int((team_results.gf - team_results.ga).sum()):+d}")
-
-            spotlight = []
-            recent_team_rows = list(team_results.sort_values("match_date", ascending=False).itertuples(index=False))
-            if recent_team_rows:
-                spotlight.append(match_card(recent_team_rows[0], "Latest completed match"))
-            if len(recent_team_rows) > 1:
-                spotlight.append(match_card(recent_team_rows[1], "Previous match"))
-            if not upcoming.empty:
-                team_upcoming = upcoming[
-                    upcoming.home_team.map(team_key).eq(current_key)
-                    | upcoming.away_team.map(team_key).eq(current_key)
-                ]
-                if not team_upcoming.empty:
-                    spotlight.append(match_card(team_upcoming.iloc[0], "Next listed fixture", scheduled=True))
-            if spotlight:
-                st.markdown('<div class="match-strip">' + "".join(spotlight) + "</div>", unsafe_allow_html=True)
-
-            recent_form = team_results.tail(form_window)
-            pills = "".join(
-                f'<span class="form-pill {"win" if result == "W" else "draw" if result == "D" else "loss"}">{result}</span>'
-                for result in recent_form.result
-            )
-            st.markdown(f"**Last {len(recent_form)} form**<div class=\"form-row\">{pills}</div>", unsafe_allow_html=True)
-
-            current_standings = current_table(competition_matches)
-            current_standings.insert(0, "position", range(1, len(current_standings) + 1))
-            current_standings["Club"] = current_standings.team.map(display_team)
-            team_trend = px.line(
-                team_results, x="match_date", y="cumulative_points", markers=True,
-                title=f"{display_team(current_team)} points progression",
-                labels={"match_date": "Match date", "cumulative_points": "Points"},
-            )
-            team_trend.update_traces(line=dict(color=MOCHA["mauve"], width=3), marker=dict(size=8, color=MOCHA["teal"]))
-            top_ten = current_standings.head(10).sort_values("position", ascending=False)
-            table_chart = go.Figure(go.Bar(
-                x=top_ten.points, y=top_ten.Club, orientation="h",
-                marker_color=[
-                    MOCHA["mauve"] if team_key(team) == current_key else MOCHA["blue"]
-                    for team in top_ten.team
-                ],
-                text=top_ten.points, textposition="auto",
-                hovertemplate="%{y}<br>%{x} points<extra></extra>",
-            ))
-            table_chart.update_layout(title="Current top 10 from completed results", xaxis_title="Points", yaxis_title="")
-            chart_left, chart_right = st.columns(2)
-            chart_left.plotly_chart(style_chart(team_trend, 390), width="stretch")
-            chart_right.plotly_chart(style_chart(table_chart, 390), width="stretch")
-            with st.expander("Full current table", expanded=True):
-                st.dataframe(
-                    current_standings[["position", "Club", "played", "wins", "draws", "losses", "goals_for", "goals_against", "goal_difference", "points"]],
-                    hide_index=True, width="stretch",
-                    column_config={
-                        "position": "#", "played": "P", "wins": "W", "draws": "D", "losses": "L",
-                        "goals_for": "GF", "goals_against": "GA", "goal_difference": "GD", "points": "Pts",
-                    },
-                )
-            st.markdown("#### Latest real results")
-            st.dataframe(
-                latest_rows[["match_date", "Competition", "Home", "Score", "Away", "source"]].head(100),
-                hide_index=True, width="stretch",
-                column_config={
-                    "match_date": "Date", "source": "Source",
-                },
-            )
-        if not upcoming.empty:
-            upcoming["Competition"] = upcoming.league.map(RECENT_LEAGUES)
-            upcoming["Home"] = upcoming.home_team.map(display_team)
-            upcoming["Away"] = upcoming.away_team.map(display_team)
-            st.markdown("#### Next listed event per competition")
-            st.dataframe(
-                upcoming[["match_date", "Competition", "Home", "Away", "status"]],
-                hide_index=True, width="stretch",
-                column_config={"match_date": "Date", "status": "Status"},
-            )
-        recent_refreshes = []
-        if not recent_matches.empty:
-            recent_refreshes.append(pd.to_datetime(recent_matches.fetched_at).max())
-        if not recent_events.empty:
-            recent_refreshes.append(pd.to_datetime(recent_events.fetched_at).max())
-        if recent_refreshes:
-            st.caption(f"Last current-season synchronization: {max(recent_refreshes):%d %b %Y %H:%M}")
 
 with players_tab:
     st.subheader("Player explorer")
@@ -1192,7 +1054,7 @@ with players_tab:
                     appearances=("appearances", "sum"), goals=("goals", "sum"),
                     assists=("assists", "sum"), minutes=("minutes_played", "sum"),
                 )
-                by_season["Season"] = by_season.season.map(label)
+                by_season["Season"] = by_season.season.map(season_label)
                 chart_values = by_season.melt(
                     id_vars="Season", value_vars=["goals", "assists"],
                     var_name="Metric", value_name="Total",
@@ -1220,7 +1082,7 @@ with players_tab:
                     )
 
         st.markdown("#### Full tracked squad")
-        st.caption("Totals cover each player's appearances across all clubs and source competitions during the selected five seasons.")
+        st.caption("Totals cover each player's published appearances across the selected completed seasons. The open source has no 2026/27 player rows yet.")
         squad_table = club_players.merge(squad_stats, on="player_id", how="left") if not squad_stats.empty else club_players
         for column in ["appearances", "goals", "assists", "minutes"]:
             if column not in squad_table:
@@ -1244,22 +1106,23 @@ with players_tab:
 with quality:
     st.subheader("Coverage and freshness")
     grid = pd.MultiIndex.from_product([LEAGUES, expected], names=["league", "season"]).to_frame(index=False)
-    grid = grid.merge(coverage.assign(status="✓ Complete"), how="left").fillna({"status": "Missing"})
+    status_rows = completed_coverage.assign(status="✓ Complete")
+    live_status = coverage[coverage.season == live_season].assign(status="● Live partial")
+    status_rows = pd.concat([status_rows, live_status], ignore_index=True)
+    grid = grid.merge(status_rows, how="left").fillna({"status": "Missing"})
     grid["league"] = grid.league.map(LEAGUES)
-    grid["season"] = grid.season.map(label)
-    expected_partitions = len(LEAGUES) * len(expected)
-    loaded_partitions = runs.loc[
-        runs.status == "success", ["league", "season"]
-    ].drop_duplicates().shape[0]
+    grid["season"] = grid.season.map(season_label)
+    expected_completed = len(LEAGUES) * len(completed_seasons)
+    live_leagues = coverage[coverage.season == live_season].league.nunique()
     impossible_shots = int((
         (fixtures.home_sot > fixtures.home_shots)
         | (fixtures.away_sot > fixtures.away_shots)
     ).fillna(False).sum())
     q1, q2, q3, q4, q5 = st.columns(5)
-    q1.metric("League-seasons", f"{len(coverage)}/{expected_partitions}")
-    q2.metric("Match records", f"{len(games)//2:,}")
-    q3.metric("Loaded partitions", loaded_partitions)
-    q4.metric("Reference rows", len(reference_standings), "Top-five only")
+    q1.metric("Completed coverage", f"{len(completed_coverage)}/{expected_completed}")
+    q2.metric("Live competitions", f"{live_leagues}/{len(RECENT_LEAGUES)}")
+    q3.metric("Match records", f"{len(fixtures):,}")
+    q4.metric("Reference rows", f"{len(reference_standings):,}")
     q5.metric("Impossible shot rows", impossible_shots)
     freshness_notes = []
     if not reference_standings.empty:
@@ -1288,8 +1151,8 @@ with quality:
         st.dataframe(runs.drop(columns=["run_id"]), hide_index=True, width="stretch")
     st.markdown("#### Shot-field coverage")
     quality_shots = shot_coverage_frame.copy()
-    quality_shots["Competition"] = quality_shots.league.map(LEAGUES)
-    quality_shots["Season"] = quality_shots.season.map(label)
+    quality_shots["Competition"] = quality_shots.league.map(RECENT_LEAGUES)
+    quality_shots["Season"] = quality_shots.season.map(season_label)
     st.dataframe(
         quality_shots[["Competition", "Season", "matches", "shot_matches", "coverage_pct"]],
         hide_index=True, width="stretch",
@@ -1300,7 +1163,10 @@ with quality:
         "Its upstream updates paused in July 2026, so it does not claim current 2026/27 squads. TheSportsDB remains an artwork and profile-image fallback."
     )
 
-if len(coverage) < len(LEAGUES) * len(expected):
-    st.warning(f"Coverage: {len(coverage)}/{len(LEAGUES) * len(expected)} complete league-seasons. Missing partitions are excluded.")
+if len(completed_coverage) < len(LEAGUES) * len(completed_seasons):
+    st.warning(
+        f"Completed-season coverage: {len(completed_coverage)}/{len(LEAGUES) * len(completed_seasons)} league-seasons. "
+        "Missing partitions are excluded."
+    )
 st.divider()
 st.caption("Data: Football-Data.co.uk public CSV archive · Transfermarkt Open Dataset (CC0) · TheSportsDB media · Match-derived analytics · Cached locally")

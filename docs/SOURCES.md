@@ -7,7 +7,7 @@ Historical country index: https://www.football-data.co.uk/englandm.php
 Field definitions: https://www.football-data.co.uk/notes.txt
 Example tested endpoint: https://www.football-data.co.uk/mmz4281/2526/E0.csv
 
-The provider describes its historical results, match statistics and odds files as free downloadable CSV/Excel, updated at least twice weekly. No token is required by the tested CSV endpoint. E0, SP1, D1, I1 and F1 are the five selected league codes. This implementation consumes scores and selected shots fields, not betting prices. Public files are data endpoints, not a guaranteed versioned API.
+The provider describes its historical results, match statistics and odds files as free downloadable CSV/Excel, updated at least twice weekly. No token is required by the tested CSV endpoint. E0, SP1, D1, I1 and F1 provide five completed seasons; 2026/27 also uses N1, P1, B1, T1 and G1 for ten live domestic competitions. This implementation consumes scores and selected shots fields, not betting prices. Public files are data endpoints, not a guaranteed versioned API.
 
 No published numerical CSV quota or explicit broad redistribution grant was verified. The implementation uses sequential downloads, a one-second courtesy pause, persistent caching, bounded retries with Retry-After support, and no scraping or access-control bypasses. Page requests through the research browser encountered redirects/429 responses, but the actual CSV endpoint was separately tested. Free access is not treated as an open-data licence; source attribution is present in the dashboard. Review current terms before raw-data redistribution or commercial hosting.
 
