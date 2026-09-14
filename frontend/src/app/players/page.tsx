@@ -7,6 +7,7 @@ import { api } from '@/lib/api/client';
 import { queryKeys } from '@/lib/api/query-keys';
 import { SourceBadge } from '@/components/ui/source-badge';
 import { LoadingSkeleton, ErrorMessage, EmptyState } from '@/components/ui/loading';
+import { PageHeader } from '@/components/ui/page-header';
 import { usePagination } from '@/components/ui/pagination';
 import type { PlayerSummary, PlayerProfileResponse } from '@/lib/api/types';
 import { FootballBadge, PlayerAvatar } from '@/lib/media-utils';
@@ -353,12 +354,7 @@ function PlayerStatsTable({ stats }: { stats: PlayerProfileResponse['stats'] }) 
 export default function PlayersPage() {
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-text tracking-tight">Player Profiles & Statistics</h1>
-        <p className="text-sm text-subtext0 mt-1">
-          CC0 Transfermarkt open squad data, player market valuations, career metrics, and seasonal records.
-        </p>
-      </div>
+      <PageHeader icon={User} eyebrow="Player database" title="Player Profiles & Statistics" description="Explore the open player snapshot, market values and season-by-season appearance records." />
 
       <Suspense fallback={<LoadingSkeleton lines={10} />}>
         <PlayersContent />

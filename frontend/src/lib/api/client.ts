@@ -42,6 +42,8 @@ import type {
   AnalysisFilters,
   AnalysisReportResponse,
   CatalogResponse,
+  EventDetailResponse,
+  EventListResponse,
   HealthResponse,
   MatchListResponse,
   OverviewResponse,
@@ -49,6 +51,7 @@ import type {
   PlayerProfileResponse,
   PredictionsResponse,
   QualityResponse,
+  ShotAnalysisResponse,
   TeamListResponse,
   TournamentResponse,
   TransferListResponse,
@@ -70,6 +73,15 @@ export const api = {
     cursor?: string;
     limit?: number;
   }) => request<MatchListResponse>(`/api/v1/matches${params(opts || {})}`),
+
+  shots: (opts?: { competition?: string; season?: number; team?: string }) =>
+    request<ShotAnalysisResponse>(`/api/v1/shots${params(opts || {})}`),
+
+  eventDetails: (opts?: { competition?: string; season?: number }) =>
+    request<EventListResponse>(`/api/v1/event-details${params(opts || {})}`),
+
+  eventDetail: (eventId: string) =>
+    request<EventDetailResponse>(`/api/v1/event-details/${encodeURIComponent(eventId)}`),
 
   analysis: (body: Partial<AnalysisFilters>) =>
     request<AnalysisReportResponse>('/api/v1/analysis', {

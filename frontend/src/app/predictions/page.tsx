@@ -7,6 +7,7 @@ import { api } from '@/lib/api/client';
 import { queryKeys } from '@/lib/api/query-keys';
 import { SourceBadge } from '@/components/ui/source-badge';
 import { LoadingSkeleton, ErrorMessage, EmptyState } from '@/components/ui/loading';
+import { PageHeader } from '@/components/ui/page-header';
 import type { Forecast, CalibrationBin } from '@/lib/api/types';
 import { Cpu, Target, CheckCircle2, TrendingUp, Download, Calendar, BarChart2 } from 'lucide-react';
 import {
@@ -232,7 +233,7 @@ function PredictionsContent() {
                 <YAxis stroke="#7f849c" fontSize={11} unit="%" />
                 <Tooltip
                   contentStyle={{ backgroundColor: '#181825', borderColor: '#45475a', borderRadius: '8px', color: '#cdd6f4' }}
-                  formatter={(val: any) => [`${val}%`]}
+                  formatter={(val) => [`${val}%`]}
                 />
                 <Legend wrapperStyle={{ fontSize: '11px', color: '#bac2de' }} />
                 <Bar dataKey="Predicted Probability" fill="#89b4fa" radius={[4, 4, 0, 0]} />
@@ -249,12 +250,7 @@ function PredictionsContent() {
 export default function PredictionsPage() {
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-text tracking-tight">Predictions & Model Cards</h1>
-        <p className="text-sm text-subtext0 mt-1">
-          Regularized softmax 3-way match probability forecasts, out-of-sample holdout metrics, and calibration curves.
-        </p>
-      </div>
+      <PageHeader icon={Target} eyebrow="Model intelligence" title="Predictions & Model Card" description="Review three-way match probabilities alongside holdout performance and calibration evidence." />
 
       <Suspense fallback={<LoadingSkeleton lines={8} />}>
         <PredictionsContent />

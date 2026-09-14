@@ -4,8 +4,11 @@ import Providers from './providers';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Football Analysis',
-  description: 'Free-source European football analytics',
+  title: {
+    default: 'Football Analysis',
+    template: '%s · Football Analysis',
+  },
+  description: 'European football performance, match, player and model intelligence from transparent public data.',
 };
 
 export default function RootLayout({
@@ -14,12 +17,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" className="dark" suppressHydrationWarning>
       <body className="bg-base text-text antialiased">
         <Providers>
+          <a href="#main-content" className="skip-link">Skip to content</a>
           <Navigation />
-          <main className="min-h-screen lg:pl-60">
-            <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+          <main id="main-content" className="min-h-screen pb-24 lg:pl-72 lg:pb-0">
+            <div className="mx-auto max-w-[1600px] px-3 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8">
               {children}
             </div>
           </main>

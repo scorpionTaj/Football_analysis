@@ -86,6 +86,37 @@ def seed(path):
             VALUES ('elo', current_timestamp, 2)
         """)
         con.execute("""
+            INSERT INTO shot_efficiency_cache (
+                league, season, team, matches, coverage_pct, shots_per_match,
+                shot_accuracy_pct, goals_per_shot_pct, goals_per_sot_pct
+            ) VALUES ('E0', 2024, 'Arsenal', 2, 100, 11.5, 39.1, 13.0, 33.3)
+        """)
+        con.execute("""
+            INSERT INTO recent_events (
+                event_id, league, season, match_date, home_team, away_team,
+                home_goals, away_goals, status, event_kind, source, fetched_at
+            ) VALUES ('event-1', 'E0', 2024, '2024-08-17', 'Arsenal', 'Liverpool',
+                      2, 1, 'Match Finished', 'past', 'TheSportsDB', current_timestamp)
+        """)
+        con.execute("""
+            INSERT INTO event_statistics (source, event_id, statistic, home_value, away_value, fetched_at)
+            VALUES ('TheSportsDB', 'event-1', 'Shots on Goal', 5, 3, current_timestamp)
+        """)
+        con.execute("""
+            INSERT INTO event_timeline (
+                source, timeline_id, event_id, minute, event_type, detail, team,
+                player_id, player, assist, is_home, comment, fetched_at
+            ) VALUES ('TheSportsDB', 'timeline-1', 'event-1', '12', 'Goal', 'Open Play',
+                      'Arsenal', 'p-saka', 'Bukayo Saka', '', TRUE, '', current_timestamp)
+        """)
+        con.execute("""
+            INSERT INTO event_lineups (
+                source, lineup_id, event_id, team, player_id, player, position,
+                is_home, is_substitute, shirt_number, cutout_url, fetched_at
+            ) VALUES ('TheSportsDB', 'lineup-1', 'event-1', 'Arsenal', 'p-saka',
+                      'Bukayo Saka', 'Right Wing', TRUE, FALSE, '7', NULL, current_timestamp)
+        """)
+        con.execute("""
             CREATE TABLE IF NOT EXISTS transfers (
                 transfer_id VARCHAR,
                 player_id VARCHAR,
@@ -130,6 +161,7 @@ def test_health_and_openapi_document_v1_routes(tmp_path):
         "/api/v1/tournaments/{competition}/{season}", "/api/v1/predictions",
         "/api/v1/players", "/api/v1/players/{player_id}", "/api/v1/quality",
         "/api/v1/overview", "/api/v1/transfers",
+        "/api/v1/shots", "/api/v1/event-details", "/api/v1/event-details/{event_id}",
     ):
         assert path in spec["paths"]
     assert spec["info"]["version"] == "1.0.0"
@@ -236,6 +268,24 @@ def test_transfers_with_all_filter(tmp_path):
     assert len(data["transfers"]) >= 1
 
 
+def test_shots_and_event_details_close_streamlit_parity(tmp_path):
+    api = client(tmp_path)
+    shots = api.get("/api/v1/shots", params={"competition": "E0", "season": 2024})
+    assert shots.status_code == 200
+    assert shots.json()["teams"][0]["team"]["team_id"] == "arsenal"
+    assert shots.json()["coverage"][0]["coverage_pct"] == 100
+
+    events = api.get("/api/v1/event-details", params={"competition": "E0"})
+    assert events.status_code == 200
+    assert events.json()["events"][0]["statistics_count"] == 1
+    detail = api.get("/api/v1/event-details/event-1")
+    assert detail.status_code == 200
+    assert detail.json()["statistics"][0]["statistic"] == "Shots on Goal"
+    assert detail.json()["timeline"][0]["player"] == "Bukayo Saka"
+    assert detail.json()["lineups"][0]["shirt_number"] == "7"
+    assert api.get("/api/v1/event-details/missing").status_code == 404
+
+
 def test_teams_endpoint_fallback(tmp_path):
     api = client(tmp_path)
     # Season 2026 for E0 when only 2024 matches seeded
@@ -244,7 +294,6 @@ def test_teams_endpoint_fallback(tmp_path):
     data = res.json()
     assert "teams" in data
     assert len(data["teams"]) >= 2
-
 
 
 

@@ -96,6 +96,30 @@ def create_app(database_path: Path | None = None) -> FastAPI:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return with_cache(payload, request)
 
+    @app.get("/api/v1/shots")
+    def shots(
+        request: Request,
+        competition: str | None = None,
+        season: int | None = None,
+        team: str | None = None,
+    ):
+        return with_cache(queries.shot_analysis(require_store(), competition, season, team), request, CACHE_STABLE)
+
+    @app.get("/api/v1/event-details")
+    def event_details(
+        request: Request,
+        competition: str | None = None,
+        season: int | None = None,
+    ):
+        return with_cache(queries.list_event_details(require_store(), competition, season), request, CACHE_STABLE)
+
+    @app.get("/api/v1/event-details/{event_id}")
+    def event_detail(event_id: str, request: Request):
+        payload = queries.event_detail(require_store(), event_id)
+        if payload is None:
+            raise HTTPException(status_code=404, detail="Event details not found")
+        return with_cache(payload, request, CACHE_STABLE)
+
     @app.post("/api/v1/analysis")
     def analysis(body: AnalysisRequestBody, request: Request):
         if body.form_window < 1:

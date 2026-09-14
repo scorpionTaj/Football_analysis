@@ -6,6 +6,7 @@ import { api } from '@/lib/api/client';
 import { queryKeys } from '@/lib/api/query-keys';
 import { SourceBadge } from '@/components/ui/source-badge';
 import { LoadingSkeleton, ErrorMessage } from '@/components/ui/loading';
+import { PageHeader } from '@/components/ui/page-header';
 import { usePagination } from '@/components/ui/pagination';
 import { ShieldCheck, CheckCircle, AlertTriangle, Database, Info, RefreshCw, FileCheck } from 'lucide-react';
 
@@ -16,13 +17,14 @@ export function QualityContent() {
   });
 
   // Extract unique competitions and seasons for the matrix grid
+  const grid = data?.grid;
   const { gridMatrix, uniqueSeasons, uniqueCompetitions } = useMemo(() => {
-    if (!data?.grid) return { gridMatrix: new Map(), uniqueSeasons: [], uniqueCompetitions: [] };
+    if (!grid) return { gridMatrix: new Map(), uniqueSeasons: [], uniqueCompetitions: [] };
     const matrix = new Map<string, string>();
     const seasonsSet = new Set<number>();
     const compsSet = new Set<string>();
 
-    for (const cell of data.grid) {
+    for (const cell of grid) {
       matrix.set(`${cell.competition}_${cell.season}`, cell.status);
       seasonsSet.add(cell.season);
       compsSet.add(cell.competition);
@@ -33,9 +35,17 @@ export function QualityContent() {
       uniqueSeasons: Array.from(seasonsSet).sort((a, b) => a - b),
       uniqueCompetitions: Array.from(compsSet),
     };
-  }, [data?.grid]);
+  }, [grid]);
 
-  const checksums = useMemo(() => data?.checksums || [], [data?.checksums]);
+  type ChecksumRow = {
+    league?: string;
+    season?: number;
+    row_count?: number;
+    status?: string;
+    sha256?: string;
+    fetched_at?: string;
+  };
+  const checksums = useMemo(() => (data?.checksums || []) as ChecksumRow[], [data?.checksums]);
   const { paginatedItems: paginatedChecksums, PaginationComponent: ChecksumsPagination } = usePagination(checksums, 10);
 
   if (isLoading) return <LoadingSkeleton lines={10} />;
@@ -205,7 +215,7 @@ export function QualityContent() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface1">
-                {paginatedChecksums.map((chk: any, i: number) => (
+                {paginatedChecksums.map((chk, i) => (
                   <tr key={i} className="hover:bg-surface1/30">
                     <td className="py-2 px-4 font-bold text-text">{chk.league}</td>
                     <td className="py-2 px-4 font-mono">{chk.season}</td>
@@ -236,12 +246,7 @@ export function QualityContent() {
 export default function QualityPage() {
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-text tracking-tight">Data Quality & Ingestion Observability</h1>
-        <p className="text-sm text-subtext0 mt-1">
-          Historical partition completeness, free-tier source constraints, schema validation, and SHA-256 audit logs.
-        </p>
-      </div>
+      <PageHeader icon={ShieldCheck} eyebrow="Trust and provenance" title="Data Quality & Observability" description="See coverage, freshness, source constraints and ingestion evidence before relying on an analysis." />
 
       <Suspense fallback={<LoadingSkeleton lines={10} />}>
         <QualityContent />

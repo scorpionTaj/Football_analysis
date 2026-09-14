@@ -8,6 +8,7 @@ import { queryKeys } from '@/lib/api/query-keys';
 import { useFilterParams } from '@/lib/hooks/use-filter-params';
 import { SourceBadge } from '@/components/ui/source-badge';
 import { LoadingSkeleton, ErrorMessage, EmptyState } from '@/components/ui/loading';
+import { PageHeader } from '@/components/ui/page-header';
 import { Shield, TrendingUp, Calendar, Trophy, Download, Swords, ChevronRight, BarChart2 } from 'lucide-react';
 import { usePagination } from '@/components/ui/pagination';
 import {
@@ -290,8 +291,7 @@ export function ClubLabContent() {
             <div className="flex items-center bg-mantle rounded-lg p-1 border border-surface1">
               <Button
                 size="sm"
-                variant={activeTab === 'profile' ? 'solid' : 'light'}
-                color={activeTab === 'profile' ? 'primary' : 'default'}
+                variant={activeTab === 'profile' ? 'primary' : 'ghost'}
                 onPress={() => setActiveTab('profile')}
                 className="flex items-center gap-1.5 text-xs font-semibold h-8 cursor-pointer"
               >
@@ -300,8 +300,7 @@ export function ClubLabContent() {
               </Button>
               <Button
                 size="sm"
-                variant={activeTab === 'h2h' ? 'solid' : 'light'}
-                color={activeTab === 'h2h' ? 'primary' : 'default'}
+                variant={activeTab === 'h2h' ? 'primary' : 'ghost'}
                 onPress={() => setActiveTab('h2h')}
                 className="flex items-center gap-1.5 text-xs font-semibold h-8 cursor-pointer"
               >
@@ -708,12 +707,7 @@ export function ClubLabContent() {
 export default function ClubsPage() {
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-text tracking-tight">Club Lab & Head-to-Head</h1>
-        <p className="text-sm text-subtext0 mt-1">
-          Deep-dive club performance profiling, historical season trajectories, and direct head-to-head comparison.
-        </p>
-      </div>
+      <PageHeader icon={Shield} eyebrow="Club intelligence" title="Club Lab & Head-to-Head" description="Profile long-term performance, inspect recent results and compare two clubs across the same evidence." />
 
       <Suspense fallback={<LoadingSkeleton lines={10} />}>
         <ClubLabContent />

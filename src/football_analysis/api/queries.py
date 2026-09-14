@@ -24,6 +24,12 @@ from football_analysis.api.contracts import (
     Competition,
     CorrelationRow,
     EloRatingRow,
+    EventDetailResponse,
+    EventLineupItem,
+    EventListResponse,
+    EventStatistic,
+    EventSummary,
+    EventTimelineItem,
     Forecast,
     FormRow,
     HealthResponse,
@@ -42,6 +48,9 @@ from football_analysis.api.contracts import (
     RankingRow,
     RefereeSummary,
     SeasonCoverage,
+    ShotAnalysisResponse,
+    ShotCoverageRow,
+    ShotEfficiencyRow,
     SourceMeta,
     Team,
     TeamListResponse,
@@ -357,6 +366,10 @@ def _match_from_row(row, competition_field="league", media_map: dict[str, Any] |
         venue=getattr(row, "venue", None),
         stage=getattr(row, "stage", None),
         referee=None if pd.isna(getattr(row, "referee", None)) else getattr(row, "referee", None),
+        home_shots=None if pd.isna(getattr(row, "home_shots", None)) else int(row.home_shots),
+        away_shots=None if pd.isna(getattr(row, "away_shots", None)) else int(row.away_shots),
+        home_shots_on_target=None if pd.isna(getattr(row, "home_sot", None)) else int(row.home_sot),
+        away_shots_on_target=None if pd.isna(getattr(row, "away_sot", None)) else int(row.away_sot),
         source=getattr(row, "source", None),
     )
 
@@ -375,19 +388,23 @@ def list_matches(
     if _has(store, "matches"):
         frames.append(store.query(
             "SELECT league AS competition, season, match_date, home_team, away_team, "
-            "home_goals, away_goals, referee, CAST(NULL AS VARCHAR) AS stage, "
+            "home_goals, away_goals, home_shots, away_shots, home_sot, away_sot, "
+            "referee, CAST(NULL AS VARCHAR) AS stage, "
             "CAST(NULL AS VARCHAR) AS venue, 'football-data.co.uk' AS source FROM matches"
         ))
     if _has(store, "recent_matches"):
         frames.append(store.query(
             "SELECT league AS competition, season, match_date, home_team, away_team, "
-            "home_goals, away_goals, referee, CAST(NULL AS VARCHAR) AS stage, "
+            "home_goals, away_goals, home_shots, away_shots, home_sot, away_sot, "
+            "referee, CAST(NULL AS VARCHAR) AS stage, "
             "CAST(NULL AS VARCHAR) AS venue, source FROM recent_matches"
         ))
     if _has(store, "tournament_matches"):
         frames.append(store.query(
             "SELECT competition, season, match_date, home_team, away_team, "
-            "home_goals, away_goals, CAST(NULL AS VARCHAR) AS referee, stage, venue, source "
+            "home_goals, away_goals, CAST(NULL AS INTEGER) AS home_shots, "
+            "CAST(NULL AS INTEGER) AS away_shots, CAST(NULL AS INTEGER) AS home_sot, "
+            "CAST(NULL AS INTEGER) AS away_sot, CAST(NULL AS VARCHAR) AS referee, stage, venue, source "
             "FROM tournament_matches"
         ))
     if not frames:
@@ -452,6 +469,178 @@ def list_matches(
         matches=matches,
         page=PageMeta(next_cursor=next_cursor, limit=limit, returned=len(matches)),
         source=_source("duckdb", "matches"),
+    )
+
+
+def shot_analysis(
+    store: ReadOnlyStore,
+    competition: str | None = None,
+    season: int | None = None,
+    team: str | None = None,
+) -> ShotAnalysisResponse:
+    """Expose the same nullable, 95%-gated shot analysis used by Streamlit."""
+    frames = []
+    for table in ("matches", "recent_matches"):
+        if _has(store, table):
+            frames.append(store.query(
+                f"SELECT league AS competition, season, home_shots, away_shots, home_sot, away_sot FROM {table}"
+            ))
+    raw = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+    if not raw.empty:
+        if competition:
+            raw = raw[raw.competition == competition]
+        if season is not None:
+            raw = raw[raw.season == season]
+        raw["complete"] = raw[["home_shots", "away_shots", "home_sot", "away_sot"]].notna().all(axis=1)
+        grouped = raw.groupby(["competition", "season"], as_index=False).agg(
+            matches=("complete", "size"), shot_matches=("complete", "sum"),
+        )
+        grouped["coverage_pct"] = 100 * grouped.shot_matches / grouped.matches
+        coverage = [
+            ShotCoverageRow(
+                competition=row.competition,
+                season=int(row.season),
+                matches=int(row.matches),
+                shot_matches=int(row.shot_matches),
+                coverage_pct=float(row.coverage_pct),
+            )
+            for row in grouped.itertuples(index=False)
+        ]
+    else:
+        coverage = []
+
+    rows: list[ShotEfficiencyRow] = []
+    if _has(store, "shot_efficiency_cache"):
+        sql = "SELECT * FROM shot_efficiency_cache WHERE coverage_pct >= 95"
+        values: list[Any] = []
+        if competition:
+            sql += " AND league = ?"
+            values.append(competition)
+        if season is not None:
+            sql += " AND season = ?"
+            values.append(season)
+        sql += " ORDER BY season DESC, shots_per_match DESC NULLS LAST, team"
+        frame = store.query(sql, values)
+        if team and not frame.empty:
+            wanted = team_key(team) or team
+            frame = frame[(frame.team.map(team_key) == wanted) | (frame.team == team)]
+        media = _team_media_map(store)
+        rows = [
+            ShotEfficiencyRow(
+                competition=row.league,
+                season=int(row.season),
+                team=_build_team_ref(row.team, media),
+                matches=int(row.matches),
+                coverage_pct=float(row.coverage_pct),
+                shots_per_match=None if pd.isna(row.shots_per_match) else float(row.shots_per_match),
+                shot_accuracy_pct=None if pd.isna(row.shot_accuracy_pct) else float(row.shot_accuracy_pct),
+                goals_per_shot_pct=None if pd.isna(row.goals_per_shot_pct) else float(row.goals_per_shot_pct),
+                goals_per_sot_pct=None if pd.isna(row.goals_per_sot_pct) else float(row.goals_per_sot_pct),
+            )
+            for row in frame.itertuples(index=False)
+        ]
+    return ShotAnalysisResponse(
+        coverage=coverage,
+        teams=rows,
+        source=_source("football-data.co.uk", "95% complete-field gate"),
+    )
+
+
+def list_event_details(
+    store: ReadOnlyStore,
+    competition: str | None = None,
+    season: int | None = None,
+) -> EventListResponse:
+    if not _has(store, "recent_events"):
+        return EventListResponse(events=[], source=_source("TheSportsDB", "empty"))
+    frame = store.query("SELECT * FROM recent_events ORDER BY match_date DESC, event_id")
+    if competition:
+        frame = frame[frame.league == competition]
+    if season is not None:
+        frame = frame[frame.season == season]
+    counts: dict[str, dict[str, int]] = {}
+    for table, key in (
+        ("event_statistics", "statistics_count"),
+        ("event_timeline", "timeline_count"),
+        ("event_lineups", "lineup_count"),
+    ):
+        if _has(store, table):
+            count_frame = store.query(f"SELECT event_id, count(*) AS count FROM {table} GROUP BY event_id")
+            for row in count_frame.itertuples(index=False):
+                counts.setdefault(str(row.event_id), {})[key] = int(row.count)
+    media = _team_media_map(store)
+    events = []
+    for row in frame.itertuples(index=False):
+        event_counts = counts.get(str(row.event_id), {})
+        if not event_counts:
+            continue
+        events.append(EventSummary(
+            event_id=str(row.event_id),
+            competition=row.league,
+            season=int(row.season),
+            match_date=_as_date(row.match_date) or date.min,
+            home=_build_team_ref(row.home_team, media),
+            away=_build_team_ref(row.away_team, media),
+            home_goals=None if pd.isna(row.home_goals) else int(row.home_goals),
+            away_goals=None if pd.isna(row.away_goals) else int(row.away_goals),
+            status=None if pd.isna(row.status) else row.status,
+            statistics_count=event_counts.get("statistics_count", 0),
+            timeline_count=event_counts.get("timeline_count", 0),
+            lineup_count=event_counts.get("lineup_count", 0),
+        ))
+    return EventListResponse(
+        events=events,
+        source=_source("TheSportsDB", "capped event-detail samples"),
+    )
+
+
+def event_detail(store: ReadOnlyStore, event_id: str) -> EventDetailResponse | None:
+    listing = list_event_details(store)
+    summary = next((event for event in listing.events if event.event_id == str(event_id)), None)
+    if summary is None:
+        return None
+    media = _team_media_map(store)
+    stats = store.query(
+        "SELECT statistic, home_value, away_value FROM event_statistics WHERE event_id = ? ORDER BY statistic",
+        [str(event_id)],
+    ) if _has(store, "event_statistics") else pd.DataFrame()
+    timeline = store.query(
+        "SELECT * FROM event_timeline WHERE event_id = ? ORDER BY try_cast(minute AS INTEGER) NULLS LAST, timeline_id",
+        [str(event_id)],
+    ) if _has(store, "event_timeline") else pd.DataFrame()
+    lineups = store.query(
+        "SELECT * FROM event_lineups WHERE event_id = ? ORDER BY is_home DESC, is_substitute, team, player",
+        [str(event_id)],
+    ) if _has(store, "event_lineups") else pd.DataFrame()
+    return EventDetailResponse(
+        event=summary,
+        statistics=[EventStatistic(
+            statistic=row.statistic,
+            home_value=None if pd.isna(row.home_value) else float(row.home_value),
+            away_value=None if pd.isna(row.away_value) else float(row.away_value),
+        ) for row in stats.itertuples(index=False)],
+        timeline=[EventTimelineItem(
+            minute=None if pd.isna(row.minute) else str(row.minute),
+            event_type=None if pd.isna(row.event_type) else row.event_type,
+            detail=None if pd.isna(row.detail) else row.detail,
+            team=_build_team_ref(row.team, media),
+            player_id=None if pd.isna(row.player_id) else str(row.player_id),
+            player=None if pd.isna(row.player) else row.player,
+            assist=None if pd.isna(row.assist) else row.assist,
+            is_home=None if pd.isna(row.is_home) else bool(row.is_home),
+            comment=None if pd.isna(row.comment) else row.comment,
+        ) for row in timeline.itertuples(index=False)],
+        lineups=[EventLineupItem(
+            team=_build_team_ref(row.team, media),
+            player_id=None if pd.isna(row.player_id) else str(row.player_id),
+            player=None if pd.isna(row.player) else row.player,
+            position=None if pd.isna(row.position) else row.position,
+            is_home=None if pd.isna(row.is_home) else bool(row.is_home),
+            is_substitute=None if pd.isna(row.is_substitute) else bool(row.is_substitute),
+            shirt_number=None if pd.isna(row.shirt_number) else str(row.shirt_number),
+            cutout_url=None if pd.isna(row.cutout_url) else row.cutout_url,
+        ) for row in lineups.itertuples(index=False)],
+        source=_source("TheSportsDB", "free endpoint samples; collections capped at five"),
     )
 
 

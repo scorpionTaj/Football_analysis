@@ -8,6 +8,7 @@ import { queryKeys } from '@/lib/api/query-keys';
 import { useFilterParams } from '@/lib/hooks/use-filter-params';
 import { SourceBadge } from '@/components/ui/source-badge';
 import { LoadingSkeleton, ErrorMessage, EmptyState } from '@/components/ui/loading';
+import { PageHeader } from '@/components/ui/page-header';
 import { usePagination } from '@/components/ui/pagination';
 import { Table as TableIcon, Download, Trophy, ShieldAlert, ArrowUpDown, ChevronRight } from 'lucide-react';
 import { FootballBadge, CompetitionBadge } from '@/lib/media-utils';
@@ -129,8 +130,7 @@ export function LeagueTablesContent() {
                     <Button
                       key={v}
                       size="sm"
-                      variant={venueFilter === v ? 'solid' : 'light'}
-                      color={venueFilter === v ? 'primary' : 'default'}
+                      variant={venueFilter === v ? 'primary' : 'ghost'}
                       onPress={() => setVenueFilter(v)}
                       className={`px-3 py-1 text-xs font-medium min-w-0 h-7 cursor-pointer`}
                     >
@@ -288,12 +288,7 @@ export function LeagueTablesContent() {
 export default function TablesPage() {
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-text tracking-tight">League Tables</h1>
-        <p className="text-sm text-subtext0 mt-1">
-          Complete domestic standings, European qualification zones, home/away splits, and rolling form.
-        </p>
-      </div>
+      <PageHeader icon={TableIcon} eyebrow="Standings" title="League Tables" description="Reconstruct domestic standings with venue splits, goal difference and recent form in one responsive table." />
 
       <Suspense fallback={<LoadingSkeleton lines={10} />}>
         <LeagueTablesContent />

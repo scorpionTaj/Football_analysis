@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Image from 'next/image';
 import { Shield, Trophy, User } from 'lucide-react';
 
 interface FootballBadgeProps {
@@ -92,14 +93,13 @@ export function FootballBadge({
   }
 
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
+    <Image
       src={resolvedUrl}
       alt={name}
       width={size}
       height={size}
       onError={() => setError(true)}
-      loading="lazy"
+      unoptimized
       className={`object-contain shrink-0 transition-transform duration-200 hover:scale-110 ${className}`}
       style={{ width: size, height: size, maxWidth: size, maxHeight: size }}
     />
@@ -141,14 +141,13 @@ export function CompetitionBadge({
   }
 
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
+    <Image
       src={badge_url}
       alt={name}
       width={size}
       height={size}
       onError={() => setError(true)}
-      loading="lazy"
+      unoptimized
       className={`object-contain shrink-0 drop-shadow-md transition-transform duration-200 hover:scale-105 ${className}`}
       style={{ width: size, height: size, maxWidth: size, maxHeight: size }}
     />
@@ -205,17 +204,15 @@ export function PlayerAvatar({
   }
 
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
+    <Image
       src={image_url}
       alt={name}
       width={size}
       height={size}
       onError={() => setError(true)}
-      loading="lazy"
+      unoptimized
       className={`rounded-full object-cover bg-surface1/30 shrink-0 transition-all duration-200 hover:scale-105 hover:ring-sapphire ${ringClasses} ${className}`}
       style={{ width: size, height: size, minWidth: size, minHeight: size }}
     />
   );
 }
-

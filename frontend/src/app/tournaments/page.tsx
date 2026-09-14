@@ -7,6 +7,7 @@ import { queryKeys } from '@/lib/api/query-keys';
 import { useFilterParams } from '@/lib/hooks/use-filter-params';
 import { SourceBadge } from '@/components/ui/source-badge';
 import { LoadingSkeleton, ErrorMessage, EmptyState } from '@/components/ui/loading';
+import { PageHeader } from '@/components/ui/page-header';
 import { usePagination } from '@/components/ui/pagination';
 import type { TournamentMatch, TournamentGoal } from '@/lib/api/types';
 import { Trophy, Users, Goal, Calendar, Download, Search, ShieldCheck } from 'lucide-react';
@@ -269,7 +270,7 @@ function TournamentsContent() {
                 <YAxis stroke="#7f849c" fontSize={11} />
                 <Tooltip
                   contentStyle={{ backgroundColor: '#181825', borderColor: '#45475a', borderRadius: '8px', color: '#cdd6f4' }}
-                  formatter={(value: any) => [`${value} goals/match`, 'Scoring Rate']}
+                  formatter={(value) => [`${value} goals/match`, 'Scoring Rate']}
                   labelFormatter={(lbl) => `Stage: ${lbl}`}
                 />
                 <Bar dataKey="goalsPerMatch" fill="#89b4fa" radius={[4, 4, 0, 0]} />
@@ -493,12 +494,7 @@ function TournamentsContent() {
 export default function TournamentsPage() {
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-text tracking-tight">Champions League & World Cup</h1>
-        <p className="text-sm text-subtext0 mt-1">
-          CC0 OpenFootball tournament fixtures, knockout rounds, stage progression, and top scorers.
-        </p>
-      </div>
+      <PageHeader icon={Trophy} eyebrow="Knockout and international" title="Champions League & World Cup" description="Explore editions, stages, scorelines and scorer events from the CC0 tournament datasets." />
 
       <Suspense fallback={<LoadingSkeleton lines={8} />}>
         <TournamentsContent />

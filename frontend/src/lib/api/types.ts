@@ -64,6 +64,10 @@ export interface Match {
   venue: string | null;
   stage: string | null;
   referee: string | null;
+  home_shots: number | null;
+  away_shots: number | null;
+  home_shots_on_target: number | null;
+  away_shots_on_target: number | null;
   source: string | null;
 }
 
@@ -76,6 +80,89 @@ export interface PageMeta {
 export interface MatchListResponse {
   matches: Match[];
   page: PageMeta;
+  source: SourceMeta;
+}
+
+export interface ShotCoverageRow {
+  competition: string;
+  season: number;
+  matches: number;
+  shot_matches: number;
+  coverage_pct: number;
+}
+
+export interface ShotEfficiencyRow {
+  competition: string;
+  season: number;
+  team: TeamRef;
+  matches: number;
+  coverage_pct: number;
+  shots_per_match: number | null;
+  shot_accuracy_pct: number | null;
+  goals_per_shot_pct: number | null;
+  goals_per_sot_pct: number | null;
+}
+
+export interface ShotAnalysisResponse {
+  coverage: ShotCoverageRow[];
+  teams: ShotEfficiencyRow[];
+  source: SourceMeta;
+}
+
+export interface EventSummary {
+  event_id: string;
+  competition: string;
+  season: number;
+  match_date: string;
+  home: TeamRef;
+  away: TeamRef;
+  home_goals: number | null;
+  away_goals: number | null;
+  status: string | null;
+  statistics_count: number;
+  timeline_count: number;
+  lineup_count: number;
+}
+
+export interface EventStatistic {
+  statistic: string;
+  home_value: number | null;
+  away_value: number | null;
+}
+
+export interface EventTimelineItem {
+  minute: string | null;
+  event_type: string | null;
+  detail: string | null;
+  team: TeamRef;
+  player_id: string | null;
+  player: string | null;
+  assist: string | null;
+  is_home: boolean | null;
+  comment: string | null;
+}
+
+export interface EventLineupItem {
+  team: TeamRef;
+  player_id: string | null;
+  player: string | null;
+  position: string | null;
+  is_home: boolean | null;
+  is_substitute: boolean | null;
+  shirt_number: string | null;
+  cutout_url: string | null;
+}
+
+export interface EventListResponse {
+  events: EventSummary[];
+  source: SourceMeta;
+}
+
+export interface EventDetailResponse {
+  event: EventSummary;
+  statistics: EventStatistic[];
+  timeline: EventTimelineItem[];
+  lineups: EventLineupItem[];
   source: SourceMeta;
 }
 
@@ -341,4 +428,3 @@ export interface TransferListResponse {
   page: PageMeta;
   source: SourceMeta;
 }
-

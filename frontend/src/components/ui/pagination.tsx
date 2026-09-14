@@ -22,10 +22,6 @@ export function Pagination({
   onPageSizeChange,
   pageSizeOptions = [10, 20, 50],
 }: PaginationProps) {
-  if (totalPages <= 1 && (!totalItems || totalItems <= (pageSize || 10))) {
-    return null;
-  }
-
   // Calculate visible page numbers
   const pageNumbers = useMemo(() => {
     const pages: (number | 'ellipsis')[] = [];
@@ -42,6 +38,10 @@ export function Pagination({
     }
     return pages;
   }, [currentPage, totalPages]);
+
+  if (totalPages <= 1 && (!totalItems || totalItems <= (pageSize || 10))) {
+    return null;
+  }
 
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 border-t border-surface1 text-xs text-subtext0">

@@ -7,6 +7,11 @@ export const queryKeys = {
     ['teams', { competition, season }] as const,
   matches: (filters: Record<string, unknown>) =>
     ['matches', filters] as const,
+  shots: (filters: Record<string, unknown>) =>
+    ['shots', filters] as const,
+  eventDetails: (filters: Record<string, unknown>) =>
+    ['event-details', filters] as const,
+  eventDetail: (id: string) => ['event-detail', id] as const,
   analysis: (filters: Record<string, unknown>) =>
     ['analysis', filters] as const,
   tournament: (competition: string, season: number) =>
@@ -21,4 +26,3 @@ export const queryKeys = {
   transfers: (opts?: Record<string, unknown>) =>
     ['transfers', opts || {}] as const,
 } as const;
-

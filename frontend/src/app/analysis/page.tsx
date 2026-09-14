@@ -7,6 +7,7 @@ import { queryKeys } from '@/lib/api/query-keys';
 import { useFilterParams } from '@/lib/hooks/use-filter-params';
 import { SourceBadge } from '@/components/ui/source-badge';
 import { LoadingSkeleton, ErrorMessage, EmptyState } from '@/components/ui/loading';
+import { PageHeader } from '@/components/ui/page-header';
 import { usePagination } from '@/components/ui/pagination';
 import type { RankingRow, CorrelationRow } from '@/lib/api/types';
 import { BarChart3, TrendingUp, ShieldAlert, Award, Download, SlidersHorizontal, Users } from 'lucide-react';
@@ -288,7 +289,7 @@ function AnalysisContent() {
               <YAxis type="category" dataKey="name" stroke="#7f849c" fontSize={11} width={110} />
               <Tooltip
                 contentStyle={{ backgroundColor: '#181825', borderColor: '#45475a', borderRadius: '8px', color: '#cdd6f4' }}
-                formatter={(val: any) => [`${val}`, metricInfo.label]}
+                formatter={(val) => [`${val}`, metricInfo.label]}
               />
               <Bar dataKey="value" fill={metricInfo.color} radius={[0, 4, 4, 0]}>
                 {chartData.map((_, index) => (
@@ -435,12 +436,7 @@ function AnalysisContent() {
 export default function AnalysisPage() {
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-text tracking-tight">Analysis Lab</h1>
-        <p className="text-sm text-subtext0 mt-1">
-          Comparative multi-competition rankings, rolling form streaks, in-match statistics, and disciplinary summaries.
-        </p>
-      </div>
+      <PageHeader icon={BarChart3} eyebrow="Compare and explain" title="Analysis Lab" description="Compare competitions, form, match factors and disciplinary patterns from one filterable workspace." />
 
       <Suspense fallback={<LoadingSkeleton lines={8} />}>
         <AnalysisContent />

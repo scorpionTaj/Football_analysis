@@ -110,15 +110,6 @@ function OverviewContent() {
     return [...currentComp.seasons.map((s) => s.season)].sort((a, b) => b - a);
   }, [currentComp]);
 
-  // Synchronize default season to always be the most recent season
-  React.useEffect(() => {
-    if (availableSeasons.length > 0) {
-      if (!selectedSeason || !availableSeasons.includes(selectedSeason)) {
-        setSelectedSeason(availableSeasons[0]);
-      }
-    }
-  }, [availableSeasons, selectedSeason]);
-
   // 2. Fetch Health
   const { data: health } = useQuery({
     queryKey: queryKeys.health,
@@ -156,16 +147,9 @@ function OverviewContent() {
     return Array.from(names).sort((a, b) => a.localeCompare(b));
   }, [teamsData, overviewData, selectedComp]);
 
-  // Synchronize selected club: when competition changes or spotlight returns
-  React.useEffect(() => {
-    if (overviewData?.spotlight?.team?.name) {
-      if (!selectedClub || !availableClubs.includes(selectedClub)) {
-        setSelectedClub(overviewData.spotlight.team.name);
-      }
-    } else if (availableClubs.length > 0 && (!selectedClub || !availableClubs.includes(selectedClub))) {
-      setSelectedClub(availableClubs[0]);
-    }
-  }, [overviewData, availableClubs, selectedClub]);
+  const activeClub = selectedClub && availableClubs.includes(selectedClub)
+    ? selectedClub
+    : overviewData?.spotlight?.team?.name || availableClubs[0] || '';
 
   // Handle Competition Change
   const handleSelectComp = (code: string) => {
@@ -217,9 +201,9 @@ function OverviewContent() {
       .filter((r) => r.competition === selectedComp && r.season === selectedSeason)
       .sort((a, b) => b.points - a.points);
     const topNames = new Set(latestSeasonRows.slice(0, 5).map((r) => r.team.name));
-    if (selectedClub) topNames.add(selectedClub);
+    if (activeClub) topNames.add(activeClub);
     return Array.from(topNames);
-  }, [overviewData, selectedComp, selectedSeason, selectedClub]);
+  }, [overviewData, selectedComp, selectedSeason, activeClub]);
 
   // Performance Over Time (PPG Line Chart Data)
   const trendChartData = useMemo(() => {
@@ -347,7 +331,8 @@ function OverviewContent() {
   return (
     <div className="space-y-8 animate-fade-in pb-12">
       {/* 1. Header & Live Indicator */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-surface1/60 pb-6">
+      <Card className="page-intro relative overflow-hidden rounded-3xl border border-surface1/70 bg-surface0/75 p-5 shadow-xl shadow-crust/10 sm:p-7">
+        <div className="relative z-10 flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="flex h-2.5 w-2.5 relative">
@@ -358,7 +343,7 @@ function OverviewContent() {
               Live Analysis Engine
             </span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-text">
+          <h1 className="text-3xl font-black tracking-[-0.04em] text-text sm:text-4xl">
             Football Intelligence Lab
           </h1>
           <p className="text-sm text-subtext0 mt-0.5">
@@ -377,7 +362,8 @@ function OverviewContent() {
           </div>
           {overviewData?.source && <SourceBadge meta={overviewData.source} />}
         </div>
-      </div>
+        </div>
+      </Card>
 
       {/* 2. Horizontal League / Competition Rail */}
       <div>
@@ -445,7 +431,7 @@ function OverviewContent() {
               <Shield size={14} className="text-subtext0" />
               <span className="text-xs font-semibold text-subtext0 uppercase tracking-wide">Club:</span>
               <select
-                value={selectedClub}
+                value={activeClub}
                 onChange={(e) => setSelectedClub(e.target.value)}
                 className="px-3 py-1.5 rounded-lg bg-mantle border border-surface1 text-xs font-medium text-text focus:outline-none focus:border-blue cursor-pointer max-w-[220px] truncate"
               >
@@ -868,8 +854,8 @@ function OverviewContent() {
                       type="monotone"
                       dataKey={club}
                       stroke={CHART_COLORS[idx % CHART_COLORS.length]}
-                      strokeWidth={club === selectedClub ? 4 : 2}
-                      dot={{ r: club === selectedClub ? 5 : 3 }}
+                      strokeWidth={club === activeClub ? 4 : 2}
+                      dot={{ r: club === activeClub ? 5 : 3 }}
                       activeDot={{ r: 7 }}
                     />
                   ))}
@@ -898,7 +884,7 @@ function OverviewContent() {
                   <tr key={row.club} className="hover:bg-surface1/30 transition-colors">
                     <td className="py-3 px-4 font-semibold text-text flex items-center gap-2">
                       <FootballBadge name={row.club} size={20} />
-                      <span className={row.club === selectedClub ? 'text-blue font-bold' : ''}>
+                      <span className={row.club === activeClub ? 'text-blue font-bold' : ''}>
                         {row.club}
                       </span>
                     </td>
@@ -981,9 +967,9 @@ function OverviewContent() {
                     {scatterData.map((entry, index) => (
                       <Cell
                         key={`cell-${index}`}
-                        fill={entry.club === selectedClub ? '#89b4fa' : entry.ppg >= 2.0 ? '#94e2d5' : '#f38ba8'}
+                        fill={entry.club === activeClub ? '#89b4fa' : entry.ppg >= 2.0 ? '#94e2d5' : '#f38ba8'}
                         stroke="#ffffff"
-                        strokeWidth={entry.club === selectedClub ? 2 : 0}
+                        strokeWidth={entry.club === activeClub ? 2 : 0}
                       />
                     ))}
                   </Scatter>
@@ -1026,8 +1012,8 @@ function OverviewContent() {
                       type="monotone"
                       dataKey={club}
                       stroke={CHART_COLORS[idx % CHART_COLORS.length]}
-                      strokeWidth={club === selectedClub ? 4 : 2}
-                      dot={{ r: club === selectedClub ? 5 : 3 }}
+                      strokeWidth={club === activeClub ? 4 : 2}
+                      dot={{ r: club === activeClub ? 5 : 3 }}
                       activeDot={{ r: 7 }}
                     />
                   ))}

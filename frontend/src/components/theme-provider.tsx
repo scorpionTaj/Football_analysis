@@ -86,16 +86,17 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       const savedMode = localStorage.getItem('fa_theme_mode') as ThemeMode | null;
       const savedTheme = localStorage.getItem('fa_theme_id') as ThemeId | null;
 
-      if (savedMode && ['auto', 'dark', 'light'].includes(savedMode)) {
-        setModeState(savedMode);
-      }
-      if (savedTheme && AVAILABLE_THEMES.some((t) => t.id === savedTheme)) {
-        setThemeState(savedTheme);
-      }
-
       // Check system preference
       const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-      setSystemDark(mediaQuery.matches);
+      queueMicrotask(() => {
+        if (savedMode && ['auto', 'dark', 'light'].includes(savedMode)) {
+          setModeState(savedMode);
+        }
+        if (savedTheme && AVAILABLE_THEMES.some((t) => t.id === savedTheme)) {
+          setThemeState(savedTheme);
+        }
+        setSystemDark(mediaQuery.matches);
+      });
 
       const handleSystemChange = (e: MediaQueryListEvent) => {
         setSystemDark(e.matches);

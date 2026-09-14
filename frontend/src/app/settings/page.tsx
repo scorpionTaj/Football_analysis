@@ -5,6 +5,7 @@ import { useTheme, AVAILABLE_THEMES, type ThemeId, type ThemeMode } from '@/comp
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { queryKeys } from '@/lib/api/query-keys';
+import { PageHeader } from '@/components/ui/page-header';
 import {
   Palette,
   Sun,
@@ -43,13 +44,8 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="space-y-8 max-w-4xl">
-      <div>
-        <h1 className="text-2xl font-bold text-text tracking-tight">Application Settings</h1>
-        <p className="text-sm text-subtext0 mt-1">
-          Customize themes, color palettes, appearance mode, and inspect backend API diagnostics.
-        </p>
-      </div>
+    <div className="mx-auto max-w-5xl space-y-8">
+      <PageHeader icon={Sliders} eyebrow="Workspace preferences" title="Application Settings" description="Choose an accessible color theme, follow system appearance and verify the read-only backend connection." />
 
       {/* Section 1: Appearance Mode */}
       <div className="rounded-xl border border-surface1 bg-surface0 p-6 space-y-4">

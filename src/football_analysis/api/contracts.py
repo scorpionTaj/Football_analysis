@@ -84,6 +84,10 @@ class Match(BaseModel):
     venue: str | None = None
     stage: str | None = None
     referee: str | None = None
+    home_shots: int | None = None
+    away_shots: int | None = None
+    home_shots_on_target: int | None = None
+    away_shots_on_target: int | None = None
     source: str | None = None
 
 
@@ -96,6 +100,89 @@ class PageMeta(BaseModel):
 class MatchListResponse(BaseModel):
     matches: list[Match]
     page: PageMeta
+    source: SourceMeta
+
+
+class ShotCoverageRow(BaseModel):
+    competition: str
+    season: int
+    matches: int
+    shot_matches: int
+    coverage_pct: float
+
+
+class ShotEfficiencyRow(BaseModel):
+    competition: str
+    season: int
+    team: TeamRef
+    matches: int
+    coverage_pct: float
+    shots_per_match: float | None = None
+    shot_accuracy_pct: float | None = None
+    goals_per_shot_pct: float | None = None
+    goals_per_sot_pct: float | None = None
+
+
+class ShotAnalysisResponse(BaseModel):
+    coverage: list[ShotCoverageRow] = Field(default_factory=list)
+    teams: list[ShotEfficiencyRow] = Field(default_factory=list)
+    source: SourceMeta
+
+
+class EventSummary(BaseModel):
+    event_id: str
+    competition: str
+    season: int
+    match_date: date
+    home: TeamRef
+    away: TeamRef
+    home_goals: int | None = None
+    away_goals: int | None = None
+    status: str | None = None
+    statistics_count: int = 0
+    timeline_count: int = 0
+    lineup_count: int = 0
+
+
+class EventStatistic(BaseModel):
+    statistic: str
+    home_value: float | None = None
+    away_value: float | None = None
+
+
+class EventTimelineItem(BaseModel):
+    minute: str | None = None
+    event_type: str | None = None
+    detail: str | None = None
+    team: TeamRef
+    player_id: str | None = None
+    player: str | None = None
+    assist: str | None = None
+    is_home: bool | None = None
+    comment: str | None = None
+
+
+class EventLineupItem(BaseModel):
+    team: TeamRef
+    player_id: str | None = None
+    player: str | None = None
+    position: str | None = None
+    is_home: bool | None = None
+    is_substitute: bool | None = None
+    shirt_number: str | None = None
+    cutout_url: str | None = None
+
+
+class EventListResponse(BaseModel):
+    events: list[EventSummary] = Field(default_factory=list)
+    source: SourceMeta
+
+
+class EventDetailResponse(BaseModel):
+    event: EventSummary
+    statistics: list[EventStatistic] = Field(default_factory=list)
+    timeline: list[EventTimelineItem] = Field(default_factory=list)
+    lineups: list[EventLineupItem] = Field(default_factory=list)
     source: SourceMeta
 
 
