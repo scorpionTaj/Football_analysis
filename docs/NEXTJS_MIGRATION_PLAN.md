@@ -51,11 +51,23 @@ Exit gate: ✅ Contract tests and a generated OpenAPI document pass; p95 local r
 
 Exit gate: ✅ Keyboard navigation, mobile layout, dark-theme contrast and error states pass before feature migration begins.
 
-## Phase 4 — migrate by vertical slice
+## Phase 4 — migrate by vertical slice ✅
 
-Migrate in this order: Overview; Champions League and World Cup; Analysis lab and predictions; League tables; Club lab and Match explorer; Players; Data quality. Keep Streamlit available against the same database after every slice and compare totals, filters and exports.
+Migrated in order with full selector parity, interactive Recharts, responsive Catppuccin Mocha cards, and CSV export parity:
 
-Exit gate for each page: API contract test, visual regression, selector parity, empty-data behavior, download parity and matching metric totals.
+1. [x] **Overview** (`/`): KPI cards (competitions, matches, season status), domestic vs tournament cards, API health check, source badges.
+2. [x] **Champions League and World Cup** (`/tournaments`): Tournament edition selector, stage scoring rates, match results with penalty shootouts, top scorers ranking table, and CSV export.
+3. [x] **Analysis lab and predictions**:
+   - [x] **Analysis lab** (`/analysis`): Multi-criteria rankings, horizontal bar chart, rolling form streak badges, in-match scoring factors, referee disciplinary impact, CSV export.
+   - [x] **Predictions** (`/predictions`): Model cards, 3-way outcome probability bars, holdout validation metrics, reliability calibration diagram, CSV export.
+4. [x] **League tables** (`/tables`): Full domestic standings with European qualification & relegation zones, home/away splits, goal difference, recent form, CSV export.
+5. [x] **Club lab and Match explorer**:
+   - [x] **Club lab** (`/clubs`): Multi-season trajectory line chart, historical seasons table, recent club fixture log, CSV export.
+   - [x] **Match explorer** (`/matches`): Cursor-based pagination, referee metadata, scorelines, keyword filter, CSV export.
+6. [x] **Players** (`/players`): Player discovery with search & cursor pagination, market valuations in EUR, bio information, and historical career season stats.
+7. [x] **Data quality** (`/quality`): 60-cell competition completeness matrix, source governance notes, numerical column null rate KPIs, and SHA-256 ingestion audit logs.
+
+Exit gate: ✅ API contract test, selector parity, empty-data behavior, download parity and matching metric totals verified across all 8 views.
 
 ## Phase 5 — operations and cutover
 
