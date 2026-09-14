@@ -40,6 +40,8 @@ def test_time_split_is_chronological_and_reports_baseline():
     assert len(probabilities) == len(validation)
     assert 0 <= metrics["accuracy"] <= 1
     assert metrics["baseline_log_loss"] > 0
+    assert 0.6 <= metrics["temperature"] <= 1.8
+    assert metrics["calibration_matches"] > 0
 
 
 def test_future_features_do_not_require_or_invent_an_outcome():

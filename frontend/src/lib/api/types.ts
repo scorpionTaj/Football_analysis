@@ -369,6 +369,17 @@ export interface CalibrationBin {
   samples: number;
 }
 
+export interface LeagueTitleOutlook {
+  competition: string;
+  season: number;
+  team: TeamRef;
+  current_rank: number;
+  played: number;
+  points: number;
+  projected_points: number;
+  title_probability: number;
+}
+
 export interface PredictionsResponse {
   model_id: string | null;
   model_name: string | null;
@@ -377,6 +388,7 @@ export interface PredictionsResponse {
   metrics: Record<string, unknown>;
   calibration: CalibrationBin[];
   forecasts: Forecast[];
+  league_outlooks: LeagueTitleOutlook[];
   source: SourceMeta;
 }
 

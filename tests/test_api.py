@@ -180,6 +180,8 @@ def test_catalog_teams_and_analysis_contract(tmp_path):
     assert "arsenal" in ids
     names = {team["name"] for team in teams}
     assert "Arsenal" in names
+    historical = api.get("/api/v1/teams", params={"competition": "E0", "season": 2024})
+    assert "max-age=86400" in historical.headers["Cache-Control"]
     report = api.post("/api/v1/analysis", json={
         "competitions": ["E0"], "seasons": [2024], "teams": ["arsenal"], "form_window": 5,
     }).json()
@@ -294,6 +296,5 @@ def test_teams_endpoint_fallback(tmp_path):
     data = res.json()
     assert "teams" in data
     assert len(data["teams"]) >= 2
-
 
 

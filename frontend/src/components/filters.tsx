@@ -4,10 +4,9 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { queryKeys } from '@/lib/api/query-keys';
 import { useFilterParams } from '@/lib/hooks/use-filter-params';
-import type { Competition } from '@/lib/api/types';
 
-/** Shared filter bar for competition, season, team, and venue selection. */
-export function FilterBar() {
+/** Shared filter bar for competition, season, team, and optional venue selection. */
+export function FilterBar({ showVenue = true }: { showVenue?: boolean }) {
   const filters = useFilterParams();
 
   const { data: catalog } = useQuery({
@@ -70,6 +69,7 @@ export function FilterBar() {
       {/* Team selector */}
       {filters.competition && (
         <Select
+          key={`${filters.competition}-${filters.season ?? 'all'}`}
           label="Team"
           value={filters.team ?? ''}
           onChange={(v) => filters.set({ team: v || null })}
@@ -77,21 +77,23 @@ export function FilterBar() {
             value: t.team_id,
             label: t.name,
           }))}
-          placeholder={uniqueTeams.length === 0 ? "Loading clubs..." : "All teams"}
+          placeholder={teamData ? "All teams" : "Loading clubs…"}
         />
       )}
 
       {/* Venue selector */}
-      <Select
-        label="Venue"
-        value={filters.venue ?? ''}
-        onChange={(v) => filters.set({ venue: v || null })}
-        options={[
-          { value: 'Home', label: 'Home' },
-          { value: 'Away', label: 'Away' },
-        ]}
-        placeholder="Any venue"
-      />
+      {showVenue && (
+        <Select
+          label="Venue"
+          value={filters.venue ?? ''}
+          onChange={(v) => filters.set({ venue: v || null })}
+          options={[
+            { value: 'Home', label: 'Home' },
+            { value: 'Away', label: 'Away' },
+          ]}
+          placeholder="Any venue"
+        />
+      )}
     </div>
   );
 }

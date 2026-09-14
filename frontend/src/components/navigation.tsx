@@ -6,7 +6,6 @@ import { useEffect, useState } from 'react';
 import { Button } from '@heroui/react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  Activity,
   BarChart3,
   CalendarDays,
   Crosshair,
@@ -28,6 +27,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useTheme } from './theme-provider';
+import { GlobalSearch } from './global-search';
 
 type NavItem = {
   href: string;
@@ -73,18 +73,28 @@ function Brand() {
   );
 }
 
+function RefreshDataButton({ compact = false }: { compact?: boolean }) {
+  const queryClient = useQueryClient();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await queryClient.refetchQueries({ type: 'active' });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+  return (
+    <Button isIconOnly={compact} size="sm" variant="ghost" onPress={handleRefresh} isDisabled={isRefreshing} aria-label="Refresh visible data">
+      <RefreshCw className={`size-4 ${isRefreshing ? 'animate-spin motion-reduce:animate-none' : ''}`} aria-hidden="true" />
+      {compact ? null : 'Refresh'}
+    </Button>
+  );
+}
+
 export function Sidebar({ isOpen = false, onClose }: { isOpen?: boolean; onClose?: () => void }) {
   const pathname = usePathname();
   const { theme, isDark, setMode } = useTheme();
-  const queryClient = useQueryClient();
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    await queryClient.invalidateQueries();
-    window.setTimeout(() => setIsRefreshing(false), 700);
-  };
-
   return (
     <aside
       className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-surface1/60 bg-mantle/95 shadow-2xl shadow-crust/30 backdrop-blur-xl transition-transform duration-300 lg:translate-x-0 ${
@@ -100,6 +110,7 @@ export function Sidebar({ isOpen = false, onClose }: { isOpen?: boolean; onClose
           </Button>
         ) : null}
       </div>
+      <GlobalSearch onNavigate={onClose} />
 
       <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Dashboard sections">
         {GROUPS.map((group) => (
@@ -145,10 +156,7 @@ export function Sidebar({ isOpen = false, onClose }: { isOpen?: boolean; onClose
             Read-only API workspace
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <Button size="sm" variant="ghost" onPress={handleRefresh} isDisabled={isRefreshing} aria-label="Refresh dashboard data">
-              <RefreshCw className={`size-4 ${isRefreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
-              Refresh
-            </Button>
+            <RefreshDataButton />
             <Button size="sm" variant="ghost" onPress={() => setMode(isDark ? 'light' : 'dark')} aria-label="Toggle color mode">
               {isDark ? <Moon className="size-4" aria-hidden="true" /> : <Sun className="size-4" aria-hidden="true" />}
               <span className="truncate capitalize">{theme.replace('-', ' ')}</span>
@@ -175,9 +183,7 @@ export function MobileHeader({ onToggle, isOpen = false }: { onToggle: () => voi
           <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-sapphire">Live workspace</p>
         </div>
       </div>
-      <span className="grid size-9 place-items-center rounded-xl bg-blue/15 text-blue">
-        <Activity className="size-[18px]" aria-hidden="true" />
-      </span>
+      <RefreshDataButton compact />
     </header>
   );
 }

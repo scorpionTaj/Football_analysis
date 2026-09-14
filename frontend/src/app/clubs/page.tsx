@@ -1,6 +1,6 @@
 'use client';
 
-import { Card, Button, Chip } from '@heroui/react';
+import { Card, Button } from '@heroui/react';
 import { Suspense, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
@@ -9,7 +9,7 @@ import { useFilterParams } from '@/lib/hooks/use-filter-params';
 import { SourceBadge } from '@/components/ui/source-badge';
 import { LoadingSkeleton, ErrorMessage, EmptyState } from '@/components/ui/loading';
 import { PageHeader } from '@/components/ui/page-header';
-import { Shield, TrendingUp, Calendar, Trophy, Download, Swords, ChevronRight, BarChart2 } from 'lucide-react';
+import { Shield, TrendingUp, Calendar, Trophy, Download, Swords, BarChart2 } from 'lucide-react';
 import { usePagination } from '@/components/ui/pagination';
 import {
   LineChart,
@@ -22,7 +22,7 @@ import {
   Legend,
 } from 'recharts';
 
-export function ClubLabContent() {
+function ClubLabContent() {
   const filters = useFilterParams();
   const selectedClub = filters.team || 'Arsenal';
   const [activeTab, setActiveTab] = useState<'profile' | 'h2h'>('profile');
@@ -210,7 +210,7 @@ export function ClubLabContent() {
       clubAGoals,
       clubBGoals,
     };
-  }, [h2hMatches, selectedClub, opponentClub]);
+  }, [h2hMatches, selectedClub]);
 
   // Export CSV
   const exportCsv = () => {
@@ -261,8 +261,8 @@ export function ClubLabContent() {
                 onChange={(e) => filters.set({ team: e.target.value })}
                 className="mt-0.5 rounded-lg border border-surface1 bg-mantle px-3 py-1.5 text-sm font-semibold text-text outline-none cursor-pointer hover:border-surface2 focus:border-blue"
               >
-                {allTeams.map(([name, id]) => (
-                  <option key={id} value={name}>{name}</option>
+                {allTeams.map(([name]) => (
+                  <option key={name} value={name}>{name}</option>
                 ))}
               </select>
             </div>
@@ -277,8 +277,8 @@ export function ClubLabContent() {
                     onChange={(e) => setOpponentClub(e.target.value)}
                     className="mt-0.5 rounded-lg border border-surface1 bg-mantle px-3 py-1.5 text-sm font-semibold text-text outline-none cursor-pointer hover:border-surface2 focus:border-blue"
                   >
-                    {allTeams.map(([name, id]) => (
-                      <option key={id} value={name}>{name}</option>
+                    {allTeams.map(([name]) => (
+                      <option key={name} value={name}>{name}</option>
                     ))}
                   </select>
                 </div>

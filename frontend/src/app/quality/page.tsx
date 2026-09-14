@@ -8,9 +8,9 @@ import { SourceBadge } from '@/components/ui/source-badge';
 import { LoadingSkeleton, ErrorMessage } from '@/components/ui/loading';
 import { PageHeader } from '@/components/ui/page-header';
 import { usePagination } from '@/components/ui/pagination';
-import { ShieldCheck, CheckCircle, AlertTriangle, Database, Info, RefreshCw, FileCheck } from 'lucide-react';
+import { ShieldCheck, Database, Info, RefreshCw, FileCheck } from 'lucide-react';
 
-export function QualityContent() {
+function QualityContent() {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: queryKeys.quality,
     queryFn: () => api.quality(),

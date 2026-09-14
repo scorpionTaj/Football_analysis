@@ -33,6 +33,7 @@ from football_analysis.api.contracts import (
     Forecast,
     FormRow,
     HealthResponse,
+    LeagueTitleOutlook,
     Match,
     MatchFactorSummary,
     MatchListResponse,
@@ -66,6 +67,7 @@ from football_analysis.api.contracts import (
 from football_analysis.api.db import ReadOnlyStore
 from football_analysis.api.pagination import decode_cursor, encode_cursor
 from football_analysis.config import (
+    CALENDAR_YEAR_TOURNAMENTS,
     COMPETITIONS,
     LEAGUES,
     RECENT_LEAGUES,
@@ -223,7 +225,7 @@ def catalog(store: ReadOnlyStore) -> CatalogResponse:
                 status = "complete"
             season_rows.append(SeasonCoverage(
                 season=int(year),
-                label=str(year) if code == "WC" else label(int(year)),
+                label=str(year) if code in CALENDAR_YEAR_TOURNAMENTS else label(int(year)),
                 match_count=int(row.match_count),
                 latest_match=_as_date(row.latest_match),
                 status=status,
@@ -1006,6 +1008,43 @@ def _calibration(validation: pd.DataFrame) -> list[CalibrationBin]:
     return bins
 
 
+def _league_title_outlooks(store: ReadOnlyStore, tm_map: dict[str, Any]) -> list[LeagueTitleOutlook]:
+    """Project title shares from current points with conservative early-season smoothing."""
+    live = current_season()
+    grouped: dict[str, list[Team]] = {}
+    for team in list_teams(store, None, live).teams:
+        if team.competition in RECENT_LEAGUES:
+            grouped.setdefault(team.competition, []).append(team)
+
+    outlooks: list[LeagueTitleOutlook] = []
+    for competition, teams in grouped.items():
+        if len(teams) < 2:
+            continue
+        ranked = sorted(teams, key=lambda item: (-item.points, -item.played, item.name))
+        season_matches = 2 * (len(teams) - 1)
+        projections = []
+        for rank, team in enumerate(ranked, 1):
+            remaining = max(0, season_matches - team.played)
+            smoothed_ppg = (team.points + 5 * 1.35) / (team.played + 5)
+            projections.append((rank, team, team.points + remaining * smoothed_ppg, remaining))
+        best = max(row[2] for row in projections)
+        uncertainty = max(2.5, 1.6 * np.sqrt(max(row[3] for row in projections)))
+        weights = np.exp(np.array([(row[2] - best) / uncertainty for row in projections]))
+        weights /= weights.sum()
+        for (rank, team, projected, _), probability in zip(projections, weights):
+            outlooks.append(LeagueTitleOutlook(
+                competition=competition,
+                season=live,
+                team=_build_team_ref(team.name, tm_map),
+                current_rank=rank,
+                played=team.played,
+                points=team.points,
+                projected_points=round(float(projected), 1),
+                title_probability=round(float(probability), 4),
+            ))
+    return outlooks
+
+
 def predictions(store: ReadOnlyStore) -> PredictionsResponse:
     empty = PredictionsResponse(source=_source("softmax-form-elo", "empty"))
     if not _has(store, "prediction_models"):
@@ -1040,6 +1079,7 @@ def predictions(store: ReadOnlyStore) -> PredictionsResponse:
         trained_at=_as_datetime(model.trained_at),
         validation_cutoff=_as_date(model.validation_cutoff),
         metrics=metrics, calibration=calibration, forecasts=forecasts,
+        league_outlooks=_league_title_outlooks(store, tm_map),
         source=_source("softmax-form-elo", "predictions", model.trained_at),
     )
 

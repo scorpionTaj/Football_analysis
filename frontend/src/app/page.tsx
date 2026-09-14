@@ -8,17 +8,10 @@ import { queryKeys } from '@/lib/api/query-keys';
 import { SourceBadge } from '@/components/ui/source-badge';
 import { LoadingSkeleton, ErrorMessage } from '@/components/ui/loading';
 import { FootballBadge, CompetitionBadge, PlayerAvatar } from '@/lib/media-utils';
-import type { Competition, RankingRow, EloRatingRow, PlayerSummary, TransferRow } from '@/lib/api/types';
 import {
   Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-  CardFooter,
   Chip,
   Button,
-  Badge,
 } from '@heroui/react';
 import {
   Trophy,
@@ -27,15 +20,11 @@ import {
   Calendar,
   Shield,
   Zap,
-  Target,
-  Users,
   ChevronRight,
   ChevronLeft,
   ExternalLink,
   Sparkles,
   ArrowRightLeft,
-  DollarSign,
-  Flame,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -72,8 +61,9 @@ const BIG_5_COMPS = [
   { code: 'F1', name: 'Ligue 1' },
 ];
 
-const RECENT_5_SEASONS = [
-  { value: 'all', label: 'All 5 Seasons' },
+const RECENT_TRANSFER_SEASONS = [
+  { value: 'all', label: 'All available seasons' },
+  { value: 2026, label: '2026/27' },
   { value: 2025, label: '2025/26' },
   { value: 2024, label: '2024/25' },
   { value: 2023, label: '2023/24' },
@@ -124,7 +114,7 @@ function OverviewContent() {
   });
 
   // 4. Fetch Overview Spotlight & Trends
-  const { data: overviewData, isLoading: isOverviewLoading } = useQuery({
+  const { data: overviewData } = useQuery({
     queryKey: queryKeys.overview({ team: selectedClub || undefined, competition: selectedComp, season: selectedSeason }),
     queryFn: () => api.overview({ team: selectedClub || undefined, competition: selectedComp, season: selectedSeason }),
   });
@@ -183,7 +173,7 @@ function OverviewContent() {
       }),
   });
 
-  const allTransfers = transfersData?.transfers || [];
+  const allTransfers = useMemo(() => transfersData?.transfers || [], [transfersData?.transfers]);
   const totalTransferPages = Math.max(1, Math.ceil(allTransfers.length / transferPageSize));
   const paginatedTransfers = useMemo(() => {
     const start = (transferPage - 1) * transferPageSize;
@@ -354,11 +344,11 @@ function OverviewContent() {
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface0 border border-surface1 text-xs text-subtext1 shadow-sm">
             <span className={`h-2 w-2 rounded-full ${health?.status === 'ok' ? 'bg-green' : 'bg-red'}`} />
-            <span>API {health?.status ?? 'Online'}</span>
+            <span>API {health?.status ?? 'Connecting'}</span>
             <span className="text-overlay0">•</span>
             <span>{totalMatches.toLocaleString()} Matches</span>
             <span className="text-overlay0">•</span>
-            <span>12 Competitions</span>
+            <span>{catalog.competitions.length} Competitions</span>
           </div>
           {overviewData?.source && <SourceBadge meta={overviewData.source} />}
         </div>
@@ -371,7 +361,10 @@ function OverviewContent() {
           <h2 className="text-xs font-bold uppercase tracking-wider text-subtext0 flex items-center gap-1.5">
             <Trophy size={14} className="text-yellow" /> Select Competition
           </h2>
-          <span className="text-xs text-overlay1 hidden sm:inline">10 Domestic Leagues + 2 Major Tournaments</span>
+          <span className="text-xs text-overlay1 hidden sm:inline">
+            {catalog.competitions.filter((competition) => competition.kind === 'domestic').length} Domestic Leagues +{' '}
+            {catalog.competitions.filter((competition) => competition.kind === 'tournament').length} Major Tournaments
+          </span>
         </div>
         <div className="flex items-center gap-2.5 overflow-x-auto pb-2 scrollbar-thin">
           {catalog.competitions.map((comp) => {
@@ -1038,7 +1031,7 @@ function OverviewContent() {
               </Chip>
             </div>
             <p className="text-xs text-subtext0">
-              Top recorded transfers across the 5 biggest competitions for the last 5 seasons (2021–2026)
+              Top recorded transfers across the five biggest leagues, including the 2026/27 filter when source data is available.
             </p>
           </div>
 
@@ -1075,7 +1068,7 @@ function OverviewContent() {
                 }}
                 className="px-3 py-1.5 rounded-lg bg-mantle border border-surface1 text-xs font-medium text-text focus:outline-none focus:border-blue cursor-pointer"
               >
-                {RECENT_5_SEASONS.map((s) => (
+                {RECENT_TRANSFER_SEASONS.map((s) => (
                   <option key={s.value} value={s.value}>
                     {s.label}
                   </option>
@@ -1219,7 +1212,9 @@ function OverviewContent() {
           </div>
         ) : (
           <p className="text-xs text-subtext0 italic text-center py-8">
-            No transfer deals found for the selected season or competition filters.
+            {transferSeason === 2026
+              ? '2026/27 is ready in the interface, but the current Transfermarkt Open Dataset snapshot ends in July 2026 and contains no 2026/27 deals yet.'
+              : 'No transfer deals found for the selected season or competition filters.'}
           </p>
         )}
       </Card>

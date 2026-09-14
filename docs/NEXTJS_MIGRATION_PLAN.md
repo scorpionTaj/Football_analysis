@@ -35,7 +35,7 @@ Infrastructure:
 - [x] One application-owned read-only DuckDB connection pool with threading lock.
 - [x] Cursor pagination for large tables (matches, players).
 - [x] ETags for stable snapshots derived from table checksums.
-- [x] Short cache headers for current results (15s live, 60s stable).
+- [x] ETag-backed cache tiers (60s live, 5m stable, 24h historical) plus explicit active-query refresh in desktop and mobile navigation.
 - [x] CORS configured for Next.js dev server (localhost:3000).
 - [x] Synchronizers and model training stay outside request handlers.
 - [x] Static OpenAPI v1 specification generated to `docs/openapi_v1.json`.
@@ -56,10 +56,10 @@ Exit gate: ✅ Keyboard navigation, mobile layout, dark-theme contrast and error
 Migrated in order with full selector parity, interactive Recharts, responsive Catppuccin Mocha cards, and CSV export parity:
 
 1. [x] **Overview** (`/`): KPI cards (competitions, matches, season status), domestic vs tournament cards, API health check, source badges.
-2. [x] **Champions League and World Cup** (`/tournaments`): Tournament edition selector, stage scoring rates, match results with penalty shootouts, top scorers ranking table, and CSV export.
+2. [x] **Champions League, Club World Cup and World Cup** (`/tournaments`): Tournament edition selector, stage scoring rates, match results with penalty shootouts, top scorers ranking table, and CSV export.
 3. [x] **Analysis lab and predictions**:
    - [x] **Analysis lab** (`/analysis`): Multi-criteria rankings, horizontal bar chart, rolling form streak badges, in-match scoring factors, referee disciplinary impact, CSV export.
-   - [x] **Predictions** (`/predictions`): Model cards, 3-way outcome probability bars, holdout validation metrics, reliability calibration diagram, CSV export.
+   - [x] **Predictions** (`/predictions`): calibrated 3-way outcome bars, untouched chronological holdout metrics, reliability evidence, CSV export and title probabilities for all ten domestic leagues.
 4. [x] **League tables** (`/tables`): Full domestic standings with European qualification & relegation zones, home/away splits, goal difference, recent form, CSV export.
 5. [x] **Club lab and Match explorer**:
    - [x] **Club lab** (`/clubs`): Multi-season trajectory line chart, historical seasons table, recent club fixture log, CSV export.
@@ -91,7 +91,7 @@ Exit gate: ✅ API contract test, selector parity, empty-data behavior, download
 1. [x] **New Overview API Endpoint**: `GET /api/v1/overview` delivering spotlight club, 4 KPIs, latest match, previous match, next fixture with ML win probabilities, multi-season rankings, and season-end Elo progression.
 2. [x] **Official Media & Badges Integration**:
    - `competition_media`: 12 competitions with official badge, logo, banner, trophy and fanart CDN assets.
-   - `team_media`: Club badges and logos attached to `TeamRef` across all endpoints.
+   - `team_media`: Club and national-team badges/logos attached to `TeamRef` across all endpoints, with quota-aware missing-media sync and resilient UI fallback.
    - `open_players`: Transfermarkt player portraits with market valuation in EUR.
    - `<FootballBadge />`, `<CompetitionBadge />`, and `<PlayerAvatar />` with error handling and initials/silhouette fallbacks.
 3. [x] **Multi-Season & Tournament Expansion**:
@@ -109,7 +109,7 @@ Exit gate: ✅ API contract test, selector parity, empty-data behavior, download
      3. Attacking Output vs Defensive Control (reversed scatter plot with PPG bubble size)
      4. Opponent-Adjusted Season-End Elo (progression line chart)
    - World Star Players Spotlight with Transfermarkt portraits, club badges, and market values.
-   - 12 Supported Competitions card showcase.
+   - 13 Supported Competitions card showcase, including the 2025 FIFA Club World Cup.
 
 ## Phase 9 — operations and cutover
 

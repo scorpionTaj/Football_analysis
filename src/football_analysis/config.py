@@ -16,8 +16,10 @@ RECENT_LEAGUES = {
 }
 TOURNAMENTS = {
     "UCL": "UEFA Champions League",
+    "CWC": "FIFA Club World Cup",
     "WC": "FIFA World Cup",
 }
+CALENDAR_YEAR_TOURNAMENTS = {"CWC", "WC"}
 COMPETITIONS = {**RECENT_LEAGUES, **TOURNAMENTS}
 THESPORTSDB_LEAGUE_IDS = {
     "E0": 4328, "D1": 4331, "I1": 4332, "F1": 4334, "SP1": 4335,

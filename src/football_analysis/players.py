@@ -1,6 +1,7 @@
 """Capped player profile and statistic ingestion from TheSportsDB free v1 API."""
 
 import argparse
+import re
 import time
 from datetime import datetime
 
@@ -15,8 +16,51 @@ from .ingest import connect
 
 SOURCE = "TheSportsDB"
 TEAM_SEARCH_NAMES = {
+    "AEK": "AEK Athens",
+    "Bayern München": "Bayern Munich",
+    "CF América": "Club America",
+    "FC København": "FC Copenhagen",
+    "FK Bodø/Glimt": "Bodo Glimt",
+    "Dinamo Kiev": "Dynamo Kyiv",
+    "Leeds": "Leeds United",
+    "Kalamata": "Kalamata FC",
+    "Oud-Heverlee Leuven": "OH Leuven",
+    "Oviedo": "Real Oviedo",
+    "PAE Olympiakos SFP": "Olympiacos",
+    "Qarabağ Ağdam FK": "Qarabag",
+    "Reims": "Stade de Reims",
+    "Royale Union Saint-Gilloise": "Union Saint-Gilloise",
+    "Sporting Clube de Braga": "Sporting Braga",
+    "St Truiden": "Sint-Truidense",
+    "Valladolid": "Real Valladolid",
+    "Volos NFC": "Volos",
+    "Zenit St. Petersburg": "Zenit Saint Petersburg",
     "FC Barcelona": "Barcelona",
     "Paris Saint-Germain": "Paris Saint Germain",
+    "Nott'm Forest": "Nottingham Forest FC",
+    "M'gladbach": "Borussia Monchengladbach",
+    "FC Koln": "FC Cologne",
+    "Sociedad": "Real Sociedad",
+    "Vallecano": "Rayo Vallecano",
+    "Espanol": "Espanyol",
+    "Alaves": "Deportivo Alaves",
+    "La Coruna": "Deportivo La Coruna",
+    "Santander": "Racing Santander",
+    "Sp Braga": "Sporting Braga",
+    "Sp Lisbon": "Sporting CP",
+    "Guimaraes": "Vitoria Guimaraes",
+    "For Sittard": "Fortuna Sittard",
+    "Den Haag": "ADO Den Haag",
+    "Nijmegen": "NEC Nijmegen",
+    "Zwolle": "PEC Zwolle",
+    "St. Gilloise": "Union Saint-Gilloise",
+    "St Truiden": "Sint-Truiden",
+    "Standard": "Standard Liege",
+    "Waregem": "Zulte Waregem",
+    "Buyuksehyr": "Istanbul Basaksehir",
+    "Goztep": "Goztepe",
+    "Olympiakos": "Olympiacos",
+    "Levadeiakos": "Levadiakos",
 }
 
 
@@ -42,7 +86,8 @@ class TheSportsDBPlayers:
         return response.json().get(key) or []
 
     def find_team(self, name):
-        search_name = TEAM_SEARCH_NAMES.get(name, name)
+        clean_name = re.sub(r"\s+\([A-Z]{3}\)$", "", name).strip()
+        search_name = TEAM_SEARCH_NAMES.get(name, TEAM_SEARCH_NAMES.get(clean_name, clean_name))
         rows = self._get("searchteams.php", {"t": search_name}, "teams")
         soccer = [row for row in rows if row.get("strSport") == "Soccer"]
         exact = [

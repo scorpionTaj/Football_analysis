@@ -3,17 +3,43 @@
 import argparse
 from datetime import datetime
 
+import duckdb
 import pandas as pd
 
 from .config import CLUBS, COMPETITIONS, DB, RECENT_LEAGUES, THESPORTSDB_LEAGUE_IDS
 from .ingest import connect
 from .players import SOURCE, TheSportsDBPlayers
+from .teams import display_team, team_key
 
 
 class TheSportsDBMedia(TheSportsDBPlayers):
     def league(self, league_id):
         rows = self._get("lookupleague.php", {"id": league_id}, "leagues")
         return (rows or [None])[0]
+
+
+def discover_missing_clubs(db=DB):
+    """Return every loaded club or nation without a canonical media record."""
+    with duckdb.connect(str(db), read_only=True) as con:
+        names = con.sql("""
+            SELECT team FROM team_seasons
+            UNION SELECT home_team FROM recent_matches
+            UNION SELECT away_team FROM recent_matches
+            UNION SELECT home_team FROM tournament_matches
+            UNION SELECT away_team FROM tournament_matches
+        """).df()["team"].dropna().tolist()
+        existing = con.sql("SELECT team FROM team_media").df()["team"].dropna().tolist()
+    existing_keys = {team_key(name) for name in existing}
+    candidates: dict[str, list[str]] = {}
+    for name in names:
+        key = team_key(name)
+        if key and key not in existing_keys:
+            candidates.setdefault(key, []).append(display_team(name))
+    representatives = [
+        min(values, key=lambda value: ("(" in value, len(value), value.casefold()))
+        for values in candidates.values()
+    ]
+    return sorted(representatives, key=str.casefold)
 
 
 def _team_media_frame(rows):
@@ -55,7 +81,7 @@ def _competition_media_frame(rows):
 
 def sync_media(db=DB, clubs=None, leagues=None, adapter=None):
     clubs = clubs if clubs is not None else list(CLUBS.values())
-    leagues = leagues if leagues is not None else list(COMPETITIONS)
+    leagues = leagues if leagues is not None else list(THESPORTSDB_LEAGUE_IDS)
     adapter = adapter or TheSportsDBMedia()
     report = []
     team_rows = []
@@ -129,8 +155,11 @@ def main():
     parser = argparse.ArgumentParser(description="Sync free club and competition artwork")
     parser.add_argument("--clubs", nargs="+")
     parser.add_argument("--leagues", nargs="+")
+    parser.add_argument("--all-teams", action="store_true", help="Sync missing media for every loaded club and nation")
     args = parser.parse_args()
-    result = sync_media(clubs=args.clubs, leagues=args.leagues)
+    clubs = discover_missing_clubs() if args.all_teams else args.clubs
+    leagues = [] if args.all_teams and args.leagues is None else args.leagues
+    result = sync_media(clubs=clubs, leagues=leagues)
     raise SystemExit(1 if any(row["status"] == "failed" for row in result) else 0)
 
 

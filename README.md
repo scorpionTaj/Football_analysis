@@ -16,6 +16,7 @@ uv run football-sync-open-players
 uv run football-sync-media
 uv run football-sync-tournaments
 uv run football-train-predictions
+uv run football-api
 uv run streamlit run app.py --server.address 127.0.0.1
 ```
 
@@ -31,7 +32,7 @@ The analytical range is 2021/22–2025/26 plus the live 2026/27 campaign. The Ju
 
 Dashboard: one platform-wide search, three domestic analysis modes and nine focused pages: Overview, Champions & World Cup, Analysis lab, League tables, Club lab, Shot lab, Match explorer, Players and Data quality. The Analysis lab slices domestic and tournament data by competition, edition, team and venue; ranks teams by seven metrics; builds a correlation matrix; analyzes first-half scoring, corners, fouls, cards and referee trends; and exports both the rankings and exact match slice.
 
-The predictive section trains a regularized three-outcome softmax model on pre-match Elo, rolling points, scoring, conceding and rest-day features. Its validation split is chronological: the latest 20% of match dates remain unseen during evaluation. The current model reaches 50.4% holdout accuracy versus a 42.9% majority-class baseline and improves log loss from 1.076 to 1.004. Ten next-listed fixtures are cached as home/draw/away probabilities. This structured dataset is too small to justify a deep neural network; the compact model is faster, more auditable and easier to serve from the future API.
+The predictive section trains a regularized three-outcome softmax model on pre-match Elo, ten-match rolling points, scoring, conceding and rest-day features. Confidence temperature is learned from an earlier chronological calibration window; the latest 20% of match dates remain unseen during evaluation. The current model reaches 50.5% holdout accuracy versus a 42.9% majority-class baseline and improves log loss from 1.076 to 1.003. Ten next-listed fixtures are cached as home/draw/away probabilities, while conservative current-points projections provide title shares for all ten domestic leagues. This structured dataset is too small to justify a deep neural network; the compact model is faster, more auditable and easier to serve.
 
 The tournament adapter loads five completed Champions League seasons (753 matches) and the 2018, 2022 and 2026 World Cups (232 matches) from OpenFootball's CC0 repositories without an API key. Champions League is the first tournament option and has stage, team, performance, scoring and match-result views. The World Cup view also uses 649 published goal events for scorer, penalty and own-goal analysis.
 
@@ -47,7 +48,7 @@ The 2026/27 campaign is integrated into every match-driven page and adds the Ere
 - `src/football_analysis/open_players.py`: full featured-club snapshot and five-season player aggregation from published CC0 CSVs.
 - `src/football_analysis/players.py`: capped TheSportsDB profile and artwork fallback synchronization.
 - `src/football_analysis/media.py`: cached club and competition artwork synchronization.
-- `src/football_analysis/tournaments.py`: no-key CC0 Champions League and World Cup adapter, parsers, cache and transactional synchronization.
+- `src/football_analysis/tournaments.py`: no-key CC0 Champions League, Club World Cup and World Cup adapters, cache and transactional synchronization.
 - `src/football_analysis/analysis_system.py`: reusable filtering, ranking, form and correlation interface for Streamlit and a future HTTP/Next.js frontend.
 - `src/football_analysis/event_details.py`: explicitly capped match statistics, timelines and lineup samples from the free TheSportsDB endpoints.
 - `src/football_analysis/predictions.py`: leakage-aware feature engineering, softmax training, chronological evaluation and fixture forecasts.

@@ -369,6 +369,17 @@ class CalibrationBin(BaseModel):
     samples: int
 
 
+class LeagueTitleOutlook(BaseModel):
+    competition: str
+    season: int
+    team: TeamRef
+    current_rank: int
+    played: int
+    points: int
+    projected_points: float
+    title_probability: float
+
+
 class PredictionsResponse(BaseModel):
     model_id: str | None = None
     model_name: str | None = None
@@ -377,6 +388,7 @@ class PredictionsResponse(BaseModel):
     metrics: dict[str, Any] = Field(default_factory=dict)
     calibration: list[CalibrationBin] = Field(default_factory=list)
     forecasts: list[Forecast] = Field(default_factory=list)
+    league_outlooks: list[LeagueTitleOutlook] = Field(default_factory=list)
     source: SourceMeta
 
 

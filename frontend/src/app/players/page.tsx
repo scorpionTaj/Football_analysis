@@ -1,17 +1,18 @@
 'use client';
 
-import { Card, CardHeader, CardTitle, CardContent, Chip, Button, Input } from '@heroui/react';
+import { Card, Chip, Button } from '@heroui/react';
 import React, { Suspense, useMemo, useState, useEffect } from 'react';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { queryKeys } from '@/lib/api/query-keys';
+import { useFilterParams } from '@/lib/hooks/use-filter-params';
 import { SourceBadge } from '@/components/ui/source-badge';
 import { LoadingSkeleton, ErrorMessage, EmptyState } from '@/components/ui/loading';
 import { PageHeader } from '@/components/ui/page-header';
 import { usePagination } from '@/components/ui/pagination';
-import type { PlayerSummary, PlayerProfileResponse } from '@/lib/api/types';
+import type { PlayerProfileResponse } from '@/lib/api/types';
 import { FootballBadge, PlayerAvatar } from '@/lib/media-utils';
-import { User, Search, Shield, ChevronRight, ChevronLeft, Download, Award, Calendar, ExternalLink } from 'lucide-react';
+import { User, Search, ChevronRight, ChevronLeft, Download, Award } from 'lucide-react';
 
 function formatCurrency(eur: number | null | undefined): string {
   if (!eur) return 'N/A';
@@ -24,10 +25,11 @@ function formatCurrency(eur: number | null | undefined): string {
   return `€${eur.toLocaleString()}`;
 }
 
-export function PlayersContent() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedQuery, setDebouncedQuery] = useState('');
-  const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
+function PlayersContent() {
+  const filters = useFilterParams();
+  const [searchQuery, setSearchQuery] = useState(filters.get('q') || '');
+  const [debouncedQuery, setDebouncedQuery] = useState(filters.get('q') || '');
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(filters.get('player'));
   const [currentCursor, setCurrentCursor] = useState<string | null>(null);
   const [cursorHistory, setCursorHistory] = useState<string[]>([]);
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { Card, Button, Chip } from '@heroui/react';
+import { Card, Button } from '@heroui/react';
 import { Suspense, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
@@ -10,10 +10,10 @@ import { SourceBadge } from '@/components/ui/source-badge';
 import { LoadingSkeleton, ErrorMessage, EmptyState } from '@/components/ui/loading';
 import { PageHeader } from '@/components/ui/page-header';
 import { usePagination } from '@/components/ui/pagination';
-import { Table as TableIcon, Download, Trophy, ShieldAlert, ArrowUpDown, ChevronRight } from 'lucide-react';
+import { Table as TableIcon, Download } from 'lucide-react';
 import { FootballBadge, CompetitionBadge } from '@/lib/media-utils';
 
-export function LeagueTablesContent() {
+function LeagueTablesContent() {
   const filters = useFilterParams();
   const selectedCompetition = filters.competition || 'E0';
   const [venueFilter, setVenueFilter] = useState<'All' | 'Home' | 'Away'>('All');

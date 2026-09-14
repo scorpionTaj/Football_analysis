@@ -1,6 +1,6 @@
 'use client';
 
-import { Card, Button, Chip } from '@heroui/react';
+import { Card, Button } from '@heroui/react';
 import { Suspense, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
@@ -13,7 +13,7 @@ import { FilterBar } from '@/components/filters';
 import { FootballBadge, PlayerAvatar } from '@/lib/media-utils';
 import { Activity, Calendar, Download, ChevronRight, ChevronLeft, Search, UserCheck, UsersRound } from 'lucide-react';
 
-export function MatchesContent() {
+function MatchesContent() {
   const filters = useFilterParams();
   const [currentCursor, setCurrentCursor] = useState<string | null>(null);
   const [cursorHistory, setCursorHistory] = useState<string[]>([]);
@@ -52,7 +52,7 @@ export function MatchesContent() {
     enabled: Boolean(effectiveEventId),
   });
 
-  const matches = data?.matches || [];
+  const matches = useMemo(() => data?.matches || [], [data?.matches]);
   const page = data?.page;
 
   // Filter matches locally by search query (team names or referee)

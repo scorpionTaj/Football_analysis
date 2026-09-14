@@ -6,11 +6,10 @@ import { api } from '@/lib/api/client';
 import { queryKeys } from '@/lib/api/query-keys';
 import { useFilterParams } from '@/lib/hooks/use-filter-params';
 import { SourceBadge } from '@/components/ui/source-badge';
-import { LoadingSkeleton, ErrorMessage, EmptyState } from '@/components/ui/loading';
+import { LoadingSkeleton, ErrorMessage } from '@/components/ui/loading';
 import { PageHeader } from '@/components/ui/page-header';
 import { usePagination } from '@/components/ui/pagination';
-import type { RankingRow, CorrelationRow } from '@/lib/api/types';
-import { BarChart3, TrendingUp, ShieldAlert, Award, Download, SlidersHorizontal, Users } from 'lucide-react';
+import { BarChart3, TrendingUp, ShieldAlert, Award, Download, SlidersHorizontal } from 'lucide-react';
 import {
   BarChart,
   Bar,
@@ -80,10 +79,9 @@ function AnalysisContent() {
     queryFn: () => api.analysis(requestBody),
   });
 
-  const rankings = data?.rankings || [];
+  const rankings = useMemo(() => data?.rankings || [], [data?.rankings]);
   const { paginatedItems: paginatedRankings, PaginationComponent: AnalysisPagination } = usePagination(rankings, 10);
   const matchFactors = data?.match_factors;
-  const correlations = data?.correlations || [];
 
   // Active metric config
   const metricInfo = METRIC_CONFIGS.find((m) => m.key === selectedMetric) || METRIC_CONFIGS[0];

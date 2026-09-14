@@ -42,6 +42,17 @@ def test_world_cup_parser_preserves_neutral_stage_and_penalties():
     assert parse_world_cup(raw, 2026).goals.loc[0, "penalty"]
 
 
+def test_club_world_cup_parser_uses_its_own_competition_code():
+    raw = json.dumps({"matches": [{
+        "round": "Final", "date": "2025-07-13",
+        "team1": "Chelsea FC", "team2": "Paris Saint-Germain FC",
+        "score": {"ft": [3, 0]},
+    }]}).encode()
+    batch = parse_world_cup(raw, 2025, competition="CWC")
+    assert batch.frame.loc[0, "competition"] == "CWC"
+    assert batch.frame.loc[0, "neutral"]
+
+
 def test_sync_replaces_only_requested_partition(tmp_path):
     columns = [
         "competition", "season", "stage", "group_name", "match_date",

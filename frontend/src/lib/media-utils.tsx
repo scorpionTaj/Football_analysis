@@ -63,10 +63,15 @@ export function FootballBadge({
   size = 32,
   className = '',
 }: FootballBadgeProps) {
-  const [error, setError] = useState(false);
+  const [failedUrls, setFailedUrls] = useState<string[]>([]);
 
   const cleanName = (name || '').toLowerCase().trim();
-  const resolvedUrl = (!url || error) ? FALLBACK_TEAM_BADGES[cleanName] : url;
+  const fallbackUrl = FALLBACK_TEAM_BADGES[cleanName];
+  const resolvedUrl = url && !failedUrls.includes(url)
+    ? url
+    : fallbackUrl && !failedUrls.includes(fallbackUrl)
+      ? fallbackUrl
+      : null;
 
   const initials = name
     ? name
@@ -98,7 +103,9 @@ export function FootballBadge({
       alt={name}
       width={size}
       height={size}
-      onError={() => setError(true)}
+      onError={() => setFailedUrls((current) => (
+        current.includes(resolvedUrl) ? current : [...current, resolvedUrl]
+      ))}
       unoptimized
       className={`object-contain shrink-0 transition-transform duration-200 hover:scale-110 ${className}`}
       style={{ width: size, height: size, maxWidth: size, maxHeight: size }}
@@ -124,7 +131,7 @@ export function CompetitionBadge({
   const [error, setError] = useState(false);
 
   if (!badge_url || error) {
-    const isTournament = code === 'UCL' || code === 'WC';
+    const isTournament = code === 'UCL' || code === 'CWC' || code === 'WC';
     return (
       <div
         className={`inline-flex items-center justify-center rounded-xl bg-surface0 border border-surface1 shadow-sm text-blue shrink-0 ${className}`}

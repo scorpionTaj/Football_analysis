@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useTheme, AVAILABLE_THEMES, type ThemeId, type ThemeMode } from '@/components/theme-provider';
+import { useTheme, AVAILABLE_THEMES } from '@/components/theme-provider';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { queryKeys } from '@/lib/api/query-keys';
@@ -24,7 +24,7 @@ export default function SettingsPage() {
   const [pingLatency, setPingLatency] = useState<number | null>(null);
   const [isPinging, setIsPinging] = useState(false);
 
-  const { data: health, isLoading: isHealthLoading, refetch: refetchHealth } = useQuery({
+  const { data: health, refetch: refetchHealth } = useQuery({
     queryKey: queryKeys.health,
     queryFn: () => api.health(),
   });

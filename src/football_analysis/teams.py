@@ -1,6 +1,7 @@
 """Canonical club identities shared across football data providers."""
 
 import re
+import unicodedata
 
 
 TEAM_NAMES = {
@@ -32,6 +33,14 @@ TEAM_NAMES = {
     "AC Milan": "AC Milan",
     "Inter": "Inter Milan",
     "Inter Milan": "Inter Milan",
+    "Sp Braga": "Sporting Braga",
+    "Sporting Clube de Braga": "Sporting Braga",
+    "Sporting Braga": "Sporting Braga",
+    "Royale Union Saint-Gilloise": "Union Saint-Gilloise",
+    "St. Gilloise": "Union Saint-Gilloise",
+    "Union Saint-Gilloise": "Union Saint-Gilloise",
+    "St Truiden": "Sint-Truiden",
+    "Sint-Truiden": "Sint-Truiden",
 }
 
 
@@ -45,4 +54,9 @@ def display_team(name):
 
 def team_key(name):
     """Return a provider-independent key for standings reconciliation."""
-    return re.sub(r"[^a-z0-9]", "", display_team(name).casefold())
+    value = display_team(name)
+    value = re.sub(r"\s+\([A-Z]{3}\)$", "", value).strip()
+    value = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode()
+    tokens = re.findall(r"[a-z0-9]+", value.casefold())
+    generic = {"ac", "afc", "cf", "fc", "sc"}
+    return "".join(token for token in tokens if token not in generic)

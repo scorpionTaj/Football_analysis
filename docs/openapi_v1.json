@@ -32,7 +32,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogResponse"
+                }
               }
             }
           }
@@ -82,7 +84,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TeamListResponse"
+                }
               }
             }
           },
@@ -202,7 +206,188 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/MatchListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shots": {
+      "get": {
+        "summary": "Shots",
+        "operationId": "shots_api_v1_shots_get",
+        "parameters": [
+          {
+            "name": "competition",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Competition"
+            }
+          },
+          {
+            "name": "season",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Season"
+            }
+          },
+          {
+            "name": "team",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Team"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShotAnalysisResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/event-details": {
+      "get": {
+        "summary": "Event Details",
+        "operationId": "event_details_api_v1_event_details_get",
+        "parameters": [
+          {
+            "name": "competition",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Competition"
+            }
+          },
+          {
+            "name": "season",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Season"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/event-details/{event_id}": {
+      "get": {
+        "summary": "Event Detail",
+        "operationId": "event_detail_api_v1_event_details__event_id__get",
+        "parameters": [
+          {
+            "name": "event_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Event Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventDetailResponse"
+                }
               }
             }
           },
@@ -238,7 +423,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisReportResponse"
+                }
               }
             }
           },
@@ -284,7 +471,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TournamentResponse"
+                }
               }
             }
           },
@@ -310,7 +499,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/PredictionsResponse"
+                }
               }
             }
           }
@@ -355,6 +546,22 @@
             }
           },
           {
+            "name": "sort_by",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sort By"
+            }
+          },
+          {
             "name": "cursor",
             "in": "query",
             "required": false,
@@ -388,7 +595,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerListResponse"
+                }
               }
             }
           },
@@ -425,7 +634,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerProfileResponse"
+                }
               }
             }
           },
@@ -451,7 +662,209 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/QualityResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/overview": {
+      "get": {
+        "summary": "Overview",
+        "operationId": "overview_api_v1_overview_get",
+        "parameters": [
+          {
+            "name": "team",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Team"
+            }
+          },
+          {
+            "name": "competition",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Competition"
+            }
+          },
+          {
+            "name": "season",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Season"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OverviewResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/transfers": {
+      "get": {
+        "summary": "Transfers",
+        "operationId": "transfers_api_v1_transfers_get",
+        "parameters": [
+          {
+            "name": "season",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Season"
+            }
+          },
+          {
+            "name": "competition",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Competition"
+            }
+          },
+          {
+            "name": "club",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Club"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -461,6 +874,105 @@
   },
   "components": {
     "schemas": {
+      "AnalysisFilters": {
+        "properties": {
+          "competitions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Competitions"
+          },
+          "seasons": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Seasons"
+          },
+          "teams": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Teams"
+          },
+          "venue": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Venue"
+          },
+          "form_window": {
+            "type": "integer",
+            "title": "Form Window",
+            "default": 5
+          }
+        },
+        "type": "object",
+        "title": "AnalysisFilters"
+      },
+      "AnalysisReportResponse": {
+        "properties": {
+          "filters": {
+            "$ref": "#/components/schemas/AnalysisFilters"
+          },
+          "match_count": {
+            "type": "integer",
+            "title": "Match Count"
+          },
+          "rankings": {
+            "items": {
+              "$ref": "#/components/schemas/RankingRow"
+            },
+            "type": "array",
+            "title": "Rankings"
+          },
+          "form": {
+            "items": {
+              "$ref": "#/components/schemas/FormRow"
+            },
+            "type": "array",
+            "title": "Form"
+          },
+          "correlations": {
+            "items": {
+              "$ref": "#/components/schemas/CorrelationRow"
+            },
+            "type": "array",
+            "title": "Correlations"
+          },
+          "match_factors": {
+            "$ref": "#/components/schemas/MatchFactorSummary"
+          },
+          "elo_ratings": {
+            "items": {
+              "$ref": "#/components/schemas/EloRatingRow"
+            },
+            "type": "array",
+            "title": "Elo Ratings"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceMeta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "filters",
+          "match_count",
+          "rankings",
+          "form",
+          "correlations",
+          "match_factors",
+          "source"
+        ],
+        "title": "AnalysisReportResponse"
+      },
       "AnalysisRequestBody": {
         "properties": {
           "competitions": {
@@ -504,6 +1016,761 @@
         "type": "object",
         "title": "AnalysisRequestBody"
       },
+      "CalibrationBin": {
+        "properties": {
+          "predicted_outcome": {
+            "type": "string",
+            "title": "Predicted Outcome"
+          },
+          "mean_probability": {
+            "type": "number",
+            "title": "Mean Probability"
+          },
+          "observed_rate": {
+            "type": "number",
+            "title": "Observed Rate"
+          },
+          "samples": {
+            "type": "integer",
+            "title": "Samples"
+          }
+        },
+        "type": "object",
+        "required": [
+          "predicted_outcome",
+          "mean_probability",
+          "observed_rate",
+          "samples"
+        ],
+        "title": "CalibrationBin"
+      },
+      "CatalogResponse": {
+        "properties": {
+          "competitions": {
+            "items": {
+              "$ref": "#/components/schemas/Competition"
+            },
+            "type": "array",
+            "title": "Competitions"
+          },
+          "current_season": {
+            "type": "integer",
+            "title": "Current Season"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceMeta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "competitions",
+          "current_season",
+          "generated_at",
+          "source"
+        ],
+        "title": "CatalogResponse"
+      },
+      "ClubSpotlight": {
+        "properties": {
+          "team": {
+            "$ref": "#/components/schemas/TeamRef"
+          },
+          "league": {
+            "type": "string",
+            "title": "League"
+          },
+          "season": {
+            "type": "integer",
+            "title": "Season"
+          },
+          "played": {
+            "type": "integer",
+            "title": "Played",
+            "default": 0
+          },
+          "wins": {
+            "type": "integer",
+            "title": "Wins",
+            "default": 0
+          },
+          "draws": {
+            "type": "integer",
+            "title": "Draws",
+            "default": 0
+          },
+          "losses": {
+            "type": "integer",
+            "title": "Losses",
+            "default": 0
+          },
+          "points": {
+            "type": "integer",
+            "title": "Points",
+            "default": 0
+          },
+          "points_per_game": {
+            "type": "number",
+            "title": "Points Per Game",
+            "default": 0.0
+          },
+          "goal_difference": {
+            "type": "integer",
+            "title": "Goal Difference",
+            "default": 0
+          },
+          "latest_match": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Match"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "previous_match": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Match"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "next_fixture": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Forecast"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "team",
+          "league",
+          "season"
+        ],
+        "title": "ClubSpotlight"
+      },
+      "Competition": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "domestic",
+              "tournament"
+            ],
+            "title": "Kind"
+          },
+          "seasons": {
+            "items": {
+              "$ref": "#/components/schemas/SeasonCoverage"
+            },
+            "type": "array",
+            "title": "Seasons"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SourceMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "badge_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Badge Url"
+          },
+          "logo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logo Url"
+          },
+          "banner_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Banner Url"
+          },
+          "trophy_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trophy Url"
+          },
+          "fanart_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fanart Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "name",
+          "kind"
+        ],
+        "title": "Competition"
+      },
+      "CorrelationRow": {
+        "properties": {
+          "metric": {
+            "type": "string",
+            "title": "Metric"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "metric"
+        ],
+        "title": "CorrelationRow"
+      },
+      "EloRatingRow": {
+        "properties": {
+          "team": {
+            "$ref": "#/components/schemas/TeamRef"
+          },
+          "season": {
+            "type": "integer",
+            "title": "Season"
+          },
+          "league": {
+            "type": "string",
+            "title": "League"
+          },
+          "post_elo": {
+            "type": "number",
+            "title": "Post Elo"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team",
+          "season",
+          "league",
+          "post_elo"
+        ],
+        "title": "EloRatingRow"
+      },
+      "EventDetailResponse": {
+        "properties": {
+          "event": {
+            "$ref": "#/components/schemas/EventSummary"
+          },
+          "statistics": {
+            "items": {
+              "$ref": "#/components/schemas/EventStatistic"
+            },
+            "type": "array",
+            "title": "Statistics"
+          },
+          "timeline": {
+            "items": {
+              "$ref": "#/components/schemas/EventTimelineItem"
+            },
+            "type": "array",
+            "title": "Timeline"
+          },
+          "lineups": {
+            "items": {
+              "$ref": "#/components/schemas/EventLineupItem"
+            },
+            "type": "array",
+            "title": "Lineups"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceMeta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "event",
+          "source"
+        ],
+        "title": "EventDetailResponse"
+      },
+      "EventLineupItem": {
+        "properties": {
+          "team": {
+            "$ref": "#/components/schemas/TeamRef"
+          },
+          "player_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Player Id"
+          },
+          "player": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Player"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position"
+          },
+          "is_home": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Home"
+          },
+          "is_substitute": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Substitute"
+          },
+          "shirt_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shirt Number"
+          },
+          "cutout_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cutout Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team"
+        ],
+        "title": "EventLineupItem"
+      },
+      "EventListResponse": {
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/EventSummary"
+            },
+            "type": "array",
+            "title": "Events"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceMeta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source"
+        ],
+        "title": "EventListResponse"
+      },
+      "EventStatistic": {
+        "properties": {
+          "statistic": {
+            "type": "string",
+            "title": "Statistic"
+          },
+          "home_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Value"
+          },
+          "away_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Away Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "statistic"
+        ],
+        "title": "EventStatistic"
+      },
+      "EventSummary": {
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "title": "Event Id"
+          },
+          "competition": {
+            "type": "string",
+            "title": "Competition"
+          },
+          "season": {
+            "type": "integer",
+            "title": "Season"
+          },
+          "match_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Match Date"
+          },
+          "home": {
+            "$ref": "#/components/schemas/TeamRef"
+          },
+          "away": {
+            "$ref": "#/components/schemas/TeamRef"
+          },
+          "home_goals": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Goals"
+          },
+          "away_goals": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Away Goals"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "statistics_count": {
+            "type": "integer",
+            "title": "Statistics Count",
+            "default": 0
+          },
+          "timeline_count": {
+            "type": "integer",
+            "title": "Timeline Count",
+            "default": 0
+          },
+          "lineup_count": {
+            "type": "integer",
+            "title": "Lineup Count",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "event_id",
+          "competition",
+          "season",
+          "match_date",
+          "home",
+          "away"
+        ],
+        "title": "EventSummary"
+      },
+      "EventTimelineItem": {
+        "properties": {
+          "minute": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minute"
+          },
+          "event_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Type"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "team": {
+            "$ref": "#/components/schemas/TeamRef"
+          },
+          "player_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Player Id"
+          },
+          "player": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Player"
+          },
+          "assist": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assist"
+          },
+          "is_home": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Home"
+          },
+          "comment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comment"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team"
+        ],
+        "title": "EventTimelineItem"
+      },
+      "Forecast": {
+        "properties": {
+          "competition": {
+            "type": "string",
+            "title": "Competition"
+          },
+          "season": {
+            "type": "integer",
+            "title": "Season"
+          },
+          "match_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Match Date"
+          },
+          "home": {
+            "$ref": "#/components/schemas/TeamRef"
+          },
+          "away": {
+            "$ref": "#/components/schemas/TeamRef"
+          },
+          "predicted_result": {
+            "type": "string",
+            "title": "Predicted Result"
+          },
+          "home_probability": {
+            "type": "number",
+            "title": "Home Probability"
+          },
+          "draw_probability": {
+            "type": "number",
+            "title": "Draw Probability"
+          },
+          "away_probability": {
+            "type": "number",
+            "title": "Away Probability"
+          }
+        },
+        "type": "object",
+        "required": [
+          "competition",
+          "season",
+          "match_date",
+          "home",
+          "away",
+          "predicted_result",
+          "home_probability",
+          "draw_probability",
+          "away_probability"
+        ],
+        "title": "Forecast"
+      },
+      "FormRow": {
+        "properties": {
+          "competition": {
+            "type": "string",
+            "title": "Competition"
+          },
+          "season": {
+            "type": "integer",
+            "title": "Season"
+          },
+          "team": {
+            "$ref": "#/components/schemas/TeamRef"
+          },
+          "form_matches": {
+            "type": "integer",
+            "title": "Form Matches"
+          },
+          "form_points": {
+            "type": "integer",
+            "title": "Form Points"
+          },
+          "form_goals_for": {
+            "type": "integer",
+            "title": "Form Goals For"
+          },
+          "form_goals_against": {
+            "type": "integer",
+            "title": "Form Goals Against"
+          },
+          "form": {
+            "type": "string",
+            "title": "Form"
+          },
+          "form_ppg": {
+            "type": "number",
+            "title": "Form Ppg"
+          }
+        },
+        "type": "object",
+        "required": [
+          "competition",
+          "season",
+          "team",
+          "form_matches",
+          "form_points",
+          "form_goals_for",
+          "form_goals_against",
+          "form",
+          "form_ppg"
+        ],
+        "title": "FormRow"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -544,6 +1811,1825 @@
           "read_only"
         ],
         "title": "HealthResponse"
+      },
+      "LeagueTitleOutlook": {
+        "properties": {
+          "competition": {
+            "type": "string",
+            "title": "Competition"
+          },
+          "season": {
+            "type": "integer",
+            "title": "Season"
+          },
+          "team": {
+            "$ref": "#/components/schemas/TeamRef"
+          },
+          "current_rank": {
+            "type": "integer",
+            "title": "Current Rank"
+          },
+          "played": {
+            "type": "integer",
+            "title": "Played"
+          },
+          "points": {
+            "type": "integer",
+            "title": "Points"
+          },
+          "projected_points": {
+            "type": "number",
+            "title": "Projected Points"
+          },
+          "title_probability": {
+            "type": "number",
+            "title": "Title Probability"
+          }
+        },
+        "type": "object",
+        "required": [
+          "competition",
+          "season",
+          "team",
+          "current_rank",
+          "played",
+          "points",
+          "projected_points",
+          "title_probability"
+        ],
+        "title": "LeagueTitleOutlook"
+      },
+      "Match": {
+        "properties": {
+          "competition": {
+            "type": "string",
+            "title": "Competition"
+          },
+          "season": {
+            "type": "integer",
+            "title": "Season"
+          },
+          "match_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Match Date"
+          },
+          "home": {
+            "$ref": "#/components/schemas/TeamRef"
+          },
+          "away": {
+            "$ref": "#/components/schemas/TeamRef"
+          },
+          "home_goals": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Goals"
+          },
+          "away_goals": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Away Goals"
+          },
+          "venue": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Venue"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage"
+          },
+          "referee": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Referee"
+          },
+          "home_shots": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Shots"
+          },
+          "away_shots": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Away Shots"
+          },
+          "home_shots_on_target": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Shots On Target"
+          },
+          "away_shots_on_target": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Away Shots On Target"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "competition",
+          "season",
+          "match_date",
+          "home",
+          "away"
+        ],
+        "title": "Match"
+      },
+      "MatchFactorSummary": {
+        "properties": {
+          "first_half_goals_mean": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Half Goals Mean"
+          },
+          "second_half_goals_mean": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Second Half Goals Mean"
+          },
+          "corners_mean": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corners Mean"
+          },
+          "fouls_mean": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fouls Mean"
+          },
+          "yellow_cards_mean": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Yellow Cards Mean"
+          },
+          "red_cards_mean": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Red Cards Mean"
+          },
+          "referees": {
+            "items": {
+              "$ref": "#/components/schemas/RefereeSummary"
+            },
+            "type": "array",
+            "title": "Referees"
+          }
+        },
+        "type": "object",
+        "title": "MatchFactorSummary"
+      },
+      "MatchListResponse": {
+        "properties": {
+          "matches": {
+            "items": {
+              "$ref": "#/components/schemas/Match"
+            },
+            "type": "array",
+            "title": "Matches"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageMeta"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceMeta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "matches",
+          "page",
+          "source"
+        ],
+        "title": "MatchListResponse"
+      },
+      "OverviewResponse": {
+        "properties": {
+          "spotlight": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClubSpotlight"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "performance_over_time": {
+            "items": {
+              "$ref": "#/components/schemas/RankingRow"
+            },
+            "type": "array",
+            "title": "Performance Over Time"
+          },
+          "elo_trajectory": {
+            "items": {
+              "$ref": "#/components/schemas/EloRatingRow"
+            },
+            "type": "array",
+            "title": "Elo Trajectory"
+          },
+          "forecasts": {
+            "items": {
+              "$ref": "#/components/schemas/Forecast"
+            },
+            "type": "array",
+            "title": "Forecasts"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceMeta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source"
+        ],
+        "title": "OverviewResponse"
+      },
+      "PageMeta": {
+        "properties": {
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "returned": {
+            "type": "integer",
+            "title": "Returned"
+          }
+        },
+        "type": "object",
+        "required": [
+          "limit",
+          "returned"
+        ],
+        "title": "PageMeta"
+      },
+      "PlayerListResponse": {
+        "properties": {
+          "players": {
+            "items": {
+              "$ref": "#/components/schemas/PlayerSummary"
+            },
+            "type": "array",
+            "title": "Players"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageMeta"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceMeta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "players",
+          "page",
+          "source"
+        ],
+        "title": "PlayerListResponse"
+      },
+      "PlayerProfileResponse": {
+        "properties": {
+          "player_id": {
+            "type": "string",
+            "title": "Player Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "team": {
+            "$ref": "#/components/schemas/TeamRef"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position"
+          },
+          "sub_position": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sub Position"
+          },
+          "nationality": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nationality"
+          },
+          "date_born": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date Born"
+          },
+          "height_cm": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height Cm"
+          },
+          "foot": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Foot"
+          },
+          "market_value_eur": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market Value Eur"
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "stats": {
+            "items": {
+              "$ref": "#/components/schemas/PlayerStat"
+            },
+            "type": "array",
+            "title": "Stats"
+          },
+          "coverage": {
+            "$ref": "#/components/schemas/SourceMeta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "player_id",
+          "name",
+          "team",
+          "source",
+          "coverage"
+        ],
+        "title": "PlayerProfileResponse"
+      },
+      "PlayerStat": {
+        "properties": {
+          "season": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Season"
+          },
+          "competition": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Competition"
+          },
+          "statistic": {
+            "type": "string",
+            "title": "Statistic"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "appearances": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Appearances"
+          },
+          "goals": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Goals"
+          },
+          "assists": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assists"
+          },
+          "minutes_played": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minutes Played"
+          },
+          "yellow_cards": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Yellow Cards"
+          },
+          "red_cards": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Red Cards"
+          }
+        },
+        "type": "object",
+        "required": [
+          "statistic"
+        ],
+        "title": "PlayerStat"
+      },
+      "PlayerSummary": {
+        "properties": {
+          "player_id": {
+            "type": "string",
+            "title": "Player Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "team": {
+            "$ref": "#/components/schemas/TeamRef"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position"
+          },
+          "nationality": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nationality"
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url"
+          },
+          "market_value_eur": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market Value Eur"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "player_id",
+          "name",
+          "team",
+          "source"
+        ],
+        "title": "PlayerSummary"
+      },
+      "PredictionsResponse": {
+        "properties": {
+          "model_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Id"
+          },
+          "model_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Name"
+          },
+          "trained_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trained At"
+          },
+          "validation_cutoff": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Validation Cutoff"
+          },
+          "metrics": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metrics"
+          },
+          "calibration": {
+            "items": {
+              "$ref": "#/components/schemas/CalibrationBin"
+            },
+            "type": "array",
+            "title": "Calibration"
+          },
+          "forecasts": {
+            "items": {
+              "$ref": "#/components/schemas/Forecast"
+            },
+            "type": "array",
+            "title": "Forecasts"
+          },
+          "league_outlooks": {
+            "items": {
+              "$ref": "#/components/schemas/LeagueTitleOutlook"
+            },
+            "type": "array",
+            "title": "League Outlooks"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceMeta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source"
+        ],
+        "title": "PredictionsResponse"
+      },
+      "QualityCell": {
+        "properties": {
+          "competition": {
+            "type": "string",
+            "title": "Competition"
+          },
+          "season": {
+            "type": "integer",
+            "title": "Season"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "match_count": {
+            "type": "integer",
+            "title": "Match Count",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "competition",
+          "season",
+          "status"
+        ],
+        "title": "QualityCell"
+      },
+      "QualityResponse": {
+        "properties": {
+          "completed_coverage": {
+            "type": "string",
+            "title": "Completed Coverage"
+          },
+          "live_competitions": {
+            "type": "string",
+            "title": "Live Competitions"
+          },
+          "match_records": {
+            "type": "integer",
+            "title": "Match Records"
+          },
+          "impossible_shot_rows": {
+            "type": "integer",
+            "title": "Impossible Shot Rows"
+          },
+          "source_caps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Source Caps"
+          },
+          "null_coverage": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Null Coverage"
+          },
+          "checksums": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Checksums"
+          },
+          "refresh_timestamps": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Refresh Timestamps"
+          },
+          "grid": {
+            "items": {
+              "$ref": "#/components/schemas/QualityCell"
+            },
+            "type": "array",
+            "title": "Grid"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceMeta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "completed_coverage",
+          "live_competitions",
+          "match_records",
+          "impossible_shot_rows",
+          "source"
+        ],
+        "title": "QualityResponse"
+      },
+      "RankingRow": {
+        "properties": {
+          "competition": {
+            "type": "string",
+            "title": "Competition"
+          },
+          "season": {
+            "type": "integer",
+            "title": "Season"
+          },
+          "team": {
+            "$ref": "#/components/schemas/TeamRef"
+          },
+          "rank": {
+            "type": "integer",
+            "title": "Rank"
+          },
+          "played": {
+            "type": "integer",
+            "title": "Played"
+          },
+          "wins": {
+            "type": "integer",
+            "title": "Wins"
+          },
+          "draws": {
+            "type": "integer",
+            "title": "Draws"
+          },
+          "losses": {
+            "type": "integer",
+            "title": "Losses"
+          },
+          "points": {
+            "type": "integer",
+            "title": "Points"
+          },
+          "goals_for": {
+            "type": "integer",
+            "title": "Goals For"
+          },
+          "goals_against": {
+            "type": "integer",
+            "title": "Goals Against"
+          },
+          "goal_difference": {
+            "type": "integer",
+            "title": "Goal Difference"
+          },
+          "points_per_game": {
+            "type": "number",
+            "title": "Points Per Game"
+          },
+          "goals_per_game": {
+            "type": "number",
+            "title": "Goals Per Game"
+          },
+          "conceded_per_game": {
+            "type": "number",
+            "title": "Conceded Per Game"
+          },
+          "win_rate": {
+            "type": "number",
+            "title": "Win Rate"
+          },
+          "clean_sheet_rate": {
+            "type": "number",
+            "title": "Clean Sheet Rate"
+          },
+          "form": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Form"
+          },
+          "form_ppg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Form Ppg"
+          }
+        },
+        "type": "object",
+        "required": [
+          "competition",
+          "season",
+          "team",
+          "rank",
+          "played",
+          "wins",
+          "draws",
+          "losses",
+          "points",
+          "goals_for",
+          "goals_against",
+          "goal_difference",
+          "points_per_game",
+          "goals_per_game",
+          "conceded_per_game",
+          "win_rate",
+          "clean_sheet_rate"
+        ],
+        "title": "RankingRow"
+      },
+      "RefereeSummary": {
+        "properties": {
+          "referee": {
+            "type": "string",
+            "title": "Referee"
+          },
+          "matches": {
+            "type": "integer",
+            "title": "Matches"
+          },
+          "yellow_cards_mean": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Yellow Cards Mean"
+          },
+          "red_cards_mean": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Red Cards Mean"
+          }
+        },
+        "type": "object",
+        "required": [
+          "referee",
+          "matches"
+        ],
+        "title": "RefereeSummary"
+      },
+      "SeasonCoverage": {
+        "properties": {
+          "season": {
+            "type": "integer",
+            "title": "Season"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "match_count": {
+            "type": "integer",
+            "title": "Match Count"
+          },
+          "latest_match": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Match"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "complete",
+              "live_partial",
+              "missing"
+            ],
+            "title": "Status",
+            "default": "complete"
+          }
+        },
+        "type": "object",
+        "required": [
+          "season",
+          "label",
+          "match_count"
+        ],
+        "title": "SeasonCoverage"
+      },
+      "ShotAnalysisResponse": {
+        "properties": {
+          "coverage": {
+            "items": {
+              "$ref": "#/components/schemas/ShotCoverageRow"
+            },
+            "type": "array",
+            "title": "Coverage"
+          },
+          "teams": {
+            "items": {
+              "$ref": "#/components/schemas/ShotEfficiencyRow"
+            },
+            "type": "array",
+            "title": "Teams"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceMeta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source"
+        ],
+        "title": "ShotAnalysisResponse"
+      },
+      "ShotCoverageRow": {
+        "properties": {
+          "competition": {
+            "type": "string",
+            "title": "Competition"
+          },
+          "season": {
+            "type": "integer",
+            "title": "Season"
+          },
+          "matches": {
+            "type": "integer",
+            "title": "Matches"
+          },
+          "shot_matches": {
+            "type": "integer",
+            "title": "Shot Matches"
+          },
+          "coverage_pct": {
+            "type": "number",
+            "title": "Coverage Pct"
+          }
+        },
+        "type": "object",
+        "required": [
+          "competition",
+          "season",
+          "matches",
+          "shot_matches",
+          "coverage_pct"
+        ],
+        "title": "ShotCoverageRow"
+      },
+      "ShotEfficiencyRow": {
+        "properties": {
+          "competition": {
+            "type": "string",
+            "title": "Competition"
+          },
+          "season": {
+            "type": "integer",
+            "title": "Season"
+          },
+          "team": {
+            "$ref": "#/components/schemas/TeamRef"
+          },
+          "matches": {
+            "type": "integer",
+            "title": "Matches"
+          },
+          "coverage_pct": {
+            "type": "number",
+            "title": "Coverage Pct"
+          },
+          "shots_per_match": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shots Per Match"
+          },
+          "shot_accuracy_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shot Accuracy Pct"
+          },
+          "goals_per_shot_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Goals Per Shot Pct"
+          },
+          "goals_per_sot_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Goals Per Sot Pct"
+          }
+        },
+        "type": "object",
+        "required": [
+          "competition",
+          "season",
+          "team",
+          "matches",
+          "coverage_pct"
+        ],
+        "title": "ShotEfficiencyRow"
+      },
+      "SourceMeta": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "coverage": {
+            "type": "string",
+            "title": "Coverage"
+          },
+          "freshness": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Freshness"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "coverage"
+        ],
+        "title": "SourceMeta"
+      },
+      "Team": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "badge_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Badge Url"
+          },
+          "logo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logo Url"
+          },
+          "competition": {
+            "type": "string",
+            "title": "Competition"
+          },
+          "season": {
+            "type": "integer",
+            "title": "Season"
+          },
+          "played": {
+            "type": "integer",
+            "title": "Played",
+            "default": 0
+          },
+          "points": {
+            "type": "integer",
+            "title": "Points",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "name",
+          "competition",
+          "season"
+        ],
+        "title": "Team"
+      },
+      "TeamListResponse": {
+        "properties": {
+          "teams": {
+            "items": {
+              "$ref": "#/components/schemas/Team"
+            },
+            "type": "array",
+            "title": "Teams"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceMeta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "teams",
+          "source"
+        ],
+        "title": "TeamListResponse"
+      },
+      "TeamRef": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "badge_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Badge Url"
+          },
+          "logo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logo Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "name"
+        ],
+        "title": "TeamRef"
+      },
+      "TournamentGoal": {
+        "properties": {
+          "match_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Match Date"
+          },
+          "team": {
+            "$ref": "#/components/schemas/TeamRef"
+          },
+          "player": {
+            "type": "string",
+            "title": "Player"
+          },
+          "minute": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minute"
+          },
+          "penalty": {
+            "type": "boolean",
+            "title": "Penalty",
+            "default": false
+          },
+          "own_goal": {
+            "type": "boolean",
+            "title": "Own Goal",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "match_date",
+          "team",
+          "player"
+        ],
+        "title": "TournamentGoal"
+      },
+      "TournamentMatch": {
+        "properties": {
+          "competition": {
+            "type": "string",
+            "title": "Competition"
+          },
+          "season": {
+            "type": "integer",
+            "title": "Season"
+          },
+          "match_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Match Date"
+          },
+          "home": {
+            "$ref": "#/components/schemas/TeamRef"
+          },
+          "away": {
+            "$ref": "#/components/schemas/TeamRef"
+          },
+          "home_goals": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Goals"
+          },
+          "away_goals": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Away Goals"
+          },
+          "venue": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Venue"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage"
+          },
+          "referee": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Referee"
+          },
+          "home_shots": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Shots"
+          },
+          "away_shots": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Away Shots"
+          },
+          "home_shots_on_target": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Shots On Target"
+          },
+          "away_shots_on_target": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Away Shots On Target"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "group_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Name"
+          },
+          "home_penalties": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Penalties"
+          },
+          "away_penalties": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Away Penalties"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "competition",
+          "season",
+          "match_date",
+          "home",
+          "away"
+        ],
+        "title": "TournamentMatch"
+      },
+      "TournamentResponse": {
+        "properties": {
+          "competition": {
+            "type": "string",
+            "title": "Competition"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "season": {
+            "type": "integer",
+            "title": "Season"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/TournamentStage"
+            },
+            "type": "array",
+            "title": "Stages"
+          },
+          "matches": {
+            "items": {
+              "$ref": "#/components/schemas/TournamentMatch"
+            },
+            "type": "array",
+            "title": "Matches"
+          },
+          "scorers": {
+            "items": {
+              "$ref": "#/components/schemas/TournamentGoal"
+            },
+            "type": "array",
+            "title": "Scorers"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceMeta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "competition",
+          "name",
+          "season",
+          "stages",
+          "matches",
+          "scorers",
+          "source"
+        ],
+        "title": "TournamentResponse"
+      },
+      "TournamentStage": {
+        "properties": {
+          "stage": {
+            "type": "string",
+            "title": "Stage"
+          },
+          "match_count": {
+            "type": "integer",
+            "title": "Match Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "stage",
+          "match_count"
+        ],
+        "title": "TournamentStage"
+      },
+      "TransferListResponse": {
+        "properties": {
+          "transfers": {
+            "items": {
+              "$ref": "#/components/schemas/TransferRow"
+            },
+            "type": "array",
+            "title": "Transfers"
+          },
+          "total_count": {
+            "type": "integer",
+            "title": "Total Count"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageMeta"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceMeta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "transfers",
+          "total_count",
+          "page",
+          "source"
+        ],
+        "title": "TransferListResponse"
+      },
+      "TransferRow": {
+        "properties": {
+          "transfer_id": {
+            "type": "string",
+            "title": "Transfer Id"
+          },
+          "player_id": {
+            "type": "string",
+            "title": "Player Id"
+          },
+          "player_name": {
+            "type": "string",
+            "title": "Player Name"
+          },
+          "transfer_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transfer Date"
+          },
+          "transfer_season": {
+            "type": "string",
+            "title": "Transfer Season"
+          },
+          "season": {
+            "type": "integer",
+            "title": "Season"
+          },
+          "from_club": {
+            "$ref": "#/components/schemas/TeamRef"
+          },
+          "to_club": {
+            "$ref": "#/components/schemas/TeamRef"
+          },
+          "transfer_fee": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transfer Fee"
+          },
+          "market_value_eur": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market Value Eur"
+          },
+          "from_competition": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Competition"
+          },
+          "to_competition": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Competition"
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "transfer_id",
+          "player_id",
+          "player_name",
+          "transfer_season",
+          "season",
+          "from_club",
+          "to_club"
+        ],
+        "title": "TransferRow"
       },
       "ValidationError": {
         "properties": {

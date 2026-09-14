@@ -34,6 +34,8 @@ def test_canonical_team_ids_are_stable_and_independent_of_display_names():
     assert canonical_team_id("Paris SG") == "parissaintgermain"
     assert TeamRef.from_name("Ath Madrid").name == "Atlético Madrid"
     assert TeamRef.from_name("Ath Madrid").team_id == canonical_team_id("Atlético Madrid")
+    assert canonical_team_id("Arsenal FC") == canonical_team_id("Arsenal")
+    assert canonical_team_id("Chelsea FC (ENG)") == canonical_team_id("Chelsea")
 
 
 def test_catalog_and_match_models_round_trip_json():

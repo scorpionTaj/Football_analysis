@@ -20,6 +20,7 @@ from .ingest import connect
 SOURCE = "OpenFootball (CC0)"
 UCL_SEASONS = tuple(range(2021, 2026))
 WORLD_CUPS = (2018, 2022, 2026)
+CLUB_WORLD_CUPS = (2025,)
 
 
 @dataclass(frozen=True)
@@ -100,8 +101,13 @@ def parse_champions_league(raw: bytes, season: int, url: str = "memory") -> Tour
     return TournamentBatch(frame, url, hashlib.sha256(raw).hexdigest())
 
 
-def parse_world_cup(raw: bytes, year: int, url: str = "memory") -> TournamentBatch:
-    """Parse OpenFootball's structured World Cup JSON feed."""
+def parse_world_cup(
+    raw: bytes,
+    year: int,
+    url: str = "memory",
+    competition: str = "WC",
+) -> TournamentBatch:
+    """Parse OpenFootball's structured World Cup-family JSON feeds."""
     document = json.loads(raw)
     matches = document.get("matches", document) if isinstance(document, dict) else document
     now = datetime.now()
@@ -118,7 +124,7 @@ def parse_world_cup(raw: bytes, year: int, url: str = "memory") -> TournamentBat
         if not outcome or any(value is None for value in outcome):
             continue
         rows.append({
-            "competition": "WC", "season": year,
+            "competition": competition, "season": year,
             "stage": match.get("round") or "Unknown",
             "group_name": match.get("group") or "",
             "match_date": pd.to_datetime(match["date"]).date(),
@@ -133,7 +139,7 @@ def parse_world_cup(raw: bytes, year: int, url: str = "memory") -> TournamentBat
         for side, team in (("goals1", match["team1"]), ("goals2", match["team2"])):
             for goal in match.get(side) or []:
                 goal_rows.append({
-                    "competition": "WC", "season": year,
+                    "competition": competition, "season": year,
                     "match_date": pd.to_datetime(match["date"]).date(),
                     "team": team, "player": goal.get("name") or "Unknown",
                     "minute": str(goal.get("minute") or ""),
@@ -143,7 +149,7 @@ def parse_world_cup(raw: bytes, year: int, url: str = "memory") -> TournamentBat
                 })
     frame = pd.DataFrame(rows) if rows else _empty_frame()
     if frame.empty:
-        raise ValueError(f"No completed World Cup matches found for {year}")
+        raise ValueError(f"No completed {competition} matches found for {year}")
     if frame.duplicated(["competition", "season", "match_date", "home_team", "away_team"]).any():
         raise ValueError("Duplicate World Cup matches in source")
     goals = pd.DataFrame(goal_rows, columns=TournamentBatch.__dataclass_fields__["goals"].default_factory().columns)
@@ -173,6 +179,15 @@ class OpenFootballTournaments:
             )
             suffix = "json"
             parser = parse_world_cup
+        elif competition == "CWC":
+            url = (
+                "https://raw.githubusercontent.com/openfootball/worldcup.json/"
+                f"master/{season}/clubworldcup.json"
+            )
+            suffix = "json"
+            parser = lambda raw, year, source_url: parse_world_cup(
+                raw, year, source_url, competition="CWC",
+            )
         else:
             raise ValueError(f"Unsupported tournament: {competition}")
 
@@ -189,7 +204,11 @@ class OpenFootballTournaments:
 
 
 def default_partitions() -> list[tuple[str, int]]:
-    return [("UCL", season) for season in UCL_SEASONS] + [("WC", year) for year in WORLD_CUPS]
+    return (
+        [("UCL", season) for season in UCL_SEASONS]
+        + [("CWC", year) for year in CLUB_WORLD_CUPS]
+        + [("WC", year) for year in WORLD_CUPS]
+    )
 
 
 def sync_tournaments(
@@ -242,13 +261,17 @@ def sync_tournaments(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Sync free Champions League and World Cup results")
+    parser = argparse.ArgumentParser(description="Sync free continental and world tournament results")
     parser.add_argument("--refresh", action="store_true")
     parser.add_argument("--competition", choices=TOURNAMENTS)
     parser.add_argument("--seasons", nargs="+", type=int)
     args = parser.parse_args()
     if args.competition:
-        defaults = UCL_SEASONS if args.competition == "UCL" else WORLD_CUPS
+        defaults = {
+            "UCL": UCL_SEASONS,
+            "CWC": CLUB_WORLD_CUPS,
+            "WC": WORLD_CUPS,
+        }[args.competition]
         partitions = [(args.competition, year) for year in (args.seasons or defaults)]
     else:
         partitions = default_partitions()

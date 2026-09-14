@@ -15,6 +15,9 @@ A read-only FastAPI service now owns the DuckDB connection and exposes all initi
 - [x] `GET /api/v1/tournaments/{competition}/{season}` — stage summary and tournament results.
 - [x] `GET /api/v1/players` and `GET /api/v1/players/{player_id}` — paginated player discovery and existing profile/stat rows.
 - [x] `GET /api/v1/predictions` — model card, holdout metrics, calibration and current forecasts.
+- [x] `GET /api/v1/shots` — shot coverage and efficiency with the same 95% quality gate as Streamlit.
+- [x] `GET /api/v1/event-details` and `GET /api/v1/event-details/{event_id}` — cached event summaries, statistics, timeline and lineup samples.
+- [x] `GET /api/v1/overview` and `GET /api/v1/transfers` — dashboard spotlight and transfer showcase data.
 - [x] `GET /api/v1/quality` — source caps, null coverage, checksums and refresh timestamps.
 
 ### Infrastructure
@@ -22,10 +25,10 @@ A read-only FastAPI service now owns the DuckDB connection and exposes all initi
 - [x] Read-only DuckDB connection pool with threading lock (`db.py`).
 - [x] Cursor-based pagination for matches and players (`pagination.py`).
 - [x] ETag headers derived from table checksums for conditional requests.
-- [x] Cache-Control headers (15s for live data, 60s for stable snapshots).
+- [x] Cache-Control headers (60s live, 5m stable, 24h historical) with stale-while-revalidate.
 - [x] CORS configured for Next.js dev server (`localhost:3000`).
 - [x] Static OpenAPI v1 specification saved to [`docs/openapi_v1.json`](docs/openapi_v1.json).
-- [x] Pydantic v2 response models with JSON serialization tests (`contracts.py`).
+- [x] Pydantic v2 response models attached to every route and included in the generated OpenAPI document.
 - [x] Canonical team IDs separate from display names (`teams.py`).
 
 Keep DuckDB for this read-heavy, single-writer deployment. Run all synchronizers as separate jobs and open the app database read-only in the API process. Move to PostgreSQL only when concurrent writes or multiple API replicas require it.
@@ -35,7 +38,7 @@ Keep DuckDB for this read-heavy, single-writer deployment. Run all synchronizers
 The frontend shell has been built in [`frontend/`](frontend/) with Next.js App Router, Tailwind CSS (Catppuccin Mocha tokens), and TanStack Query:
 
 - [x] **Design Tokens**: Complete 26-color Catppuccin Mocha palette configured in [`frontend/src/app/globals.css`](frontend/src/app/globals.css).
-- [x] **Navigation**: Responsive sidebar and mobile drawer with accessible toggle in [`frontend/src/components/navigation.tsx`](frontend/src/components/navigation.tsx). Covers all 9 dashboard areas.
+- [x] **Navigation**: Responsive modern sidebar/mobile dock, active-query refresh and cross-platform club/player/competition search in [`frontend/src/components/navigation.tsx`](frontend/src/components/navigation.tsx). Covers all 11 dashboard routes.
 - [x] **Typed API Client**: TypeScript types mirroring backend Pydantic models in [`frontend/src/lib/api/types.ts`](frontend/src/lib/api/types.ts) and centralized client in [`frontend/src/lib/api/client.ts`](frontend/src/lib/api/client.ts).
 - [x] **State & Cache**: TanStack Query setup with SSR dehydration in [`frontend/src/lib/get-query-client.ts`](frontend/src/lib/get-query-client.ts) and query keys in [`frontend/src/lib/api/query-keys.ts`](frontend/src/lib/api/query-keys.ts).
 - [x] **URL Filters**: Search params synchronization (`competition`, `season`, `team`, `venue`, `stage`, `metric`) via [`frontend/src/lib/hooks/use-filter-params.ts`](frontend/src/lib/hooks/use-filter-params.ts) and [`frontend/src/components/filters.tsx`](frontend/src/components/filters.tsx).
@@ -47,9 +50,9 @@ The frontend shell has been built in [`frontend/`](frontend/) with Next.js App R
 All core analytical views have been migrated to the Next.js frontend with full selector parity, interactive Recharts visualizations, and CSV export capabilities:
 
 - [x] **Overview** ([`frontend/src/app/page.tsx`](frontend/src/app/page.tsx)): Real-time health indicator, KPI statistics, domestic league & tournament catalog cards.
-- [x] **Champions League & World Cup** ([`frontend/src/app/tournaments/page.tsx`](frontend/src/app/tournaments/page.tsx)): Edition selector, stage scoring rates bar chart, match scorelines with penalty shootouts, top scorers ranking table, and CSV export.
+- [x] **Champions League, Club World Cup & World Cup** ([`frontend/src/app/tournaments/page.tsx`](frontend/src/app/tournaments/page.tsx)): Edition selector, stage scoring rates, match scorelines with shootouts, scorer table and CSV export.
 - [x] **Analysis Lab** ([`frontend/src/app/analysis/page.tsx`](frontend/src/app/analysis/page.tsx)): Multi-metric rankings (PPG, GF, GA, Win %, Clean Sheet %, Form PPG), horizontal bar chart, form streak badges, in-match goals breakdown, referee disciplinary table, CSV export.
-- [x] **Predictions** ([`frontend/src/app/predictions/page.tsx`](frontend/src/app/predictions/page.tsx)): Model card with accuracy & log-loss KPIs, upcoming match probability bars (Home/Draw/Away), and reliability calibration curve.
+- [x] **Predictions** ([`frontend/src/app/predictions/page.tsx`](frontend/src/app/predictions/page.tsx)): calibrated match probabilities, holdout metrics, reliability evidence and title outlooks for every domestic league.
 - [x] **League Tables** ([`frontend/src/app/tables/page.tsx`](frontend/src/app/tables/page.tsx)): Full domestic tables, European qualification & relegation indicators, home/away splits, goal difference, recent form streak, and CSV export.
 - [x] **Club Lab** ([`frontend/src/app/clubs/page.tsx`](frontend/src/app/clubs/page.tsx)): Club selector, historical multi-season trajectory line chart, comprehensive season table, and recent club fixture results.
 - [x] **Match Explorer** ([`frontend/src/app/matches/page.tsx`](frontend/src/app/matches/page.tsx)): Cursor-paginated match list, referee metadata, scorelines, search filter, and CSV export.
@@ -85,16 +88,17 @@ In accordance with dashboard usability standards, all views displaying collectio
 
 - [x] **New Overview API Endpoint**: `GET /api/v1/overview?team=&competition=&season=` exposing spotlight club, 4 KPIs, latest match, previous match, upcoming ML forecast, full season-by-season rankings, and opponent-adjusted Elo progression.
 - [x] **Official Media & Badges Integration**:
-  - Direct CDN crests & logos for all 12 competitions (`competition_media`).
+  - Direct CDN crests & logos for supported competitions (`competition_media`).
   - Club crests and emblems for all domestic and tournament clubs (`team_media`).
   - Transfermarkt player portraits with market valuation in EUR (`open_players`).
   - Fallback `<FootballBadge />`, `<CompetitionBadge />`, and `<PlayerAvatar />` components in [`frontend/src/lib/media-utils.tsx`](frontend/src/lib/media-utils.tsx).
 - [x] **Multi-Season & Tournament Expansion**:
   - UEFA Champions League: Unlocked 5 complete editions (2021, 2022, 2023, 2024, 2025).
   - FIFA World Cup: Unlocked 3 tournament editions (2018, 2022, 2026).
+  - FIFA Club World Cup: all 64 completed matches from the 2025 edition.
   - 10 Domestic Leagues: E0, SP1, D1, I1, F1 (2021–2026), plus N1 (Eredivisie), P1 (Primeira Liga), B1 (Belgian Pro League), T1 (Turkish Süper Lig), G1 (Greek Super League) (live 2026).
 - [x] **Revamped Overview Dashboard** ([`frontend/src/app/page.tsx`](frontend/src/app/page.tsx)):
-  - Live pulse header and horizontal 12-competition switcher rail.
+  - Live pulse header and horizontal 13-competition switcher rail.
   - Club spotlight hero with 4 KPIs (Matches, W-D-L, PPG, Goal Difference).
   - 3 match strip cards: Latest completed match, Previous match, Next listed fixture with ML win/draw/loss probability bars.
   - 4 Streamlit-replica analytical visualizations:
@@ -103,11 +107,10 @@ In accordance with dashboard usability standards, all views displaying collectio
     3. **Attacking Output vs Defensive Control**: Reversed scatter plot (Goals/match vs Conceded/match) with bubble size = PPG.
     4. **Opponent-Adjusted Season-End Elo**: Chronological Elo progression across domestic seasons.
   - Star Players Spotlight showcasing world-class players with portraits and market values.
-  - Supported Tournaments & Domestic Leagues 12-card showcase.
+  - Supported Tournaments & Domestic Leagues 13-card showcase.
 - [x] **HeroUI Integration**:
   - `@heroui/react` 3.2.5 components (Card, Chip, Avatar, Badge, Button, Tabs, Tooltip).
   - Enhanced glassmorphic styles and custom smooth animations.
 
 The Next.js client should consume these routes rather than query DuckDB or reproduce football calculations. That keeps rankings and source semantics identical during the migration and allows Streamlit to remain available as a validation client until the replacement is complete.
-
 

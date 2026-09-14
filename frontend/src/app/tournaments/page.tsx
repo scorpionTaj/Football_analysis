@@ -9,10 +9,9 @@ import { SourceBadge } from '@/components/ui/source-badge';
 import { LoadingSkeleton, ErrorMessage, EmptyState } from '@/components/ui/loading';
 import { PageHeader } from '@/components/ui/page-header';
 import { usePagination } from '@/components/ui/pagination';
-import type { TournamentMatch, TournamentGoal } from '@/lib/api/types';
-import { Trophy, Users, Goal, Calendar, Download, Search, ShieldCheck } from 'lucide-react';
+import { Trophy, Users, Goal, Calendar, Download, Search } from 'lucide-react';
 import { FootballBadge, CompetitionBadge, PlayerAvatar } from '@/lib/media-utils';
-import { Card, CardHeader, CardTitle, CardContent, Chip, Button } from '@heroui/react';
+import { Card } from '@heroui/react';
 import {
   BarChart,
   Bar,
@@ -24,6 +23,13 @@ import {
 } from 'recharts';
 
 const TOURNAMENT_CONFIGS = [
+  {
+    code: 'CWC',
+    name: 'FIFA Club World Cup',
+    icon: '🌎',
+    defaultYear: 2025,
+    years: [2025],
+  },
   {
     code: 'UCL',
     name: 'UEFA Champions League',
@@ -42,7 +48,9 @@ const TOURNAMENT_CONFIGS = [
 
 function TournamentsContent() {
   const filters = useFilterParams();
-  const selectedTournament = filters.competition === 'WC' ? 'WC' : 'UCL';
+  const selectedTournament = TOURNAMENT_CONFIGS.some((item) => item.code === filters.competition)
+    ? filters.competition!
+    : 'UCL';
   const currentTournamentConfig = TOURNAMENT_CONFIGS.find((c) => c.code === selectedTournament) || TOURNAMENT_CONFIGS[0];
   const selectedYear = filters.season || currentTournamentConfig.defaultYear;
 
@@ -56,8 +64,8 @@ function TournamentsContent() {
     queryFn: () => api.tournament(selectedTournament, selectedYear),
   });
 
-  const matches = data?.matches || [];
-  const scorers = data?.scorers || [];
+  const matches = useMemo(() => data?.matches || [], [data?.matches]);
+  const scorers = useMemo(() => data?.scorers || [], [data?.scorers]);
   const stages = data?.stages || [];
 
   // Extract unique stages and teams for local filtering
@@ -213,7 +221,9 @@ function TournamentsContent() {
           >
             {(TOURNAMENT_CONFIGS.find((t) => t.code === selectedTournament)?.years || [selectedYear]).map((yr) => (
               <option key={yr} value={yr}>
-                {selectedTournament === 'WC' ? `${yr}` : `${yr}/${(yr + 1).toString().slice(2)}`}
+                {selectedTournament === 'WC' || selectedTournament === 'CWC'
+                  ? `${yr}`
+                  : `${yr}/${(yr + 1).toString().slice(2)}`}
               </option>
             ))}
           </select>
@@ -282,7 +292,7 @@ function TournamentsContent() {
 
       {/* Filter and Tab Bar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-mantle p-3 rounded-xl border border-surface0">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setActiveTab('matches')}
             className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
@@ -312,14 +322,14 @@ function TournamentsContent() {
         </div>
 
         {/* Local Search and Export */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex min-w-0 flex-wrap items-center gap-2.5">
           {activeTab === 'matches' && (
             <>
               {/* Stage filter */}
               <select
                 value={stageFilter}
                 onChange={(e) => setStageFilter(e.target.value)}
-                className="rounded-lg border border-surface1 bg-surface0 px-2.5 py-1.5 text-xs text-text outline-none cursor-pointer"
+                className="max-w-full rounded-lg border border-surface1 bg-surface0 px-2.5 py-1.5 text-xs text-text outline-none cursor-pointer"
                 aria-label="Filter stage"
               >
                 <option value="all">All Stages</option>
@@ -332,7 +342,7 @@ function TournamentsContent() {
               <select
                 value={teamFilter}
                 onChange={(e) => setTeamFilter(e.target.value)}
-                className="rounded-lg border border-surface1 bg-surface0 px-2.5 py-1.5 text-xs text-text outline-none cursor-pointer"
+                className="max-w-full rounded-lg border border-surface1 bg-surface0 px-2.5 py-1.5 text-xs text-text outline-none cursor-pointer"
                 aria-label="Filter team"
               >
                 <option value="all">All Teams</option>
@@ -494,7 +504,7 @@ function TournamentsContent() {
 export default function TournamentsPage() {
   return (
     <div className="space-y-6">
-      <PageHeader icon={Trophy} eyebrow="Knockout and international" title="Champions League & World Cup" description="Explore editions, stages, scorelines and scorer events from the CC0 tournament datasets." />
+      <PageHeader icon={Trophy} eyebrow="Knockout and international" title="Major Tournaments" description="Explore Champions League, Club World Cup and World Cup editions, stages, scorelines and scorer events from CC0 datasets." />
 
       <Suspense fallback={<LoadingSkeleton lines={8} />}>
         <TournamentsContent />

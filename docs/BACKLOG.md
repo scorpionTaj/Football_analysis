@@ -102,8 +102,11 @@
 - [ ] FA-015 Optional PostgreSQL deployment adapter when multi-user writing is needed.
 - [ ] FA-016 Container and deployment guide after source redistribution/hosting terms review.
 - [ ] FA-017 Optional StatsBomb event exploration with explicit partial coverage and required branding.
-- [ ] FA-073 Add a read-only FastAPI layer over `AnalysisSystem` before starting the Next.js frontend.
-- [ ] FA-074 Add cursor pagination and response-cache headers for match and player API routes.
+- [x] FA-073 Add a read-only FastAPI layer over `AnalysisSystem` before starting the Next.js frontend.
+- [x] FA-074 Add cursor pagination and response-cache headers for match and player API routes.
+- [x] FA-085 Add the completed 2025 FIFA Club World Cup from OpenFootball's CC0 JSON feed.
+- [x] FA-086 Add all-loaded-team media sync, canonical provider aliases and resilient image fallbacks.
+- [x] FA-087 Add current-season league title outlooks and validate the 10-match calibrated result model chronologically.
 - [ ] FA-084 Add a prediction retraining schedule only after the read-only API and ingestion job are deployed separately.
 
 Tasks are local backlog items; no external issue tracker or recurring automation was created.

@@ -10,13 +10,35 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from football_analysis.api import queries
-from football_analysis.api.contracts import AnalysisRequestBody, HealthResponse
+from football_analysis.api.contracts import (
+    AnalysisReportResponse,
+    AnalysisRequestBody,
+    CatalogResponse,
+    EventDetailResponse,
+    EventListResponse,
+    HealthResponse,
+    MatchListResponse,
+    OverviewResponse,
+    PlayerListResponse,
+    PlayerProfileResponse,
+    PredictionsResponse,
+    QualityResponse,
+    ShotAnalysisResponse,
+    TeamListResponse,
+    TournamentResponse,
+    TransferListResponse,
+)
 from football_analysis.api.db import ReadOnlyStore
-from football_analysis.config import DB, TOURNAMENTS
+from football_analysis.config import DB, TOURNAMENTS, current_season
 
 
-CACHE_SHORT = "public, max-age=15"
-CACHE_STABLE = "public, max-age=60"
+CACHE_SHORT = "public, max-age=60, stale-while-revalidate=300"
+CACHE_STABLE = "public, max-age=300, stale-while-revalidate=3600"
+CACHE_HISTORICAL = "public, max-age=86400, stale-while-revalidate=604800"
+
+
+def cache_for_season(season: int | None) -> str:
+    return CACHE_HISTORICAL if season is not None and season < current_season() else CACHE_SHORT
 
 
 def create_app(database_path: Path | None = None) -> FastAPI:
@@ -66,19 +88,19 @@ def create_app(database_path: Path | None = None) -> FastAPI:
     def health():
         return queries.health(app.state.store)
 
-    @app.get("/api/v1/catalog")
+    @app.get("/api/v1/catalog", response_model=CatalogResponse)
     def catalog(request: Request):
         return with_cache(queries.catalog(require_store()), request, CACHE_STABLE)
 
-    @app.get("/api/v1/teams")
+    @app.get("/api/v1/teams", response_model=TeamListResponse)
     def teams(
         request: Request,
         competition: str | None = None,
         season: int | None = None,
     ):
-        return with_cache(queries.list_teams(require_store(), competition, season), request)
+        return with_cache(queries.list_teams(require_store(), competition, season), request, cache_for_season(season))
 
-    @app.get("/api/v1/matches")
+    @app.get("/api/v1/matches", response_model=MatchListResponse)
     def matches(
         request: Request,
         competition: str | None = None,
@@ -94,50 +116,50 @@ def create_app(database_path: Path | None = None) -> FastAPI:
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
-        return with_cache(payload, request)
+        return with_cache(payload, request, cache_for_season(season))
 
-    @app.get("/api/v1/shots")
+    @app.get("/api/v1/shots", response_model=ShotAnalysisResponse)
     def shots(
         request: Request,
         competition: str | None = None,
         season: int | None = None,
         team: str | None = None,
     ):
-        return with_cache(queries.shot_analysis(require_store(), competition, season, team), request, CACHE_STABLE)
+        return with_cache(queries.shot_analysis(require_store(), competition, season, team), request, cache_for_season(season))
 
-    @app.get("/api/v1/event-details")
+    @app.get("/api/v1/event-details", response_model=EventListResponse)
     def event_details(
         request: Request,
         competition: str | None = None,
         season: int | None = None,
     ):
-        return with_cache(queries.list_event_details(require_store(), competition, season), request, CACHE_STABLE)
+        return with_cache(queries.list_event_details(require_store(), competition, season), request, cache_for_season(season))
 
-    @app.get("/api/v1/event-details/{event_id}")
+    @app.get("/api/v1/event-details/{event_id}", response_model=EventDetailResponse)
     def event_detail(event_id: str, request: Request):
         payload = queries.event_detail(require_store(), event_id)
         if payload is None:
             raise HTTPException(status_code=404, detail="Event details not found")
         return with_cache(payload, request, CACHE_STABLE)
 
-    @app.post("/api/v1/analysis")
+    @app.post("/api/v1/analysis", response_model=AnalysisReportResponse)
     def analysis(body: AnalysisRequestBody, request: Request):
         if body.form_window < 1:
             raise HTTPException(status_code=400, detail="form_window must be positive")
         payload = queries.build_analysis(require_store(), body)
         return with_cache(payload, request, "private, max-age=10")
 
-    @app.get("/api/v1/tournaments/{competition}/{season}")
+    @app.get("/api/v1/tournaments/{competition}/{season}", response_model=TournamentResponse)
     def tournament(competition: str, season: int, request: Request):
         if competition not in TOURNAMENTS:
             raise HTTPException(status_code=404, detail="Unknown tournament")
-        return with_cache(queries.tournament(require_store(), competition, season), request, CACHE_STABLE)
+        return with_cache(queries.tournament(require_store(), competition, season), request, cache_for_season(season))
 
-    @app.get("/api/v1/predictions")
+    @app.get("/api/v1/predictions", response_model=PredictionsResponse)
     def predictions(request: Request):
         return with_cache(queries.predictions(require_store()), request, CACHE_STABLE)
 
-    @app.get("/api/v1/players")
+    @app.get("/api/v1/players", response_model=PlayerListResponse)
     def players(
         request: Request,
         q: str | None = None,
@@ -152,18 +174,18 @@ def create_app(database_path: Path | None = None) -> FastAPI:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return with_cache(payload, request)
 
-    @app.get("/api/v1/players/{player_id}")
+    @app.get("/api/v1/players/{player_id}", response_model=PlayerProfileResponse)
     def player(player_id: str, request: Request):
         payload = queries.get_player(require_store(), player_id)
         if payload is None:
             raise HTTPException(status_code=404, detail="Player not found")
         return with_cache(payload, request, CACHE_STABLE)
 
-    @app.get("/api/v1/quality")
+    @app.get("/api/v1/quality", response_model=QualityResponse)
     def quality(request: Request):
         return with_cache(queries.quality(require_store()), request, CACHE_STABLE)
 
-    @app.get("/api/v1/overview")
+    @app.get("/api/v1/overview", response_model=OverviewResponse)
     def overview(
         request: Request,
         team: str | None = None,
@@ -172,7 +194,7 @@ def create_app(database_path: Path | None = None) -> FastAPI:
     ):
         return with_cache(queries.overview(require_store(), team, competition, season), request)
 
-    @app.get("/api/v1/transfers")
+    @app.get("/api/v1/transfers", response_model=TransferListResponse)
     def transfers(
         request: Request,
         season: str | None = None,

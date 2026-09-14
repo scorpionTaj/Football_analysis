@@ -20,6 +20,7 @@ FEATURES = (
     "away_goals_for", "home_goals_against", "away_goals_against",
     "home_rest_days", "away_rest_days",
 )
+FORM_WINDOW = 10
 CLASS_NAMES = np.array(["Home", "Draw", "Away"])
 
 
@@ -28,10 +29,11 @@ class SoftmaxModel:
     mean: np.ndarray
     scale: np.ndarray
     weights: np.ndarray
+    temperature: float = 1.0
 
     def predict_proba(self, features):
         values = (np.asarray(features, dtype=float) - self.mean) / self.scale
-        logits = np.c_[np.ones(len(values)), values] @ self.weights
+        logits = (np.c_[np.ones(len(values)), values] @ self.weights) / self.temperature
         logits -= logits.max(axis=1, keepdims=True)
         probabilities = np.exp(logits)
         return probabilities / probabilities.sum(axis=1, keepdims=True)
@@ -39,7 +41,7 @@ class SoftmaxModel:
     def to_json(self):
         return json.dumps({
             "mean": self.mean.tolist(), "scale": self.scale.tolist(),
-            "weights": self.weights.tolist(),
+            "weights": self.weights.tolist(), "temperature": self.temperature,
         })
 
 
@@ -59,7 +61,7 @@ def _rest(last_played, key, match_date):
     return 14.0 if previous is None else float(min(30, max(1, (match_date - previous).days)))
 
 
-def build_match_features(matches, form_window=5):
+def build_match_features(matches, form_window=FORM_WINDOW):
     """Create pre-match features; same-day results never affect one another."""
     required = {
         "league", "season", "match_date", "home_team", "away_team",
@@ -165,6 +167,21 @@ def _metrics(probabilities, labels):
     }
 
 
+def _calibrated_temperature(model, features, labels):
+    """Choose a single confidence temperature on chronological calibration data."""
+    actual = np.asarray(labels, dtype=int)
+    best_temperature = 1.0
+    best_loss = float("inf")
+    for temperature in np.linspace(0.6, 1.8, 49):
+        candidate = SoftmaxModel(model.mean, model.scale, model.weights, float(temperature))
+        probability = np.clip(candidate.predict_proba(features), 1e-9, 1)
+        loss = float(-np.log(probability[np.arange(len(actual)), actual]).mean())
+        if loss < best_loss:
+            best_loss = loss
+            best_temperature = float(temperature)
+    return best_temperature
+
+
 def train_time_split(feature_frame, train_fraction=0.8):
     if len(feature_frame) < 100:
         raise ValueError("At least 100 chronological matches are required")
@@ -173,14 +190,37 @@ def train_time_split(feature_frame, train_fraction=0.8):
     train = feature_frame[feature_frame.match_date <= cutoff]
     validation = feature_frame[feature_frame.match_date > cutoff]
     label_map = {"Home": 0, "Draw": 1, "Away": 2}
-    model = fit_softmax(train[list(FEATURES)], train.actual_result.map(label_map))
+    train_dates = np.sort(train.match_date.dt.normalize().unique())
+    calibration_cutoff = pd.Timestamp(train_dates[max(1, int(len(train_dates) * 0.8)) - 1])
+    fit_rows = train[train.match_date <= calibration_cutoff]
+    calibration_rows = train[train.match_date > calibration_cutoff]
+    base_model = fit_softmax(fit_rows[list(FEATURES)], fit_rows.actual_result.map(label_map))
+    temperature = _calibrated_temperature(
+        base_model,
+        calibration_rows[list(FEATURES)],
+        calibration_rows.actual_result.map(label_map),
+    ) if not calibration_rows.empty else 1.0
+    refit = fit_softmax(train[list(FEATURES)], train.actual_result.map(label_map))
+    model = SoftmaxModel(refit.mean, refit.scale, refit.weights, temperature)
     probabilities = model.predict_proba(validation[list(FEATURES)])
     metrics = _metrics(probabilities, validation.actual_result.map(label_map))
-    final_model = fit_softmax(feature_frame[list(FEATURES)], feature_frame.actual_result.map(label_map))
+    metrics.update({
+        "temperature": temperature,
+        "calibration_matches": int(len(calibration_rows)),
+        "validation_matches": int(len(validation)),
+    })
+    uncalibrated = SoftmaxModel(refit.mean, refit.scale, refit.weights)
+    raw_metrics = _metrics(
+        uncalibrated.predict_proba(validation[list(FEATURES)]),
+        validation.actual_result.map(label_map),
+    )
+    metrics["uncalibrated_log_loss"] = raw_metrics["log_loss"]
+    final_fit = fit_softmax(feature_frame[list(FEATURES)], feature_frame.actual_result.map(label_map))
+    final_model = SoftmaxModel(final_fit.mean, final_fit.scale, final_fit.weights, temperature)
     return final_model, cutoff, train, validation, probabilities, metrics
 
 
-def future_features(matches, fixtures, form_window=5):
+def future_features(matches, fixtures, form_window=FORM_WINDOW):
     """Build fixture features from the latest known pre-match state without outcomes."""
     if fixtures.empty:
         return pd.DataFrame(columns=["league", "season", "match_date", "home_team", "away_team", *FEATURES])
@@ -212,7 +252,7 @@ def sync_predictions(db=DB):
             )
         feature_frame = build_match_features(matches)
         model, cutoff, train, validation, probabilities, metrics = train_time_split(feature_frame)
-        model_id = f"softmax-form-elo-v1-{datetime.now():%Y%m%d%H%M%S}"
+        model_id = f"softmax-form-elo-v2-{datetime.now():%Y%m%d%H%M%S}"
         validation_rows = validation[["league", "season", "match_date", "home_team", "away_team", "actual_result"]].copy()
         validation_rows["predicted_result"] = CLASS_NAMES[probabilities.argmax(axis=1)]
         validation_rows[["home_probability", "draw_probability", "away_probability"]] = probabilities
@@ -235,7 +275,7 @@ def sync_predictions(db=DB):
             forecast_rows.insert(0, "model_id", model_id)
 
         model_row = pd.DataFrame([{
-            "model_id": model_id, "model_name": "Regularized softmax · Elo + rolling form",
+            "model_id": model_id, "model_name": "Calibrated softmax · Elo + 10-match form",
             "trained_at": datetime.now(), "validation_cutoff": cutoff.date(),
             "train_matches": len(train), "validation_matches": len(validation),
             "feature_names": json.dumps(FEATURES), "parameters": model.to_json(),

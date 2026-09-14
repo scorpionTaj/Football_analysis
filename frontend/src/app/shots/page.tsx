@@ -25,6 +25,7 @@ import { FootballBadge } from '@/lib/media-utils';
 import { ErrorMessage, EmptyState, LoadingSkeleton } from '@/components/ui/loading';
 import { PageHeader } from '@/components/ui/page-header';
 import { SourceBadge } from '@/components/ui/source-badge';
+import { usePagination } from '@/components/ui/pagination';
 
 const COLORS = ['#89b4fa', '#94e2d5', '#a6e3a1', '#f9e2af', '#fab387', '#cba6f7'];
 
@@ -40,7 +41,7 @@ function ShotIntelligenceContent() {
     queryFn: () => api.shots(request),
   });
 
-  const teams = data?.teams ?? [];
+  const teams = useMemo(() => data?.teams ?? [], [data?.teams]);
   const coverage = data?.coverage ?? [];
   const averages = useMemo(() => {
     if (!teams.length) return { coverage: 0, shots: 0, accuracy: 0 };
@@ -51,6 +52,10 @@ function ShotIntelligenceContent() {
     };
   }, [teams]);
   const volume = useMemo(() => [...teams].sort((a, b) => (b.shots_per_match ?? 0) - (a.shots_per_match ?? 0)).slice(0, 12), [teams]);
+  const scatterTeams = useMemo(() => teams.slice(0, 160), [teams]);
+  const { paginatedItems, PaginationComponent } = usePagination(teams, 10);
+
+  const formatPercent = (value: number | null) => value === null ? '—' : `${value.toFixed(1)}%`;
 
   if (isLoading) return <LoadingSkeleton lines={10} />;
   if (error) return <ErrorMessage title="Shot intelligence could not load" detail={error.message} retry={() => refetch()} />;
@@ -59,7 +64,7 @@ function ShotIntelligenceContent() {
     <div className="space-y-6">
       <Card className="rounded-2xl border border-surface1 bg-surface0/80 p-4 shadow-sm">
         <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
-          <FilterBar />
+          <FilterBar showVenue={false} />
           <div className="flex items-center gap-2">
             <Chip color="success" variant="soft">95% coverage gate</Chip>
             {data?.source ? <SourceBadge meta={data.source} /> : null}
@@ -93,7 +98,7 @@ function ShotIntelligenceContent() {
           <Card className="rounded-2xl border border-surface1 bg-surface0/80 p-4 shadow-sm sm:p-5">
             <div className="mb-5">
               <h2 className="font-bold text-text">Accuracy vs finishing efficiency</h2>
-              <p className="mt-1 text-sm text-subtext0">Bubble size represents shot volume. Only qualified rows are shown.</p>
+              <p className="mt-1 text-sm text-subtext0">Bubble size represents shot volume. Showing up to 160 qualified rows for a responsive chart.</p>
             </div>
             <div className="h-80 w-full">
               <ResponsiveContainer width="100%" height="100%">
@@ -103,8 +108,8 @@ function ShotIntelligenceContent() {
                   <YAxis type="number" dataKey="goals_per_shot_pct" name="Goals per shot" unit="%" stroke="var(--overlay1)" fontSize={11} />
                   <ZAxis type="number" dataKey="shots_per_match" range={[70, 420]} />
                   <Tooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ background: 'var(--mantle)', border: '1px solid var(--surface1)', borderRadius: 12 }} />
-                  <Scatter data={teams} name="Club-seasons" fill="#89b4fa">
-                    {teams.map((row, index) => <Cell key={`${row.team.team_id}-${row.season}`} fill={COLORS[index % COLORS.length]} />)}
+                  <Scatter data={scatterTeams} name="Club-seasons" fill="#89b4fa">
+                    {scatterTeams.map((row, index) => <Cell key={`${row.team.team_id}-${row.season}`} fill={COLORS[index % COLORS.length]} />)}
                   </Scatter>
                 </ScatterChart>
               </ResponsiveContainer>
@@ -147,18 +152,21 @@ function ShotIntelligenceContent() {
               </tr>
             </thead>
             <tbody className="divide-y divide-surface1/70">
-              {teams.slice(0, 30).map((row) => (
+              {paginatedItems.map((row) => (
                 <tr key={`${row.competition}-${row.season}-${row.team.team_id}`} className="hover:bg-surface1/30">
                   <td className="px-4 py-3"><span className="flex items-center gap-2 font-semibold text-text"><FootballBadge name={row.team.name} url={row.team.badge_url} size={26} />{row.team.name}</span></td>
                   <td className="px-3 py-3 text-subtext1">{row.season}/{String(row.season + 1).slice(-2)}</td>
                   <td className="px-3 py-3 text-right font-mono text-green">{row.coverage_pct.toFixed(1)}%</td>
                   <td className="px-3 py-3 text-right font-mono">{row.shots_per_match?.toFixed(1) ?? '—'}</td>
-                  <td className="px-3 py-3 text-right font-mono">{row.shot_accuracy_pct?.toFixed(1) ?? '—'}%</td>
-                  <td className="px-4 py-3 text-right font-mono">{row.goals_per_shot_pct?.toFixed(1) ?? '—'}%</td>
+                  <td className="px-3 py-3 text-right font-mono">{formatPercent(row.shot_accuracy_pct)}</td>
+                  <td className="px-4 py-3 text-right font-mono">{formatPercent(row.goals_per_shot_pct)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+        <div className="px-4">
+          <PaginationComponent />
         </div>
       </Card>
     </div>

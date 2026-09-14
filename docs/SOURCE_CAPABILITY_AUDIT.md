@@ -9,10 +9,10 @@ This audit compares the current `football_analysis` working tree with the publis
 The application now uses substantially more than final scores, but it does not yet exploit all valuable free capabilities:
 
 - Football-Data.co.uk match files are the strongest current input for domestic modeling. The app now stores full-time and half-time goals, shots, shots on target, corners, fouls, cards and referee. It still discards kickoff time and all opening/closing market prices, and it does not ingest the separate upcoming-fixture file.
-- OpenFootball World Cup ingestion now stores final/extra-time scores, shootout scores, stages, groups, grounds and goal events. It still discards kickoff/timezone, half-time score and match number, and it does not use the richer `worldcup-full.json` files or the 2025 Club World Cup.
+- OpenFootball World Cup-family ingestion now includes the completed 64-match 2025 Club World Cup and stores final/extra-time scores, shootout scores, stages, groups, grounds and goal events. It still discards kickoff/timezone, half-time score and match number and does not use richer `worldcup-full.json` files.
 - OpenFootball Champions League ingestion reads only `cl.txt` for five seasons. It keeps dates, stages and scores, but discards kickoff, venue and scorer annotations; the repository's Europa League and Conference League files are unused.
 - The Transfermarkt Open Dataset importer downloads four of twelve published tables and restricts current profiles to 12 mapped clubs. The remaining tables contain the most valuable unused historical player, lineup, valuation, transfer and club context. The snapshot is CC0 but stale for 2026/27.
-- TheSportsDB integration calls ten free v1 endpoints. Event statistics, timelines and lineups are now cached, but are not yet rendered in the dashboard. Every TheSportsDB collection is capped on the free key and crowd-sourced, so it is enrichment rather than a completeness authority.
+- TheSportsDB integration calls ten free v1 endpoints. Cached event statistics, timelines and lineup samples are exposed through versioned API routes and rendered in the Match Centre. Every TheSportsDB collection is capped on the free key and crowd-sourced, so it is enrichment rather than a completeness authority.
 - football-data.org is evaluated but not configured. Its free authenticated tier is useful for stable competition/team identities, delayed fixtures and tables, but deep player, lineup, scorer, card and match-statistic data are paid.
 
 ## Capability matrix
@@ -21,9 +21,9 @@ The application now uses substantially more than final scores, but it does not y
 | --- | --- | --- | --- | --- |
 | Football-Data.co.uk | `mmz4281/{season}/{league}.csv` | Dates, teams, FT/HT goals, shots, shots on target, corners, fouls, cards, referee | Kickoff time; separate upcoming-fixture CSV; optional opening/closing market benchmark | Free downloadable files, not a service-level API; update cadence and field coverage vary; no explicit open-data redistribution licence was found |
 | OpenFootball European club tournaments | Season `cl.txt` | Five UCL seasons; date, stage, teams, result and parsed shootout | UCL kickoff/venue/scorers; Europa League; Conference League; qualifying rounds where published | Community-maintained structured text; 2026/27 is not published in the repository at audit time |
-| OpenFootball World Cup JSON | Edition `worldcup.json` | 2018, 2022 and 2026; final/ET/shootout scores, stage/group, venue and goals | Kickoff/timezone, half-time scores, match number, full lineups/events/officials; 2025 Club World Cup; older editions | No availability or live-update SLA; community data; richer fields vary by edition |
+| OpenFootball World Cup JSON | Edition `worldcup.json` / `clubworldcup.json` | 2018, 2022 and 2026 World Cups plus all 64 completed 2025 Club World Cup matches; final/ET/shootout scores, stage/group, venue and goals | Kickoff/timezone, half-time scores, match number, full lineups/events/officials; older editions | No availability or live-update SLA; community data; richer fields vary by edition |
 | Transfermarkt Open Dataset | Four compressed CSV snapshots | 12-club profiles plus competition-season appearance, goal, assist, minute and card totals | Eight unused tables plus most fields in the four downloaded tables | CC0 snapshot paused at 6 July 2026; 2026/27 squads absent |
-| TheSportsDB free v1 | Ten endpoints using public key `123` | Media; capped profiles/stats/tables; one previous/next league event; cached event stats/timeline/lineup | Event detail UI; honours/former teams/contracts; venue/equipment; optional TV/highlights | 30 requests/minute and small endpoint result caps; v2 and live scores are premium; crowd-sourced completeness |
+| TheSportsDB free v1 | Ten endpoints using public key `123` | Media; capped profiles/stats/tables; one previous/next league event; cached and rendered event stats/timeline/lineup samples | Honours/former teams/contracts; venue/equipment; optional TV/highlights | 30 requests/minute and small endpoint result caps; v2 and live scores are premium; crowd-sourced completeness |
 | football-data.org free v4 | Not configured | None | Stable IDs/emblems, competitions/seasons, delayed fixtures/results and full league tables | Token required; 12 competitions; 10 calls/minute; live and deep data paid |
 
 ## 1. Football-Data.co.uk
@@ -147,9 +147,9 @@ The public v1 key is `123`. The official rate limit is 30 requests per minute. F
 | `lookupplayerstats.php` | Player statistic rows | 10 | Used as supplemental data |
 | `eventspastleague.php` | Previous league spotlight | 1 | Used; not a complete recent-results feed |
 | `eventsnextleague.php` | Next league spotlight | 1 | Used; not a fixture list |
-| `lookupeventstats.php` | Selected recent-event statistics | 5 | Ingested and cached; not yet rendered |
-| `lookuptimeline.php` | Selected recent-event timeline | 5 | Ingested and cached; not yet rendered |
-| `lookuplineup.php` | Selected recent-event lineup | 5 | Ingested and cached; not yet rendered |
+| `lookupeventstats.php` | Selected recent-event statistics | 5 | Ingested, cached and rendered with source metadata |
+| `lookuptimeline.php` | Selected recent-event timeline | 5 | Ingested, cached and rendered as a capped sample |
+| `lookuplineup.php` | Selected recent-event lineup | 5 | Ingested, cached and rendered as a capped sample |
 
 The event-detail adapter targets one recent event per league by default. Because lineups and timelines are capped at five free rows, the application must label these as samples rather than showing them as full formations or full event histories.
 
@@ -194,13 +194,12 @@ Primary sources: [free-tier pricing](https://www.football-data.org/pricing), [fr
 ## Implementation order for remaining free capabilities
 
 1. Finish the domestic fixture contract: store kickoff time and ingest Football-Data.co.uk's upcoming-fixture CSV with source timestamp and team reconciliation.
-2. Expose the already-cached TheSportsDB event statistics, timeline and lineup in a clearly capped match-detail panel before adding more endpoints.
-3. Preserve World Cup kickoff, timezone, half-time score and match number; then add Club World Cup 2025.
-4. Add OpenFootball full-detail World Cup lineups/events/officials with field coverage by edition.
-5. Expand the European tournament manifest to Europa League and Conference League, and improve UCL parsing for kickoff, venue, leg and scorer events.
-6. Replace the four-file Transfermarkt importer with a read-only snapshot module covering all 12 tables. Start with clubs, games, events, lineups, valuations and transfers.
-7. Build time-safe feature views for rolling form, Elo, attempts, discipline, rest, home advantage, lineup continuity, manager tenure and valuation available before kickoff.
-8. Add football-data.org only as an optional token-based identity and delayed-fixture/table validator.
+2. Preserve World Cup-family kickoff, timezone, half-time score and match number.
+3. Add OpenFootball full-detail World Cup lineups/events/officials with field coverage by edition.
+4. Expand the European tournament manifest to Europa League and Conference League, and improve UCL parsing for kickoff, venue, leg and scorer events.
+5. Replace the four-file Transfermarkt importer with a read-only snapshot module covering all 12 tables. Start with clubs, games, events, lineups, valuations and transfers.
+6. Build time-safe feature views for rolling form, Elo, attempts, discipline, rest, home advantage, lineup continuity, manager tenure and valuation available before kickoff.
+7. Add football-data.org only as an optional token-based identity and delayed-fixture/table validator.
 
 ## Prediction consequences
 
