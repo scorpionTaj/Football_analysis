@@ -45,13 +45,25 @@ function AnalysisContent() {
   const [teamLimit, setTeamLimit] = useState<number>(15);
   const [formWindow, setFormWindow] = useState<number>(5);
 
+  const { data: catalog } = useQuery({
+    queryKey: queryKeys.catalog,
+    queryFn: () => api.catalog(),
+  });
+
   const selectedCompetitions = useMemo(() => {
     return filters.competition ? [filters.competition] : ['E0'];
   }, [filters.competition]);
 
+  const defaultSeason = useMemo(() => {
+    if (catalog?.seasons && catalog.seasons.length > 0) {
+      return Math.max(...catalog.seasons);
+    }
+    return 2026;
+  }, [catalog]);
+
   const selectedSeasons = useMemo(() => {
-    return filters.season ? [filters.season] : [2024];
-  }, [filters.season]);
+    return filters.season ? [filters.season] : [defaultSeason];
+  }, [filters.season, defaultSeason]);
 
   const requestBody = useMemo(() => ({
     competitions: selectedCompetitions,
@@ -60,11 +72,6 @@ function AnalysisContent() {
     venue: filters.venue || null,
     form_window: formWindow,
   }), [selectedCompetitions, selectedSeasons, filters.team, filters.venue, formWindow]);
-
-  const { data: catalog } = useQuery({
-    queryKey: queryKeys.catalog,
-    queryFn: () => api.catalog(),
-  });
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: queryKeys.analysis(requestBody),

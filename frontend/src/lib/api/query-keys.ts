@@ -18,5 +18,7 @@ export const queryKeys = {
   quality: ['quality'] as const,
   overview: (opts?: { team?: string; competition?: string; season?: number }) =>
     ['overview', opts || {}] as const,
+  transfers: (opts?: Record<string, unknown>) =>
+    ['transfers', opts || {}] as const,
 } as const;
 

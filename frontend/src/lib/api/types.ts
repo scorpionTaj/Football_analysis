@@ -318,3 +318,27 @@ export interface HealthResponse {
   database: string;
   read_only: boolean;
 }
+
+export interface TransferRow {
+  transfer_id: string;
+  player_id: string;
+  player_name: string;
+  transfer_date: string | null;
+  transfer_season: string;
+  season: number;
+  from_club: TeamRef;
+  to_club: TeamRef;
+  transfer_fee: number | null;
+  market_value_eur: number | null;
+  from_competition: string | null;
+  to_competition: string | null;
+  image_url: string | null;
+}
+
+export interface TransferListResponse {
+  transfers: TransferRow[];
+  total_count: number;
+  page: PageMeta;
+  source: SourceMeta;
+}
+

@@ -111,24 +111,46 @@ interface PlayerAvatarProps {
   name: string;
   size?: number;
   className?: string;
+  ring?: boolean;
 }
 
 export function PlayerAvatar({
   image_url,
   name,
-  size = 48,
+  size = 56,
   className = '',
+  ring = true,
 }: PlayerAvatarProps) {
   const [error, setError] = useState(false);
+
+  const initials = name
+    ? name
+        .split(' ')
+        .map((w) => w[0])
+        .filter(Boolean)
+        .slice(0, 2)
+        .join('')
+        .toUpperCase()
+    : 'PL';
+
+  const ringClasses = ring
+    ? 'ring-2 ring-blue/50 dark:ring-blue/60 ring-offset-2 ring-offset-surface0 shadow-md'
+    : 'border border-surface1/80 shadow-sm';
 
   if (!image_url || error) {
     return (
       <div
-        className={`inline-flex items-center justify-center rounded-full bg-surface0 border border-surface1/80 text-subtext0 shrink-0 ${className}`}
+        className={`inline-flex items-center justify-center rounded-full bg-gradient-to-br from-blue/20 via-sapphire/15 to-mauve/20 text-blue font-bold shrink-0 ${ringClasses} ${className}`}
         style={{ width: size, height: size }}
         title={name}
       >
-        <User size={Math.floor(size * 0.5)} />
+        {size >= 40 ? (
+          <span style={{ fontSize: Math.max(11, Math.floor(size * 0.36)) }}>
+            {initials}
+          </span>
+        ) : (
+          <User size={Math.floor(size * 0.5)} className="text-blue" />
+        )}
       </div>
     );
   }
@@ -142,8 +164,9 @@ export function PlayerAvatar({
       height={size}
       onError={() => setError(true)}
       loading="lazy"
-      className={`rounded-full object-cover border border-surface1/80 shadow-sm shrink-0 transition-transform duration-200 hover:scale-105 ${className}`}
-      style={{ width: size, height: size }}
+      className={`rounded-full object-cover bg-surface1/30 shrink-0 transition-all duration-200 hover:scale-105 hover:ring-sapphire ${ringClasses} ${className}`}
+      style={{ width: size, height: size, minWidth: size, minHeight: size }}
     />
   );
 }
+

@@ -51,6 +51,7 @@ import type {
   QualityResponse,
   TeamListResponse,
   TournamentResponse,
+  TransferListResponse,
 } from './types';
 
 export const api = {
@@ -97,4 +98,13 @@ export const api = {
 
   overview: (opts?: { team?: string; competition?: string; season?: number }) =>
     request<OverviewResponse>(`/api/v1/overview${params(opts || {})}`),
+
+  transfers: (opts?: {
+    season?: number;
+    competition?: string;
+    club?: string;
+    q?: string;
+    cursor?: string;
+    limit?: number;
+  }) => request<TransferListResponse>(`/api/v1/transfers${params(opts || {})}`),
 };

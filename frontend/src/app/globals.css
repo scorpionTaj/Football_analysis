@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "@heroui/styles/css";
 
 @theme {
   --color-crust: var(--crust);

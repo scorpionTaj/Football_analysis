@@ -85,6 +85,32 @@ def seed(path):
             INSERT INTO analytics_metadata (cache_key, refreshed_at, match_rows)
             VALUES ('elo', current_timestamp, 2)
         """)
+        con.execute("""
+            CREATE TABLE IF NOT EXISTS transfers (
+                transfer_id VARCHAR,
+                player_id VARCHAR,
+                player_name VARCHAR,
+                transfer_date DATE,
+                transfer_season VARCHAR,
+                season INTEGER,
+                from_club_id VARCHAR,
+                from_club_name VARCHAR,
+                to_club_id VARCHAR,
+                to_club_name VARCHAR,
+                transfer_fee DOUBLE,
+                market_value_eur BIGINT,
+                from_competition VARCHAR,
+                to_competition VARCHAR,
+                image_url VARCHAR
+            );
+        """)
+        con.execute("""
+            INSERT INTO transfers VALUES (
+                't1', 'p-rice', 'Declan Rice', '2023-07-15', '23/24', 2023,
+                '379', 'West Ham United', '11', 'Arsenal', 116600000, 110000000,
+                'E0', 'E0', 'https://img.example/rice.jpg'
+            );
+        """)
 
 
 def client(tmp_path):
@@ -103,6 +129,7 @@ def test_health_and_openapi_document_v1_routes(tmp_path):
         "/api/v1/catalog", "/api/v1/teams", "/api/v1/matches", "/api/v1/analysis",
         "/api/v1/tournaments/{competition}/{season}", "/api/v1/predictions",
         "/api/v1/players", "/api/v1/players/{player_id}", "/api/v1/quality",
+        "/api/v1/overview", "/api/v1/transfers",
     ):
         assert path in spec["paths"]
     assert spec["info"]["version"] == "1.0.0"
@@ -198,5 +225,18 @@ def test_overview_endpoint(tmp_path):
     assert data["spotlight"]["team"]["name"] == "Arsenal"
     assert "performance_over_time" in data
     assert "forecasts" in data
+
+
+def test_transfers_endpoint(tmp_path):
+    api = client(tmp_path)
+    res = api.get("/api/v1/transfers", params={"competition": "E0", "season": 2023})
+    assert res.status_code == 200
+    data = res.json()
+    assert "transfers" in data
+    assert len(data["transfers"]) == 1
+    assert data["transfers"][0]["player_name"] == "Declan Rice"
+    assert data["transfers"][0]["to_club"]["name"] == "Arsenal"
+    assert data["transfers"][0]["transfer_fee"] == 116600000.0
+
 
 

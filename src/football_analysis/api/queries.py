@@ -50,6 +50,8 @@ from football_analysis.api.contracts import (
     TournamentMatch,
     TournamentResponse,
     TournamentStage,
+    TransferListResponse,
+    TransferRow,
     canonical_team_id,
 )
 from football_analysis.api.db import ReadOnlyStore
@@ -807,24 +809,34 @@ def overview(
     tm_map = _team_media_map(store)
     all_years = seasons() + ([current_season()] if current_season() not in seasons() else [])
 
-    # Fetch ranking rows for performance over time
+    # Fetch ranking rows for ALL teams in this competition across all seasons
     analysis_filters = AnalysisFilters(
         competitions=[competition],
         seasons=all_years,
-        teams=[team] if team else [],
+        teams=[],
     )
     analysis_data = build_analysis(store, analysis_filters)
 
-    # Determine spotlight team
-    focus_team = team
+    # Determine spotlight team (ensure it belongs to competition)
+    comp_clubs = [r.team.name for r in analysis_data.rankings if r.competition == competition]
+    comp_keys = {team_key(t): t for t in comp_clubs}
+
+    focus_team = None
+    if team:
+        tkey = team_key(team) or team
+        if tkey in comp_keys:
+            focus_team = comp_keys[tkey]
+        elif team in comp_clubs:
+            focus_team = team
+
     if not focus_team:
-        for r in analysis_data.rankings:
-            if r.competition == competition and r.season == season:
-                focus_team = r.team.name
-                break
-        if not focus_team and analysis_data.rankings:
-            focus_team = analysis_data.rankings[0].team.name
-        if not focus_team:
+        season_rankings = [r for r in analysis_data.rankings if r.competition == competition and r.season == season]
+        if season_rankings:
+            season_rankings.sort(key=lambda r: (r.rank, -r.points))
+            focus_team = season_rankings[0].team.name
+        elif comp_clubs:
+            focus_team = comp_clubs[0]
+        else:
             focus_team = "Arsenal"
 
     # Find ranking stats for the spotlight team in the selected season
@@ -884,6 +896,70 @@ def overview(
         elo_trajectory=analysis_data.elo_ratings,
         forecasts=preds.forecasts,
         source=_source("duckdb", "overview"),
+    )
+
+
+def list_transfers(
+    store: ReadOnlyStore,
+    season: int | None = None,
+    competition: str | None = None,
+    club: str | None = None,
+    query: str | None = None,
+    cursor: str | None = None,
+    limit: int = 50,
+) -> TransferListResponse:
+    limit = max(1, min(int(limit), 200))
+    if not _has(store, "transfers"):
+        return TransferListResponse(
+            transfers=[], total_count=0,
+            page=PageMeta(next_cursor=None, limit=limit, returned=0),
+            source=_source("transfermarkt-open", "empty"),
+        )
+
+    sql = "SELECT * FROM transfers WHERE 1=1"
+    params = []
+    if season is not None:
+        sql += " AND season = ?"
+        params.append(season)
+    if competition:
+        sql += " AND (from_competition = ? OR to_competition = ?)"
+        params.extend([competition, competition])
+    if club:
+        sql += " AND (from_club_name ILIKE ? OR to_club_name ILIKE ?)"
+        params.extend([f"%{club}%", f"%{club}%"])
+    if query:
+        sql += " AND (player_name ILIKE ? OR from_club_name ILIKE ? OR to_club_name ILIKE ?)"
+        params.extend([f"%{query}%", f"%{query}%", f"%{query}%"])
+
+    sql += " ORDER BY transfer_date DESC NULLS LAST, market_value_eur DESC NULLS LAST, transfer_fee DESC NULLS LAST"
+    frame = store.query(sql, params)
+    total_count = len(frame)
+
+    page = frame.head(limit)
+    tm_map = _team_media_map(store)
+    rows = []
+    for r in page.itertuples(index=False):
+        rows.append(TransferRow(
+            transfer_id=str(r.transfer_id),
+            player_id=str(r.player_id),
+            player_name=r.player_name,
+            transfer_date=_as_date(r.transfer_date),
+            transfer_season=r.transfer_season,
+            season=int(r.season),
+            from_club=_build_team_ref(r.from_club_name, tm_map),
+            to_club=_build_team_ref(r.to_club_name, tm_map),
+            transfer_fee=None if pd.isna(r.transfer_fee) else float(r.transfer_fee),
+            market_value_eur=None if pd.isna(r.market_value_eur) else int(r.market_value_eur),
+            from_competition=None if pd.isna(r.from_competition) else r.from_competition,
+            to_competition=None if pd.isna(r.to_competition) else r.to_competition,
+            image_url=None if pd.isna(r.image_url) else r.image_url,
+        ))
+
+    return TransferListResponse(
+        transfers=rows,
+        total_count=total_count,
+        page=PageMeta(next_cursor=None, limit=limit, returned=len(rows)),
+        source=_source("transfermarkt-open", "transfers"),
     )
 
 

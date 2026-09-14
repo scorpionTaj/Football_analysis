@@ -341,3 +341,26 @@ class HealthResponse(BaseModel):
     status: Literal["ok", "degraded", "unavailable"]
     database: str
     read_only: bool
+
+
+class TransferRow(BaseModel):
+    transfer_id: str
+    player_id: str
+    player_name: str
+    transfer_date: date | None = None
+    transfer_season: str
+    season: int
+    from_club: TeamRef
+    to_club: TeamRef
+    transfer_fee: float | None = None
+    market_value_eur: int | None = None
+    from_competition: str | None = None
+    to_competition: str | None = None
+    image_url: str | None = None
+
+
+class TransferListResponse(BaseModel):
+    transfers: list[TransferRow]
+    total_count: int
+    page: PageMeta
+    source: SourceMeta

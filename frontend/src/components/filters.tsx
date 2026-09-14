@@ -37,9 +37,11 @@ export function FilterBar() {
       <Select
         label="Competition"
         value={filters.competition ?? ''}
-        onChange={(v) =>
-          filters.set({ competition: v || null, season: null, team: null })
-        }
+        onChange={(v) => {
+          const comp = competitions.find((c) => c.code === v);
+          const latest = comp && comp.seasons.length > 0 ? Math.max(...comp.seasons.map((s) => s.season)) : null;
+          filters.set({ competition: v || null, season: latest, team: null });
+        }}
         options={competitions.map((c) => ({
           value: c.code,
           label: c.name,

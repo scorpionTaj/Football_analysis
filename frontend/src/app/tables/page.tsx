@@ -14,13 +14,18 @@ import { FootballBadge, CompetitionBadge } from '@/lib/media-utils';
 export function LeagueTablesContent() {
   const filters = useFilterParams();
   const selectedCompetition = filters.competition || 'E0';
-  const selectedSeason = filters.season || 2024;
   const [venueFilter, setVenueFilter] = useState<'All' | 'Home' | 'Away'>('All');
 
   const { data: catalog } = useQuery({
     queryKey: queryKeys.catalog,
     queryFn: () => api.catalog(),
   });
+
+  const compOptions = catalog?.competitions.filter((c) => c.kind === 'domestic') || [];
+  const currentComp = compOptions.find((c) => c.code === selectedCompetition);
+  const seasons = currentComp?.seasons || [];
+  const latestSeason = seasons.length > 0 ? Math.max(...seasons.map((s) => s.season)) : 2026;
+  const selectedSeason = filters.season || latestSeason;
 
   const requestBody = useMemo(() => ({
     competitions: [selectedCompetition],
@@ -37,9 +42,6 @@ export function LeagueTablesContent() {
 
   const rankings = analysis?.rankings || [];
   const { paginatedItems: paginatedRankings, PaginationComponent: TablePagination } = usePagination(rankings, 10);
-  const compOptions = catalog?.competitions.filter((c) => c.kind === 'domestic') || [];
-  const currentComp = compOptions.find((c) => c.code === selectedCompetition);
-  const seasons = currentComp?.seasons || [];
 
   // Export CSV
   const exportCsv = () => {

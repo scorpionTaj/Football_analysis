@@ -148,6 +148,27 @@ def create_app(database_path: Path | None = None) -> FastAPI:
     ):
         return with_cache(queries.overview(require_store(), team, competition, season), request)
 
+    @app.get("/api/v1/transfers")
+    def transfers(
+        request: Request,
+        season: int | None = None,
+        competition: str | None = None,
+        club: str | None = None,
+        q: str | None = None,
+        cursor: str | None = None,
+        limit: int = Query(default=50, ge=1, le=200),
+    ):
+        payload = queries.list_transfers(
+            require_store(),
+            season=season,
+            competition=competition,
+            club=club,
+            query=q,
+            cursor=cursor,
+            limit=limit,
+        )
+        return with_cache(payload, request)
+
     return app
 
 

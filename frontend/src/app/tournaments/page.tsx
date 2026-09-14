@@ -10,7 +10,8 @@ import { LoadingSkeleton, ErrorMessage, EmptyState } from '@/components/ui/loadi
 import { usePagination } from '@/components/ui/pagination';
 import type { TournamentMatch, TournamentGoal } from '@/lib/api/types';
 import { Trophy, Users, Goal, Calendar, Download, Search, ShieldCheck } from 'lucide-react';
-import { FootballBadge, CompetitionBadge } from '@/lib/media-utils';
+import { FootballBadge, CompetitionBadge, PlayerAvatar } from '@/lib/media-utils';
+import { Card, CardHeader, CardTitle, CardContent, Chip, Button } from '@heroui/react';
 import {
   BarChart,
   Bar,
@@ -41,7 +42,8 @@ const TOURNAMENT_CONFIGS = [
 function TournamentsContent() {
   const filters = useFilterParams();
   const selectedTournament = filters.competition === 'WC' ? 'WC' : 'UCL';
-  const selectedYear = filters.season || (selectedTournament === 'WC' ? 2022 : 2024);
+  const currentTournamentConfig = TOURNAMENT_CONFIGS.find((c) => c.code === selectedTournament) || TOURNAMENT_CONFIGS[0];
+  const selectedYear = filters.season || currentTournamentConfig.defaultYear;
 
   const [activeTab, setActiveTab] = useState<'matches' | 'scorers' | 'stages'>('matches');
   const [matchSearch, setMatchSearch] = useState('');
@@ -423,27 +425,38 @@ function TournamentsContent() {
 
       {/* Tab 2: Scorers View */}
       {activeTab === 'scorers' && scorers.length > 0 && (
-        <div className="rounded-xl border border-surface1 bg-surface0 overflow-hidden">
+        <Card className="rounded-2xl border border-surface1 bg-surface0 overflow-hidden shadow-sm">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-surface1 bg-mantle text-xs uppercase text-subtext0">
               <tr>
-                <th className="py-3 px-4">Rank</th>
+                <th className="py-3 px-4 w-16">Rank</th>
                 <th className="py-3 px-4">Player</th>
                 <th className="py-3 px-4">Team</th>
                 <th className="py-3 px-4 text-center">Penalties</th>
                 <th className="py-3 px-4 text-right">Goals</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-surface1">
+            <tbody className="divide-y divide-surface1/60">
               {paginatedScorers.map((sc, index) => {
                 const rank = (scorersPage - 1) * scorersPageSize + index + 1;
                 return (
-                  <tr key={`${sc.player}_${sc.team}`} className="hover:bg-surface1/50 transition-colors">
-                    <td className="py-2.5 px-4 font-mono text-xs text-subtext0">#{rank}</td>
-                    <td className="py-2.5 px-4 font-semibold text-text">{sc.player}</td>
-                    <td className="py-2.5 px-4 text-subtext1">{sc.team}</td>
-                    <td className="py-2.5 px-4 text-center text-xs text-subtext0">{sc.penalties || '-'}</td>
-                    <td className="py-2.5 px-4 text-right font-bold text-blue">{sc.goals}</td>
+                  <tr key={`${sc.player}_${sc.team}`} className="hover:bg-surface1/40 transition-colors">
+                    <td className="py-3 px-4 font-mono text-xs font-bold text-subtext0">#{rank}</td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-3">
+                        <PlayerAvatar name={sc.player} size={36} ring={false} />
+                        <span className="font-bold text-text">{sc.player}</span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 text-subtext1 font-medium">{sc.team}</td>
+                    <td className="py-3 px-4 text-center text-xs text-subtext0 font-mono">
+                      {sc.penalties ? `${sc.penalties}` : '—'}
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue/15 text-blue font-mono">
+                        {sc.goals} {sc.goals === 1 ? 'goal' : 'goals'}
+                      </span>
+                    </td>
                   </tr>
                 );
               })}
@@ -452,17 +465,24 @@ function TournamentsContent() {
           <div className="p-3 bg-mantle border-t border-surface1">
             <ScorersPagination />
           </div>
-        </div>
+        </Card>
       )}
 
       {/* Tab 3: Stages Summary View */}
       {activeTab === 'stages' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           {stages.map((st) => (
-            <div key={st.stage} className="p-4 rounded-xl bg-surface0 border border-surface1">
-              <p className="text-sm font-semibold text-text">{st.stage}</p>
-              <p className="text-xs text-subtext0 mt-1">{st.match_count} matches scheduled</p>
-            </div>
+            <Card key={st.stage} className="p-5 rounded-2xl bg-surface0 border border-surface1 shadow-sm hover:border-blue/50 transition-all">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-base font-bold text-text">{st.stage}</p>
+                  <p className="text-xs text-subtext0 mt-1">{st.match_count} matches completed</p>
+                </div>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-surface1 text-blue font-bold">
+                  Stage
+                </span>
+              </div>
+            </Card>
           ))}
         </div>
       )}
