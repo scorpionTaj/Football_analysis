@@ -147,7 +147,12 @@ function OverviewContent() {
 
   // Season Strength Matrix (Heatmap Table Data)
   const matrixData = useMemo(() => {
-    if (!overviewData?.performance_over_time) return [];
+    if (!overviewData?.performance_over_time) {
+      return {
+        seasons: [] as number[],
+        clubs: [] as { club: string; values: Record<number, number> }[],
+      };
+    }
     const clubRows = new Map<string, Record<number, number>>();
     const seasonsList = [...availableSeasons].sort((a, b) => a - b);
 

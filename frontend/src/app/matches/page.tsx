@@ -8,6 +8,7 @@ import { useFilterParams } from '@/lib/hooks/use-filter-params';
 import { SourceBadge } from '@/components/ui/source-badge';
 import { LoadingSkeleton, ErrorMessage, EmptyState } from '@/components/ui/loading';
 import { FilterBar } from '@/components/filters';
+import { FootballBadge } from '@/lib/media-utils';
 import { Calendar, Download, ChevronRight, ChevronLeft, Search, UserCheck } from 'lucide-react';
 
 export function MatchesContent() {
@@ -186,17 +187,19 @@ export function MatchesContent() {
 
               {/* Match Scoreline */}
               <div className="flex items-center justify-center gap-3 sm:gap-6 flex-1 px-4">
-                <span className="w-1/2 text-right font-semibold text-text truncate">
-                  {m.home.name}
-                </span>
+                <div className="w-1/2 flex items-center justify-end gap-2 font-semibold text-text truncate">
+                  <span className="truncate">{m.home.name}</span>
+                  <FootballBadge url={m.home.badge_url} name={m.home.name} size={22} />
+                </div>
                 <div className="flex items-center justify-center min-w-[64px]">
                   <span className="rounded-md bg-mantle border border-surface1 px-3 py-1 text-sm font-bold text-blue tracking-wider">
                     {m.home_goals !== null ? m.home_goals : '-'} : {m.away_goals !== null ? m.away_goals : '-'}
                   </span>
                 </div>
-                <span className="w-1/2 text-left font-semibold text-text truncate">
-                  {m.away.name}
-                </span>
+                <div className="w-1/2 flex items-center justify-start gap-2 font-semibold text-text truncate">
+                  <FootballBadge url={m.away.badge_url} name={m.away.name} size={22} />
+                  <span className="truncate">{m.away.name}</span>
+                </div>
               </div>
 
               {/* Referee & Venue */}

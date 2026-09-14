@@ -10,6 +10,7 @@ import { LoadingSkeleton, ErrorMessage, EmptyState } from '@/components/ui/loadi
 import { usePagination } from '@/components/ui/pagination';
 import type { TournamentMatch, TournamentGoal } from '@/lib/api/types';
 import { Trophy, Users, Goal, Calendar, Download, Search, ShieldCheck } from 'lucide-react';
+import { FootballBadge, CompetitionBadge } from '@/lib/media-utils';
 import {
   BarChart,
   Bar,
@@ -21,8 +22,20 @@ import {
 } from 'recharts';
 
 const TOURNAMENT_CONFIGS = [
-  { code: 'UCL', name: 'UEFA Champions League', icon: '🏆', defaultYear: 2024, years: [2024] },
-  { code: 'WC', name: 'FIFA World Cup', icon: '🌍', defaultYear: 2022, years: [2022] },
+  {
+    code: 'UCL',
+    name: 'UEFA Champions League',
+    icon: '🏆',
+    defaultYear: 2025,
+    years: [2025, 2024, 2023, 2022, 2021],
+  },
+  {
+    code: 'WC',
+    name: 'FIFA World Cup',
+    icon: '🌍',
+    defaultYear: 2026,
+    years: [2026, 2022, 2018],
+  },
 ];
 
 function TournamentsContent() {
@@ -180,7 +193,7 @@ function TournamentsContent() {
                     : 'bg-surface0 text-subtext1 hover:bg-surface1 hover:text-text'
                 }`}
               >
-                <span>{t.icon}</span>
+                <CompetitionBadge code={t.code} name={t.name} size={20} />
                 <span>{t.name}</span>
               </button>
             );
@@ -376,8 +389,9 @@ function TournamentsContent() {
 
                   {/* Scoreline */}
                   <div className="flex items-center justify-center gap-3 sm:gap-6 flex-1 sm:px-8">
-                    <div className="w-1/2 text-right font-semibold text-text truncate">
-                      {m.home.name}
+                    <div className="w-1/2 flex items-center justify-end gap-2 font-semibold text-text truncate">
+                      <span className="truncate">{m.home.name}</span>
+                      <FootballBadge url={m.home.badge_url} name={m.home.name} size={22} />
                     </div>
                     <div className="flex flex-col items-center justify-center min-w-[70px]">
                       <span className="rounded-md bg-mantle border border-surface1 px-3 py-1 text-sm font-bold text-blue tracking-wider">
@@ -389,8 +403,9 @@ function TournamentsContent() {
                         </span>
                       )}
                     </div>
-                    <div className="w-1/2 text-left font-semibold text-text truncate">
-                      {m.away.name}
+                    <div className="w-1/2 flex items-center justify-start gap-2 font-semibold text-text truncate">
+                      <FootballBadge url={m.away.badge_url} name={m.away.name} size={22} />
+                      <span className="truncate">{m.away.name}</span>
                     </div>
                   </div>
 

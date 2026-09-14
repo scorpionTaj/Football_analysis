@@ -8,6 +8,7 @@ import { SourceBadge } from '@/components/ui/source-badge';
 import { LoadingSkeleton, ErrorMessage, EmptyState } from '@/components/ui/loading';
 import { usePagination } from '@/components/ui/pagination';
 import type { PlayerSummary, PlayerProfileResponse } from '@/lib/api/types';
+import { FootballBadge, PlayerAvatar } from '@/lib/media-utils';
 import { User, Search, Shield, ChevronRight, ChevronLeft, Download, Award, Calendar, ExternalLink } from 'lucide-react';
 
 function formatCurrency(eur: number | null | undefined): string {
@@ -144,24 +145,27 @@ export function PlayersContent() {
                     <button
                       key={p.player_id}
                       onClick={() => setSelectedPlayerId(p.player_id)}
-                      className={`w-full text-left p-3.5 flex items-center justify-between transition-colors cursor-pointer ${
+                      className={`w-full text-left p-3 flex items-center justify-between transition-colors cursor-pointer ${
                         isSelected ? 'bg-blue/15 border-l-4 border-blue' : 'hover:bg-surface1/40'
                       }`}
                     >
-                      <div className="space-y-1 truncate pr-2">
-                        <p className={`font-semibold text-sm truncate ${isSelected ? 'text-blue' : 'text-text'}`}>
-                          {p.name}
-                        </p>
-                        <div className="flex items-center gap-2 text-xs text-subtext0">
-                          <span className="truncate">{p.team.name}</span>
-                          {p.position && (
-                            <>
-                              <span>·</span>
-                              <span className="rounded bg-surface1 px-1.5 py-0.2 text-[11px] text-subtext1">
-                                {p.position}
-                              </span>
-                            </>
-                          )}
+                      <div className="flex items-center gap-3 truncate pr-2">
+                        <PlayerAvatar image_url={p.image_url} name={p.name} size={36} />
+                        <div className="space-y-0.5 truncate">
+                          <p className={`font-semibold text-sm truncate ${isSelected ? 'text-blue' : 'text-text'}`}>
+                            {p.name}
+                          </p>
+                          <div className="flex items-center gap-2 text-xs text-subtext0">
+                            <span className="truncate">{p.team.name}</span>
+                            {p.position && (
+                              <>
+                                <span>·</span>
+                                <span className="rounded bg-surface1 px-1.5 py-0.2 text-[11px] text-subtext1">
+                                  {p.position}
+                                </span>
+                              </>
+                            )}
+                          </div>
                         </div>
                       </div>
                       <ChevronRight className={`h-4 w-4 shrink-0 ${isSelected ? 'text-blue' : 'text-overlay0'}`} />
@@ -215,12 +219,16 @@ export function PlayersContent() {
               {/* Profile Card Header */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-surface1 pb-5">
                 <div className="flex items-center gap-4">
-                  <div className="h-16 w-16 rounded-2xl bg-blue/15 text-blue flex items-center justify-center font-bold text-2xl shrink-0 border border-blue/20">
-                    {profile.name.slice(0, 2).toUpperCase()}
-                  </div>
+                  <PlayerAvatar
+                    image_url={profile.image_url}
+                    name={profile.name}
+                    size={64}
+                    className="rounded-2xl"
+                  />
                   <div>
                     <h2 className="text-xl font-bold text-text">{profile.name}</h2>
-                    <p className="text-sm text-subtext1 mt-0.5 flex items-center gap-2">
+                    <p className="text-sm text-subtext1 mt-1 flex items-center gap-2">
+                      <FootballBadge url={profile.team.badge_url} name={profile.team.name} size={18} />
                       <span>{profile.team.name}</span>
                       {profile.position && (
                         <span className="rounded bg-surface1 px-2 py-0.5 text-xs text-subtext1 font-medium">

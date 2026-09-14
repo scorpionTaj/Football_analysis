@@ -9,6 +9,7 @@ import { SourceBadge } from '@/components/ui/source-badge';
 import { LoadingSkeleton, ErrorMessage, EmptyState } from '@/components/ui/loading';
 import { usePagination } from '@/components/ui/pagination';
 import { Table as TableIcon, Download, Trophy, ShieldAlert, ArrowUpDown, ChevronRight } from 'lucide-react';
+import { FootballBadge, CompetitionBadge } from '@/lib/media-utils';
 
 export function LeagueTablesContent() {
   const filters = useFilterParams();
@@ -80,20 +81,27 @@ export function LeagueTablesContent() {
     <div className="space-y-6">
       {/* Controls Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl bg-surface0 border border-surface1 p-4">
-        <div className="flex flex-wrap items-center gap-3">
-          {/* League */}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-subtext0">League</label>
-            <select
-              value={selectedCompetition}
-              onChange={(e) => filters.set({ competition: e.target.value })}
-              className="rounded-lg border border-surface1 bg-mantle px-3 py-1.5 text-xs font-medium text-text outline-none cursor-pointer hover:border-surface2"
-            >
-              {compOptions.map((c) => (
-                <option key={c.code} value={c.code}>{c.name}</option>
-              ))}
-            </select>
-          </div>
+        <div className="flex flex-wrap items-center gap-4">
+          <CompetitionBadge
+            code={selectedCompetition}
+            name={currentComp?.name || selectedCompetition}
+            badge_url={currentComp?.badge_url}
+            size={40}
+          />
+          <div className="flex flex-wrap items-center gap-3">
+            {/* League */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-subtext0">League</label>
+              <select
+                value={selectedCompetition}
+                onChange={(e) => filters.set({ competition: e.target.value })}
+                className="rounded-lg border border-surface1 bg-mantle px-3 py-1.5 text-xs font-medium text-text outline-none cursor-pointer hover:border-surface2"
+              >
+                {compOptions.map((c) => (
+                  <option key={c.code} value={c.code}>{c.name}</option>
+                ))}
+              </select>
+            </div>
 
           {/* Season */}
           <div className="flex flex-col gap-1">
@@ -127,6 +135,7 @@ export function LeagueTablesContent() {
             </div>
           </div>
         </div>
+      </div>
 
         <div className="flex items-center gap-3">
           {analysis?.source && <SourceBadge meta={analysis.source} />}
@@ -207,7 +216,8 @@ export function LeagueTablesContent() {
                           {pos}
                         </span>
                       </td>
-                      <td className="py-3 px-4 font-semibold text-text flex items-center gap-2">
+                      <td className="py-3 px-4 font-semibold text-text flex items-center gap-2.5">
+                        <FootballBadge url={r.team.badge_url} name={r.team.name} size={22} />
                         <span>{r.team.name}</span>
                       </td>
                       <td className="py-3 px-3 text-center text-subtext1">{r.played}</td>

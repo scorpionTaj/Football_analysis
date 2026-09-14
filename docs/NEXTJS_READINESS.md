@@ -81,5 +81,33 @@ In accordance with dashboard usability standards, all views displaying collectio
 
 - [x] **Head-to-Head Club Comparison** ([`frontend/src/app/clubs/page.tsx`](frontend/src/app/clubs/page.tsx)): Toggle between individual Club Profile and direct Head-to-Head comparison between any two clubs. Includes direct clashes record, goals distribution bar, side-by-side PPG / Win % / Goals scored / Clean sheet benchmarking, and paginated match encounters.
 
+## Phase 8: Extended Media, Multi-Season Expansion & Revamped Overview ✅
+
+- [x] **New Overview API Endpoint**: `GET /api/v1/overview?team=&competition=&season=` exposing spotlight club, 4 KPIs, latest match, previous match, upcoming ML forecast, full season-by-season rankings, and opponent-adjusted Elo progression.
+- [x] **Official Media & Badges Integration**:
+  - Direct CDN crests & logos for all 12 competitions (`competition_media`).
+  - Club crests and emblems for all domestic and tournament clubs (`team_media`).
+  - Transfermarkt player portraits with market valuation in EUR (`open_players`).
+  - Fallback `<FootballBadge />`, `<CompetitionBadge />`, and `<PlayerAvatar />` components in [`frontend/src/lib/media-utils.tsx`](frontend/src/lib/media-utils.tsx).
+- [x] **Multi-Season & Tournament Expansion**:
+  - UEFA Champions League: Unlocked 5 complete editions (2021, 2022, 2023, 2024, 2025).
+  - FIFA World Cup: Unlocked 3 tournament editions (2018, 2022, 2026).
+  - 10 Domestic Leagues: E0, SP1, D1, I1, F1 (2021–2026), plus N1 (Eredivisie), P1 (Primeira Liga), B1 (Belgian Pro League), T1 (Turkish Süper Lig), G1 (Greek Super League) (live 2026).
+- [x] **Revamped Overview Dashboard** ([`frontend/src/app/page.tsx`](frontend/src/app/page.tsx)):
+  - Live pulse header and horizontal 12-competition switcher rail.
+  - Club spotlight hero with 4 KPIs (Matches, W-D-L, PPG, Goal Difference).
+  - 3 match strip cards: Latest completed match, Previous match, Next listed fixture with ML win/draw/loss probability bars.
+  - 4 Streamlit-replica analytical visualizations:
+    1. **Performance Over Time**: PPG line chart across seasons.
+    2. **Season Strength Map**: Heatmap matrix showing PPG per season for top clubs.
+    3. **Attacking Output vs Defensive Control**: Reversed scatter plot (Goals/match vs Conceded/match) with bubble size = PPG.
+    4. **Opponent-Adjusted Season-End Elo**: Chronological Elo progression across domestic seasons.
+  - Star Players Spotlight showcasing world-class players with portraits and market values.
+  - Supported Tournaments & Domestic Leagues 12-card showcase.
+- [x] **HeroUI Integration**:
+  - `@heroui/react` 3.2.5 components (Card, Chip, Avatar, Badge, Button, Tabs, Tooltip).
+  - Enhanced glassmorphic styles and custom smooth animations.
+
 The Next.js client should consume these routes rather than query DuckDB or reproduce football calculations. That keeps rankings and source semantics identical during the migration and allows Streamlit to remain available as a validation client until the replacement is complete.
+
 

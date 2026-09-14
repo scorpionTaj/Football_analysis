@@ -86,7 +86,32 @@ Exit gate: ✅ API contract test, selector parity, empty-data behavior, download
 
 1. [x] **Head-to-Head Club Comparison** (`/clubs`): Direct clashes history, goals distribution bar, side-by-side PPG / Win % / Goals scored / Clean sheet benchmarking, and paginated match encounters.
 
-## Phase 8 — operations and cutover
+## Phase 8 — extended media, multi-season expansion & overview revamp ✅
+
+1. [x] **New Overview API Endpoint**: `GET /api/v1/overview` delivering spotlight club, 4 KPIs, latest match, previous match, next fixture with ML win probabilities, multi-season rankings, and season-end Elo progression.
+2. [x] **Official Media & Badges Integration**:
+   - `competition_media`: 12 competitions with official badge, logo, banner, trophy and fanart CDN assets.
+   - `team_media`: Club badges and logos attached to `TeamRef` across all endpoints.
+   - `open_players`: Transfermarkt player portraits with market valuation in EUR.
+   - `<FootballBadge />`, `<CompetitionBadge />`, and `<PlayerAvatar />` with error handling and initials/silhouette fallbacks.
+3. [x] **Multi-Season & Tournament Expansion**:
+   - Champions League: 5 editions (2021, 2022, 2023, 2024, 2025).
+   - World Cup: 3 editions (2018, 2022, 2026).
+   - 10 Domestic Leagues: E0, SP1, D1, I1, F1 (2021–2026) + N1, P1, B1, T1, G1 (2026).
+4. [x] **Revamped Overview Dashboard** (`/`):
+   - HeroUI component system (`@heroui/react`) styling with glassmorphism and subtle animations.
+   - Live Pulse indicator and 12-competition horizontal switcher.
+   - Club spotlight hero with 4 KPIs (Played, W-D-L, PPG, Goal Difference).
+   - 3 Match Strip Cards: Latest completed match, Previous match, Next listed fixture with ML win/draw/loss probability progress bars.
+   - 4 Streamlit-replica analytical visualizations:
+     1. Performance Over Time (PPG trajectory line chart)
+     2. Season Strength Map (interactive heatmap matrix)
+     3. Attacking Output vs Defensive Control (reversed scatter plot with PPG bubble size)
+     4. Opponent-Adjusted Season-End Elo (progression line chart)
+   - World Star Players Spotlight with Transfermarkt portraits, club badges, and market values.
+   - 12 Supported Competitions card showcase.
+
+## Phase 9 — operations and cutover
 
 1. Run ingestion, event-detail refresh and prediction training as separate scheduled jobs with an atomic database snapshot swap.
 2. Containerize FastAPI and Next.js separately; keep raw data and DuckDB outside the frontend image.
