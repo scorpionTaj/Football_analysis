@@ -42,14 +42,14 @@ Infrastructure:
 
 Exit gate: ✅ Contract tests and a generated OpenAPI document pass; p95 local response time stays below 300 ms for filtered analytical reads.
 
-## Phase 3 — build the Next.js shell
+## Phase 3 — build the Next.js shell ✅
 
-1. Create a TypeScript Next.js App Router project with Catppuccin Mocha design tokens, responsive navigation and accessible filter components.
-2. Generate a typed API client from OpenAPI and centralize query keys, loading states, empty states and source/coverage labels.
-3. Implement server components for initial page data and client components only for interactive Plotly charts and selectors.
-4. Preserve shareable filter state in URLs: competition, season, team, stage, venue and metric.
+1. [x] Create a TypeScript Next.js App Router project with Catppuccin Mocha design tokens, responsive navigation and accessible filter components.
+2. [x] Generate a typed API client from OpenAPI and centralize query keys, loading states, empty states and source/coverage labels.
+3. [x] Implement server components for initial page data and client components only for interactive Plotly charts and selectors.
+4. [x] Preserve shareable filter state in URLs: competition, season, team, stage, venue and metric.
 
-Exit gate: keyboard navigation, mobile layout, dark-theme contrast and error states pass before feature migration begins.
+Exit gate: ✅ Keyboard navigation, mobile layout, dark-theme contrast and error states pass before feature migration begins.
 
 ## Phase 4 — migrate by vertical slice
 

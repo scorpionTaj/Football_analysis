@@ -30,4 +30,16 @@ A read-only FastAPI service now owns the DuckDB connection and exposes all initi
 
 Keep DuckDB for this read-heavy, single-writer deployment. Run all synchronizers as separate jobs and open the app database read-only in the API process. Move to PostgreSQL only when concurrent writes or multiple API replicas require it.
 
+## Next.js frontend shell status ✅
+
+The frontend shell has been built in [`frontend/`](frontend/) with Next.js App Router, Tailwind CSS (Catppuccin Mocha tokens), and TanStack Query:
+
+- [x] **Design Tokens**: Complete 26-color Catppuccin Mocha palette configured in [`frontend/src/app/globals.css`](frontend/src/app/globals.css).
+- [x] **Navigation**: Responsive sidebar and mobile drawer with accessible toggle in [`frontend/src/components/navigation.tsx`](frontend/src/components/navigation.tsx). Covers all 9 dashboard areas.
+- [x] **Typed API Client**: TypeScript types mirroring backend Pydantic models in [`frontend/src/lib/api/types.ts`](frontend/src/lib/api/types.ts) and centralized client in [`frontend/src/lib/api/client.ts`](frontend/src/lib/api/client.ts).
+- [x] **State & Cache**: TanStack Query setup with SSR dehydration in [`frontend/src/lib/get-query-client.ts`](frontend/src/lib/get-query-client.ts) and query keys in [`frontend/src/lib/api/query-keys.ts`](frontend/src/lib/api/query-keys.ts).
+- [x] **URL Filters**: Search params synchronization (`competition`, `season`, `team`, `venue`, `stage`, `metric`) via [`frontend/src/lib/hooks/use-filter-params.ts`](frontend/src/lib/hooks/use-filter-params.ts) and [`frontend/src/components/filters.tsx`](frontend/src/components/filters.tsx).
+- [x] **UI Components**: `SourceBadge`, `LoadingSkeleton`, `ErrorMessage`, and `EmptyState` in [`frontend/src/components/ui/`](frontend/src/components/ui/).
+- [x] **Overview Slice**: Initial overview page consuming `/api/v1/catalog` and `/api/v1/health` in [`frontend/src/app/page.tsx`](frontend/src/app/page.tsx).
+
 The Next.js client should consume these routes rather than query DuckDB or reproduce football calculations. That keeps rankings and source semantics identical during the migration and allows Streamlit to remain available as a validation client until the replacement is complete.

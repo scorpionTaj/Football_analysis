@@ -169,3 +169,22 @@ def test_missing_database_is_unavailable(tmp_path):
     api = TestClient(create_app(tmp_path / "absent.duckdb"))
     assert api.get("/api/v1/health").json()["status"] == "unavailable"
     assert api.get("/api/v1/catalog").status_code == 503
+
+
+def test_cors_preflight_and_origin_headers(tmp_path):
+    api = client(tmp_path)
+    for origin in ("http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3001"):
+        preflight = api.options(
+            "/api/v1/catalog",
+            headers={
+                "Origin": origin,
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+        assert preflight.status_code == 200
+        assert preflight.headers.get("access-control-allow-origin") == origin
+
+        get_res = api.get("/api/v1/catalog", headers={"Origin": origin})
+        assert get_res.status_code == 200
+        assert get_res.headers.get("access-control-allow-origin") == origin
+

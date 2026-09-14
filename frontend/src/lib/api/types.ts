@@ -1,0 +1,279 @@
+/** API v1 response types — mirrors src/football_analysis/api/contracts.py */
+
+export interface TeamRef {
+  team_id: string;
+  name: string;
+}
+
+export interface SourceMeta {
+  source: string;
+  coverage: string;
+  freshness: string | null;
+}
+
+export interface SeasonCoverage {
+  season: number;
+  label: string;
+  match_count: number;
+  latest_match: string | null;
+  status: 'complete' | 'live_partial' | 'missing';
+}
+
+export interface Competition {
+  code: string;
+  name: string;
+  kind: 'domestic' | 'tournament';
+  seasons: SeasonCoverage[];
+  source: SourceMeta | null;
+}
+
+export interface CatalogResponse {
+  competitions: Competition[];
+  current_season: number;
+  generated_at: string;
+  source: SourceMeta;
+}
+
+export interface Team extends TeamRef {
+  competition: string;
+  season: number;
+  played: number;
+  points: number;
+}
+
+export interface TeamListResponse {
+  teams: Team[];
+  source: SourceMeta;
+}
+
+export interface Match {
+  competition: string;
+  season: number;
+  match_date: string;
+  home: TeamRef;
+  away: TeamRef;
+  home_goals: number | null;
+  away_goals: number | null;
+  venue: string | null;
+  stage: string | null;
+  referee: string | null;
+  source: string | null;
+}
+
+export interface PageMeta {
+  next_cursor: string | null;
+  limit: number;
+  returned: number;
+}
+
+export interface MatchListResponse {
+  matches: Match[];
+  page: PageMeta;
+  source: SourceMeta;
+}
+
+export interface AnalysisFilters {
+  competitions: string[];
+  seasons: number[];
+  teams: string[];
+  venue: string | null;
+  form_window: number;
+}
+
+export interface RankingRow {
+  competition: string;
+  season: number;
+  team: TeamRef;
+  rank: number;
+  played: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  points: number;
+  goals_for: number;
+  goals_against: number;
+  goal_difference: number;
+  points_per_game: number;
+  goals_per_game: number;
+  conceded_per_game: number;
+  win_rate: number;
+  clean_sheet_rate: number;
+  form: string | null;
+  form_ppg: number | null;
+}
+
+export interface FormRow {
+  competition: string;
+  season: number;
+  team: TeamRef;
+  form_matches: number;
+  form_points: number;
+  form_goals_for: number;
+  form_goals_against: number;
+  form: string;
+  form_ppg: number;
+}
+
+export interface CorrelationRow {
+  metric: string;
+  [key: string]: number | string | null;
+}
+
+export interface RefereeSummary {
+  referee: string;
+  matches: number;
+  yellow_cards_mean: number | null;
+  red_cards_mean: number | null;
+}
+
+export interface MatchFactorSummary {
+  first_half_goals_mean: number | null;
+  second_half_goals_mean: number | null;
+  corners_mean: number | null;
+  fouls_mean: number | null;
+  yellow_cards_mean: number | null;
+  red_cards_mean: number | null;
+  referees: RefereeSummary[];
+}
+
+export interface AnalysisReportResponse {
+  filters: AnalysisFilters;
+  match_count: number;
+  rankings: RankingRow[];
+  form: FormRow[];
+  correlations: CorrelationRow[];
+  match_factors: MatchFactorSummary;
+  source: SourceMeta;
+}
+
+export interface TournamentMatch extends Match {
+  group_name: string | null;
+  home_penalties: number | null;
+  away_penalties: number | null;
+  status: string | null;
+}
+
+export interface TournamentGoal {
+  match_date: string;
+  team: TeamRef;
+  player: string;
+  minute: string | null;
+  penalty: boolean;
+  own_goal: boolean;
+}
+
+export interface TournamentStage {
+  stage: string;
+  match_count: number;
+}
+
+export interface TournamentResponse {
+  competition: string;
+  name: string;
+  season: number;
+  stages: TournamentStage[];
+  matches: TournamentMatch[];
+  scorers: TournamentGoal[];
+  source: SourceMeta;
+}
+
+export interface PlayerStat {
+  season: number | string | null;
+  competition: string | null;
+  statistic: string;
+  value: number | null;
+  appearances: number | null;
+  goals: number | null;
+  assists: number | null;
+  minutes_played: number | null;
+  yellow_cards: number | null;
+  red_cards: number | null;
+}
+
+export interface PlayerSummary {
+  player_id: string;
+  name: string;
+  team: TeamRef;
+  position: string | null;
+  nationality: string | null;
+  source: string;
+}
+
+export interface PlayerListResponse {
+  players: PlayerSummary[];
+  page: PageMeta;
+  source: SourceMeta;
+}
+
+export interface PlayerProfileResponse {
+  player_id: string;
+  name: string;
+  team: TeamRef;
+  position: string | null;
+  sub_position: string | null;
+  nationality: string | null;
+  date_born: string | null;
+  height_cm: number | null;
+  foot: string | null;
+  market_value_eur: number | null;
+  image_url: string | null;
+  source: string;
+  stats: PlayerStat[];
+  coverage: SourceMeta;
+}
+
+export interface Forecast {
+  competition: string;
+  season: number;
+  match_date: string;
+  home: TeamRef;
+  away: TeamRef;
+  predicted_result: string;
+  home_probability: number;
+  draw_probability: number;
+  away_probability: number;
+}
+
+export interface CalibrationBin {
+  predicted_outcome: string;
+  mean_probability: number;
+  observed_rate: number;
+  samples: number;
+}
+
+export interface PredictionsResponse {
+  model_id: string | null;
+  model_name: string | null;
+  trained_at: string | null;
+  validation_cutoff: string | null;
+  metrics: Record<string, unknown>;
+  calibration: CalibrationBin[];
+  forecasts: Forecast[];
+  source: SourceMeta;
+}
+
+export interface QualityCell {
+  competition: string;
+  season: number;
+  status: string;
+  match_count: number;
+}
+
+export interface QualityResponse {
+  completed_coverage: string;
+  live_competitions: string;
+  match_records: number;
+  impossible_shot_rows: number;
+  source_caps: string[];
+  null_coverage: Record<string, number>;
+  checksums: Record<string, unknown>[];
+  refresh_timestamps: Record<string, string | null>;
+  grid: QualityCell[];
+  source: SourceMeta;
+}
+
+export interface HealthResponse {
+  status: 'ok' | 'degraded' | 'unavailable';
+  database: string;
+  read_only: boolean;
+}
