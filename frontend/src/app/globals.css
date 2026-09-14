@@ -1,47 +1,222 @@
 @import "tailwindcss";
 
 @theme {
-  /* Catppuccin Mocha — surface & background */
-  --color-crust: #11111b;
-  --color-mantle: #181825;
-  --color-base: #1e1e2e;
-  --color-surface0: #313244;
-  --color-surface1: #45475a;
-  --color-surface2: #585b70;
+  --color-crust: var(--crust);
+  --color-mantle: var(--mantle);
+  --color-base: var(--base);
+  --color-surface0: var(--surface0);
+  --color-surface1: var(--surface1);
+  --color-surface2: var(--surface2);
+  --color-overlay0: var(--overlay0);
+  --color-overlay1: var(--overlay1);
+  --color-overlay2: var(--overlay2);
+  --color-subtext0: var(--subtext0);
+  --color-subtext1: var(--subtext1);
+  --color-text: var(--text);
+  --color-lavender: var(--lavender);
+  --color-blue: var(--blue);
+  --color-sapphire: var(--sapphire);
+  --color-sky: var(--sky);
+  --color-teal: var(--teal);
+  --color-green: var(--green);
+  --color-yellow: var(--yellow);
+  --color-peach: var(--peach);
+  --color-maroon: var(--maroon);
+  --color-red: var(--red);
+  --color-mauve: var(--mauve);
+  --color-pink: var(--pink);
+  --color-flamingo: var(--flamingo);
+  --color-rosewater: var(--rosewater);
+}
 
-  /* Catppuccin Mocha — overlay & text */
-  --color-overlay0: #6c7086;
-  --color-overlay1: #7f849c;
-  --color-overlay2: #9399b2;
-  --color-subtext0: #a6adc8;
-  --color-subtext1: #bac2de;
-  --color-text: #cdd6f4;
+/* 1. Catppuccin Mocha (Dark Default) */
+:root, [data-theme="mocha"] {
+  --crust: #11111b;
+  --mantle: #181825;
+  --base: #1e1e2e;
+  --surface0: #313244;
+  --surface1: #45475a;
+  --surface2: #585b70;
+  --overlay0: #6c7086;
+  --overlay1: #7f849c;
+  --overlay2: #9399b2;
+  --subtext0: #a6adc8;
+  --subtext1: #bac2de;
+  --text: #cdd6f4;
+  --lavender: #b4befe;
+  --blue: #89b4fa;
+  --sapphire: #74c7ec;
+  --sky: #89dceb;
+  --teal: #94e2d5;
+  --green: #a6e3a1;
+  --yellow: #f9e2af;
+  --peach: #fab387;
+  --maroon: #eba0ac;
+  --red: #f38ba8;
+  --mauve: #cba6f7;
+  --pink: #f5c2e7;
+  --flamingo: #f2cdcd;
+  --rosewater: #f5e0dc;
+}
 
-  /* Catppuccin Mocha — accents */
-  --color-lavender: #b4befe;
-  --color-blue: #89b4fa;
-  --color-sapphire: #74c7ec;
-  --color-sky: #89dceb;
-  --color-teal: #94e2d5;
-  --color-green: #a6e3a1;
-  --color-yellow: #f9e2af;
-  --color-peach: #fab387;
-  --color-maroon: #eba0ac;
-  --color-red: #f38ba8;
-  --color-mauve: #cba6f7;
-  --color-pink: #f5c2e7;
-  --color-flamingo: #f2cdcd;
-  --color-rosewater: #f5e0dc;
+/* 2. Catppuccin Latte (Light) */
+[data-theme="latte"] {
+  --crust: #dce0e8;
+  --mantle: #e6e9ef;
+  --base: #eff1f5;
+  --surface0: #ccd0da;
+  --surface1: #bcc0cc;
+  --surface2: #acb0be;
+  --overlay0: #9ca0b0;
+  --overlay1: #8c8fa1;
+  --overlay2: #7c7f93;
+  --subtext0: #6c6f85;
+  --subtext1: #5c5f77;
+  --text: #4c4f69;
+  --lavender: #7287fd;
+  --blue: #1e66f5;
+  --sapphire: #209fb5;
+  --sky: #04a5e5;
+  --teal: #179299;
+  --green: #40a02b;
+  --yellow: #df8e1d;
+  --peach: #fe640b;
+  --maroon: #e64553;
+  --red: #d20f39;
+  --mauve: #8839ef;
+  --pink: #ea76cb;
+  --flamingo: #dd7878;
+  --rosewater: #dc8a78;
+}
+
+/* 3. Tokyo Night (Dark) */
+[data-theme="tokyo-night"] {
+  --crust: #13141c;
+  --mantle: #16161e;
+  --base: #1a1b26;
+  --surface0: #24283b;
+  --surface1: #2f3549;
+  --surface2: #414868;
+  --overlay0: #565f89;
+  --overlay1: #737aa2;
+  --overlay2: #7aa2f7;
+  --subtext0: #9aa5ce;
+  --subtext1: #a9b1d6;
+  --text: #c0caf5;
+  --lavender: #b4f9f8;
+  --blue: #7aa2f7;
+  --sapphire: #2ac3de;
+  --sky: #7dcfff;
+  --teal: #1abc9c;
+  --green: #9ece6a;
+  --yellow: #e0af68;
+  --peach: #ff9e64;
+  --maroon: #f7768e;
+  --red: #f7768e;
+  --mauve: #bb9af7;
+  --pink: #ff007c;
+  --flamingo: #f7768e;
+  --rosewater: #ff9e64;
+}
+
+/* 4. Nord Frost (Dark) */
+[data-theme="nord"] {
+  --crust: #242933;
+  --mantle: #292e39;
+  --base: #2e3440;
+  --surface0: #3b4252;
+  --surface1: #434c5e;
+  --surface2: #4c566a;
+  --overlay0: #606b81;
+  --overlay1: #7b88a1;
+  --overlay2: #96a5c1;
+  --subtext0: #d8dee9;
+  --subtext1: #e5e9f0;
+  --text: #eceff4;
+  --lavender: #81a1c1;
+  --blue: #88c0d0;
+  --sapphire: #81a1c1;
+  --sky: #88c0d0;
+  --teal: #8fbcbb;
+  --green: #a3be8c;
+  --yellow: #ebcb8b;
+  --peach: #d08770;
+  --maroon: #bf616a;
+  --red: #bf616a;
+  --mauve: #b48ead;
+  --pink: #b48ead;
+  --flamingo: #d08770;
+  --rosewater: #eceff4;
+}
+
+/* 5. Dracula (Dark) */
+[data-theme="dracula"] {
+  --crust: #191a21;
+  --mantle: #21222c;
+  --base: #282a36;
+  --surface0: #343746;
+  --surface1: #44475a;
+  --surface2: #6272a4;
+  --overlay0: #6272a4;
+  --overlay1: #798bbd;
+  --overlay2: #91a3d6;
+  --subtext0: #bfbfbf;
+  --subtext1: #e2e2dc;
+  --text: #f8f8f2;
+  --lavender: #bd93f9;
+  --blue: #8be9fd;
+  --sapphire: #8be9fd;
+  --sky: #8be9fd;
+  --teal: #50fa7b;
+  --green: #50fa7b;
+  --yellow: #f1fa8c;
+  --peach: #ffb86c;
+  --maroon: #ff5555;
+  --red: #ff5555;
+  --mauve: #bd93f9;
+  --pink: #ff79c6;
+  --flamingo: #ff79c6;
+  --rosewater: #f8f8f2;
+}
+
+/* 6. GitHub Clean (Light) */
+[data-theme="github-light"] {
+  --crust: #eaedf0;
+  --mantle: #f6f8fa;
+  --base: #ffffff;
+  --surface0: #e1e4e8;
+  --surface1: #d1d5da;
+  --surface2: #c6cbd1;
+  --overlay0: #959da5;
+  --overlay1: #6a737d;
+  --overlay2: #586069;
+  --subtext0: #444d56;
+  --subtext1: #2f363d;
+  --text: #24292e;
+  --lavender: #0366d6;
+  --blue: #0366d6;
+  --sapphire: #005cc5;
+  --sky: #0366d6;
+  --teal: #0086b3;
+  --green: #28a745;
+  --yellow: #ffd33d;
+  --peach: #f66a0a;
+  --maroon: #d73a49;
+  --red: #d73a49;
+  --mauve: #6f42c1;
+  --pink: #ea4aaa;
+  --flamingo: #f66a0a;
+  --rosewater: #24292e;
 }
 
 body {
-  background-color: var(--color-base);
-  color: var(--color-text);
+  background-color: var(--base);
+  color: var(--text);
 }
 
 ::selection {
-  background-color: var(--color-surface2);
-  color: var(--color-text);
+  background-color: var(--surface2);
+  color: var(--text);
 }
 
 /* Scrollbar styling */
@@ -50,12 +225,12 @@ body {
   height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--color-mantle);
+  background: var(--mantle);
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--color-surface1);
+  background: var(--surface1);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-surface2);
+  background: var(--surface2);
 }

@@ -42,4 +42,18 @@ The frontend shell has been built in [`frontend/`](frontend/) with Next.js App R
 - [x] **UI Components**: `SourceBadge`, `LoadingSkeleton`, `ErrorMessage`, and `EmptyState` in [`frontend/src/components/ui/`](frontend/src/components/ui/).
 - [x] **Overview Slice**: Initial overview page consuming `/api/v1/catalog` and `/api/v1/health` in [`frontend/src/app/page.tsx`](frontend/src/app/page.tsx).
 
+## Feature Migration Slices (Phase 4) ✅
+
+All core analytical views have been migrated to the Next.js frontend with full selector parity, interactive Recharts visualizations, and CSV export capabilities:
+
+- [x] **Overview** ([`frontend/src/app/page.tsx`](frontend/src/app/page.tsx)): Real-time health indicator, KPI statistics, domestic league & tournament catalog cards.
+- [x] **Champions League & World Cup** ([`frontend/src/app/tournaments/page.tsx`](frontend/src/app/tournaments/page.tsx)): Edition selector, stage scoring rates bar chart, match scorelines with penalty shootouts, top scorers ranking table, and CSV export.
+- [x] **Analysis Lab** ([`frontend/src/app/analysis/page.tsx`](frontend/src/app/analysis/page.tsx)): Multi-metric rankings (PPG, GF, GA, Win %, Clean Sheet %, Form PPG), horizontal bar chart, form streak badges, in-match goals breakdown, referee disciplinary table, CSV export.
+- [x] **Predictions** ([`frontend/src/app/predictions/page.tsx`](frontend/src/app/predictions/page.tsx)): Model card with accuracy & log-loss KPIs, upcoming match probability bars (Home/Draw/Away), and reliability calibration curve.
+- [x] **League Tables** ([`frontend/src/app/tables/page.tsx`](frontend/src/app/tables/page.tsx)): Full domestic tables, European qualification & relegation indicators, home/away splits, goal difference, recent form streak, and CSV export.
+- [x] **Club Lab** ([`frontend/src/app/clubs/page.tsx`](frontend/src/app/clubs/page.tsx)): Club selector, historical multi-season trajectory line chart, comprehensive season table, and recent club fixture results.
+- [x] **Match Explorer** ([`frontend/src/app/matches/page.tsx`](frontend/src/app/matches/page.tsx)): Cursor-paginated match list, referee metadata, scorelines, search filter, and CSV export.
+- [x] **Players** ([`frontend/src/app/players/page.tsx`](frontend/src/app/players/page.tsx)): Real-time search & cursor pagination, bio drawer, market valuation formatting in EUR, and historical career season statistics.
+- [x] **Data Quality** ([`frontend/src/app/quality/page.tsx`](frontend/src/app/quality/page.tsx)): 60-cell competition completeness grid, source governance notes, null rate metrics, and SHA-256 ingestion audit logs.
+
 The Next.js client should consume these routes rather than query DuckDB or reproduce football calculations. That keeps rankings and source semantics identical during the migration and allows Streamlit to remain available as a validation client until the replacement is complete.

@@ -6,6 +6,7 @@ import { api } from '@/lib/api/client';
 import { queryKeys } from '@/lib/api/query-keys';
 import { SourceBadge } from '@/components/ui/source-badge';
 import { LoadingSkeleton, ErrorMessage, EmptyState } from '@/components/ui/loading';
+import { usePagination } from '@/components/ui/pagination';
 import type { PlayerSummary, PlayerProfileResponse } from '@/lib/api/types';
 import { User, Search, Shield, ChevronRight, ChevronLeft, Download, Award, Calendar, ExternalLink } from 'lucide-react';
 
@@ -30,7 +31,7 @@ export function PlayersContent() {
   const listParams = useMemo(() => ({
     q: searchQuery || undefined,
     cursor: currentCursor || undefined,
-    limit: 25,
+    limit: 10,
   }), [searchQuery, currentCursor]);
 
   const { data: playerListData, isLoading: isListLoading, error: listError, refetch } = useQuery({
@@ -263,46 +264,56 @@ export function PlayersContent() {
                 <h3 className="text-sm font-bold text-text uppercase tracking-wider flex items-center gap-2">
                   <Award className="h-4 w-4 text-yellow" /> Season Statistics History
                 </h3>
-
-                {profile.stats.length === 0 ? (
-                  <p className="text-xs text-subtext0 py-4">No historical competition stats recorded for this profile.</p>
-                ) : (
-                  <div className="rounded-lg border border-surface1 overflow-hidden">
-                    <table className="w-full text-left text-xs">
-                      <thead className="border-b border-surface1 bg-mantle text-subtext0 uppercase">
-                        <tr>
-                          <th className="py-2.5 px-3">Season</th>
-                          <th className="py-2.5 px-3">Competition</th>
-                          <th className="py-2.5 px-2 text-center">Apps</th>
-                          <th className="py-2.5 px-2 text-center text-green">Goals</th>
-                          <th className="py-2.5 px-2 text-center text-blue">Assists</th>
-                          <th className="py-2.5 px-2 text-right">Mins</th>
-                          <th className="py-2.5 px-2 text-center text-yellow">Yel</th>
-                          <th className="py-2.5 px-2 text-center text-red">Red</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-surface1">
-                        {profile.stats.map((st, i) => (
-                          <tr key={i} className="hover:bg-surface1/30">
-                            <td className="py-2 px-3 font-mono font-medium text-text">{st.season}</td>
-                            <td className="py-2 px-3 text-subtext1 capitalize">{st.competition || 'domestic'}</td>
-                            <td className="py-2 px-2 text-center">{st.appearances ?? '-'}</td>
-                            <td className="py-2 px-2 text-center font-bold text-green">{st.goals ?? 0}</td>
-                            <td className="py-2 px-2 text-center font-bold text-blue">{st.assists ?? 0}</td>
-                            <td className="py-2 px-2 text-right font-mono text-subtext0">{st.minutes_played?.toLocaleString() ?? '-'}</td>
-                            <td className="py-2 px-2 text-center text-yellow">{st.yellow_cards ?? 0}</td>
-                            <td className="py-2 px-2 text-center text-red">{st.red_cards ?? 0}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                <PlayerStatsTable stats={profile.stats} />
               </div>
             </div>
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function PlayerStatsTable({ stats }: { stats: PlayerProfileResponse['stats'] }) {
+  const { paginatedItems, PaginationComponent } = usePagination(stats, 10);
+
+  if (stats.length === 0) {
+    return <p className="text-xs text-subtext0 py-4">No historical competition stats recorded for this profile.</p>;
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-lg border border-surface1 overflow-hidden">
+        <table className="w-full text-left text-xs">
+          <thead className="border-b border-surface1 bg-mantle text-subtext0 uppercase">
+            <tr>
+              <th className="py-2.5 px-3">Season</th>
+              <th className="py-2.5 px-3">Competition</th>
+              <th className="py-2.5 px-2 text-center">Apps</th>
+              <th className="py-2.5 px-2 text-center text-green">Goals</th>
+              <th className="py-2.5 px-2 text-center text-blue">Assists</th>
+              <th className="py-2.5 px-2 text-right">Mins</th>
+              <th className="py-2.5 px-2 text-center text-yellow">Yel</th>
+              <th className="py-2.5 px-2 text-center text-red">Red</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-surface1">
+            {paginatedItems.map((st, i) => (
+              <tr key={i} className="hover:bg-surface1/30">
+                <td className="py-2 px-3 font-mono font-medium text-text">{st.season}</td>
+                <td className="py-2 px-3 text-subtext1 capitalize">{st.competition || 'domestic'}</td>
+                <td className="py-2 px-2 text-center">{st.appearances ?? '-'}</td>
+                <td className="py-2 px-2 text-center font-bold text-green">{st.goals ?? 0}</td>
+                <td className="py-2 px-2 text-center font-bold text-blue">{st.assists ?? 0}</td>
+                <td className="py-2 px-2 text-right font-mono text-subtext0">{st.minutes_played?.toLocaleString() ?? '-'}</td>
+                <td className="py-2 px-2 text-center text-yellow">{st.yellow_cards ?? 0}</td>
+                <td className="py-2 px-2 text-center text-red">{st.red_cards ?? 0}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <PaginationComponent />
     </div>
   );
 }

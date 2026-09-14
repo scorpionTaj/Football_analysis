@@ -14,7 +14,10 @@ export const NAV_ITEMS = [
   { href: '/players', label: 'Players', icon: '👤' },
   { href: '/predictions', label: 'Predictions', icon: '🎯' },
   { href: '/quality', label: 'Data Quality', icon: '✅' },
+  { href: '/settings', label: 'Settings', icon: '⚙️' },
 ] as const;
+
+import { useTheme } from './theme-provider';
 
 export function Sidebar({
   isOpen = false,
@@ -24,6 +27,7 @@ export function Sidebar({
   onClose?: () => void;
 }) {
   const pathname = usePathname();
+  const { theme, isDark, setMode } = useTheme();
 
   return (
     <aside
@@ -66,7 +70,7 @@ export function Sidebar({
                   onClick={() => onClose?.()}
                   className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
                     active
-                      ? 'bg-blue/15 text-blue'
+                      ? 'bg-blue/15 text-blue font-semibold'
                       : 'text-subtext1 hover:bg-surface0 hover:text-text'
                   }`}
                   aria-current={active ? 'page' : undefined}
@@ -82,10 +86,24 @@ export function Sidebar({
         </ul>
       </nav>
 
-      {/* Footer */}
-      <div className="border-t border-surface0 px-4 py-3">
-        <p className="text-xs text-overlay0">
-          v1.0 · FastAPI + DuckDB
+      {/* Footer with Theme Quick Toggle */}
+      <div className="border-t border-surface0 p-3 space-y-2">
+        <button
+          onClick={() => setMode(isDark ? 'light' : 'dark')}
+          className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-surface0 hover:bg-surface1 text-xs text-subtext1 transition-colors cursor-pointer"
+          title="Toggle Light / Dark mode"
+        >
+          <span className="flex items-center gap-2">
+            <span>{isDark ? '🌙' : '☀️'}</span>
+            <span className="capitalize">{theme.replace('-', ' ')}</span>
+          </span>
+          <span className="text-[10px] font-mono text-overlay1 uppercase">
+            {isDark ? 'Dark' : 'Light'}
+          </span>
+        </button>
+
+        <p className="text-[11px] text-overlay0 text-center">
+          v1.0 · DuckDB + Next.js
         </p>
       </div>
     </aside>
@@ -101,6 +119,7 @@ export function MobileHeader({
   isOpen?: boolean;
 }) {
   const pathname = usePathname();
+  const { isDark, setMode } = useTheme();
   const current = NAV_ITEMS.find(
     (item) =>
       item.href === '/' ? pathname === '/' : pathname.startsWith(item.href),
@@ -130,10 +149,19 @@ export function MobileHeader({
           </svg>
         </button>
         <span className="text-xl" role="img" aria-hidden="true">⚽</span>
-        <span className="text-sm font-semibold text-text">
+        <span className="text-sm font-semibold text-text truncate">
           {current?.label ?? 'Football Analysis'}
         </span>
       </div>
+
+      {/* Quick theme toggle in mobile header */}
+      <button
+        onClick={() => setMode(isDark ? 'light' : 'dark')}
+        className="p-2 rounded-lg text-subtext1 hover:bg-surface0 cursor-pointer"
+        aria-label="Toggle Theme"
+      >
+        {isDark ? '🌙' : '☀️'}
+      </button>
     </header>
   );
 }

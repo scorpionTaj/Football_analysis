@@ -6,6 +6,7 @@ import { api } from '@/lib/api/client';
 import { queryKeys } from '@/lib/api/query-keys';
 import { SourceBadge } from '@/components/ui/source-badge';
 import { LoadingSkeleton, ErrorMessage } from '@/components/ui/loading';
+import { usePagination } from '@/components/ui/pagination';
 import { ShieldCheck, CheckCircle, AlertTriangle, Database, Info, RefreshCw, FileCheck } from 'lucide-react';
 
 export function QualityContent() {
@@ -33,6 +34,9 @@ export function QualityContent() {
       uniqueCompetitions: Array.from(compsSet),
     };
   }, [data?.grid]);
+
+  const checksums = useMemo(() => data?.checksums || [], [data?.checksums]);
+  const { paginatedItems: paginatedChecksums, PaginationComponent: ChecksumsPagination } = usePagination(checksums, 10);
 
   if (isLoading) return <LoadingSkeleton lines={10} />;
   if (error) {
@@ -201,7 +205,7 @@ export function QualityContent() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface1">
-                {data.checksums.slice(0, 10).map((chk: any, i: number) => (
+                {paginatedChecksums.map((chk: any, i: number) => (
                   <tr key={i} className="hover:bg-surface1/30">
                     <td className="py-2 px-4 font-bold text-text">{chk.league}</td>
                     <td className="py-2 px-4 font-mono">{chk.season}</td>
@@ -219,6 +223,9 @@ export function QualityContent() {
                 ))}
               </tbody>
             </table>
+          </div>
+          <div className="px-4 py-3 bg-mantle border-t border-surface1">
+            <ChecksumsPagination />
           </div>
         </div>
       )}

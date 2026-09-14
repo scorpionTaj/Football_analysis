@@ -7,6 +7,7 @@ import { queryKeys } from '@/lib/api/query-keys';
 import { useFilterParams } from '@/lib/hooks/use-filter-params';
 import { SourceBadge } from '@/components/ui/source-badge';
 import { LoadingSkeleton, ErrorMessage, EmptyState } from '@/components/ui/loading';
+import { usePagination } from '@/components/ui/pagination';
 import { Table as TableIcon, Download, Trophy, ShieldAlert, ArrowUpDown, ChevronRight } from 'lucide-react';
 
 export function LeagueTablesContent() {
@@ -34,6 +35,7 @@ export function LeagueTablesContent() {
   });
 
   const rankings = analysis?.rankings || [];
+  const { paginatedItems: paginatedRankings, PaginationComponent: TablePagination } = usePagination(rankings, 10);
   const compOptions = catalog?.competitions.filter((c) => c.kind === 'domestic') || [];
   const currentComp = compOptions.find((c) => c.code === selectedCompetition);
   const seasons = currentComp?.seasons || [];
@@ -182,7 +184,7 @@ export function LeagueTablesContent() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface1">
-                {rankings.map((r, index) => {
+                {paginatedRankings.map((r) => {
                   const pos = r.rank;
                   const isUcl = pos <= 4;
                   const isUel = pos === 5 || pos === 6;
@@ -238,6 +240,10 @@ export function LeagueTablesContent() {
                 })}
               </tbody>
             </table>
+          </div>
+
+          <div className="px-4 bg-mantle border-t border-surface1">
+            <TablePagination />
           </div>
 
           {/* Table Legend */}

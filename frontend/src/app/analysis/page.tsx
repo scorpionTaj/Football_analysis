@@ -7,6 +7,7 @@ import { queryKeys } from '@/lib/api/query-keys';
 import { useFilterParams } from '@/lib/hooks/use-filter-params';
 import { SourceBadge } from '@/components/ui/source-badge';
 import { LoadingSkeleton, ErrorMessage, EmptyState } from '@/components/ui/loading';
+import { usePagination } from '@/components/ui/pagination';
 import type { RankingRow, CorrelationRow } from '@/lib/api/types';
 import { BarChart3, TrendingUp, ShieldAlert, Award, Download, SlidersHorizontal, Users } from 'lucide-react';
 import {
@@ -71,6 +72,7 @@ function AnalysisContent() {
   });
 
   const rankings = data?.rankings || [];
+  const { paginatedItems: paginatedRankings, PaginationComponent: AnalysisPagination } = usePagination(rankings, 10);
   const matchFactors = data?.match_factors;
   const correlations = data?.correlations || [];
 
@@ -325,7 +327,7 @@ function AnalysisContent() {
               </tr>
             </thead>
             <tbody className="divide-y divide-surface1">
-              {rankings.map((r) => (
+              {paginatedRankings.map((r) => (
                 <tr key={r.team.team_id} className="hover:bg-surface1/40 transition-colors">
                   <td className="py-2.5 px-4 font-mono text-xs text-subtext0">{r.rank}</td>
                   <td className="py-2.5 px-4 font-semibold text-text">{r.team.name}</td>
@@ -355,6 +357,9 @@ function AnalysisContent() {
               ))}
             </tbody>
           </table>
+        </div>
+        <div className="px-4 py-3 bg-mantle border-t border-surface1">
+          <AnalysisPagination />
         </div>
       </div>
 

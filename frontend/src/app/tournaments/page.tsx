@@ -7,6 +7,7 @@ import { queryKeys } from '@/lib/api/query-keys';
 import { useFilterParams } from '@/lib/hooks/use-filter-params';
 import { SourceBadge } from '@/components/ui/source-badge';
 import { LoadingSkeleton, ErrorMessage, EmptyState } from '@/components/ui/loading';
+import { usePagination } from '@/components/ui/pagination';
 import type { TournamentMatch, TournamentGoal } from '@/lib/api/types';
 import { Trophy, Users, Goal, Calendar, Download, Search, ShieldCheck } from 'lucide-react';
 import {
@@ -140,6 +141,18 @@ function TournamentsContent() {
     link.click();
     document.body.removeChild(link);
   };
+
+  const {
+    paginatedItems: paginatedMatches,
+    PaginationComponent: MatchesPagination,
+  } = usePagination(filteredMatches, 10);
+
+  const {
+    paginatedItems: paginatedScorers,
+    PaginationComponent: ScorersPagination,
+    currentPage: scorersPage,
+    pageSize: scorersPageSize,
+  } = usePagination(topScorers, 10);
 
   if (isLoading) return <LoadingSkeleton lines={8} />;
   if (error) {
@@ -344,48 +357,51 @@ function TournamentsContent() {
           {filteredMatches.length === 0 ? (
             <EmptyState icon="⚽" message="No matches match the selected criteria" />
           ) : (
-            filteredMatches.map((m, idx) => (
-              <div
-                key={`${m.match_date}_${m.home.team_id}_${m.away.team_id}_${idx}`}
-                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl bg-surface0 border border-surface1 hover:border-surface2 transition-colors"
-              >
-                {/* Match Metadata */}
-                <div className="flex items-center gap-3 text-xs text-subtext0">
-                  <span className="font-mono text-overlay1">{m.match_date}</span>
-                  {m.stage && (
-                    <span className="rounded bg-surface1 px-2 py-0.5 text-subtext1 font-medium">
-                      {m.stage}
-                    </span>
-                  )}
-                  {m.venue && <span className="hidden md:inline text-overlay0">📍 {m.venue}</span>}
-                </div>
-
-                {/* Scoreline */}
-                <div className="flex items-center justify-center gap-3 sm:gap-6 flex-1 sm:px-8">
-                  <div className="w-1/2 text-right font-semibold text-text truncate">
-                    {m.home.name}
-                  </div>
-                  <div className="flex flex-col items-center justify-center min-w-[70px]">
-                    <span className="rounded-md bg-mantle border border-surface1 px-3 py-1 text-sm font-bold text-blue tracking-wider">
-                      {m.home_goals !== null ? m.home_goals : '-'} : {m.away_goals !== null ? m.away_goals : '-'}
-                    </span>
-                    {m.home_penalties !== null && m.away_penalties !== null && (
-                      <span className="text-[10px] text-yellow font-medium mt-0.5">
-                        ({m.home_penalties}-{m.away_penalties} pens)
+            <>
+              {paginatedMatches.map((m, idx) => (
+                <div
+                  key={`${m.match_date}_${m.home.team_id}_${m.away.team_id}_${idx}`}
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl bg-surface0 border border-surface1 hover:border-surface2 transition-colors"
+                >
+                  {/* Match Metadata */}
+                  <div className="flex items-center gap-3 text-xs text-subtext0">
+                    <span className="font-mono text-overlay1">{m.match_date}</span>
+                    {m.stage && (
+                      <span className="rounded bg-surface1 px-2 py-0.5 text-subtext1 font-medium">
+                        {m.stage}
                       </span>
                     )}
+                    {m.venue && <span className="hidden md:inline text-overlay0">📍 {m.venue}</span>}
                   </div>
-                  <div className="w-1/2 text-left font-semibold text-text truncate">
-                    {m.away.name}
-                  </div>
-                </div>
 
-                {/* Source or status */}
-                <div className="text-right text-xs text-overlay0 hidden sm:block min-w-[80px]">
-                  {m.status || 'FT'}
+                  {/* Scoreline */}
+                  <div className="flex items-center justify-center gap-3 sm:gap-6 flex-1 sm:px-8">
+                    <div className="w-1/2 text-right font-semibold text-text truncate">
+                      {m.home.name}
+                    </div>
+                    <div className="flex flex-col items-center justify-center min-w-[70px]">
+                      <span className="rounded-md bg-mantle border border-surface1 px-3 py-1 text-sm font-bold text-blue tracking-wider">
+                        {m.home_goals !== null ? m.home_goals : '-'} : {m.away_goals !== null ? m.away_goals : '-'}
+                      </span>
+                      {m.home_penalties !== null && m.away_penalties !== null && (
+                        <span className="text-[10px] text-yellow font-medium mt-0.5">
+                          ({m.home_penalties}-{m.away_penalties} pens)
+                        </span>
+                      )}
+                    </div>
+                    <div className="w-1/2 text-left font-semibold text-text truncate">
+                      {m.away.name}
+                    </div>
+                  </div>
+
+                  {/* Source or status */}
+                  <div className="text-right text-xs text-overlay0 hidden sm:block min-w-[80px]">
+                    {m.status || 'FT'}
+                  </div>
                 </div>
-              </div>
-            ))
+              ))}
+              <MatchesPagination />
+            </>
           )}
         </div>
       )}
@@ -404,17 +420,23 @@ function TournamentsContent() {
               </tr>
             </thead>
             <tbody className="divide-y divide-surface1">
-              {topScorers.slice(0, 30).map((sc, index) => (
-                <tr key={`${sc.player}_${sc.team}`} className="hover:bg-surface1/50 transition-colors">
-                  <td className="py-2.5 px-4 font-mono text-xs text-subtext0">#{index + 1}</td>
-                  <td className="py-2.5 px-4 font-semibold text-text">{sc.player}</td>
-                  <td className="py-2.5 px-4 text-subtext1">{sc.team}</td>
-                  <td className="py-2.5 px-4 text-center text-xs text-subtext0">{sc.penalties || '-'}</td>
-                  <td className="py-2.5 px-4 text-right font-bold text-blue">{sc.goals}</td>
-                </tr>
-              ))}
+              {paginatedScorers.map((sc, index) => {
+                const rank = (scorersPage - 1) * scorersPageSize + index + 1;
+                return (
+                  <tr key={`${sc.player}_${sc.team}`} className="hover:bg-surface1/50 transition-colors">
+                    <td className="py-2.5 px-4 font-mono text-xs text-subtext0">#{rank}</td>
+                    <td className="py-2.5 px-4 font-semibold text-text">{sc.player}</td>
+                    <td className="py-2.5 px-4 text-subtext1">{sc.team}</td>
+                    <td className="py-2.5 px-4 text-center text-xs text-subtext0">{sc.penalties || '-'}</td>
+                    <td className="py-2.5 px-4 text-right font-bold text-blue">{sc.goals}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
+          <div className="p-3 bg-mantle border-t border-surface1">
+            <ScorersPagination />
+          </div>
         </div>
       )}
 

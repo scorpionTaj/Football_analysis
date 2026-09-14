@@ -22,7 +22,7 @@ export function MatchesContent() {
     team: filters.team ?? undefined,
     venue: filters.venue ?? undefined,
     cursor: currentCursor ?? undefined,
-    limit: 30,
+    limit: 10,
   }), [filters.competition, filters.season, filters.team, filters.venue, currentCursor]);
 
   const { data, isLoading, error, refetch } = useQuery({
@@ -221,7 +221,7 @@ export function MatchesContent() {
       {/* Pagination Footer */}
       <div className="flex items-center justify-between pt-2 border-t border-surface1 text-xs text-subtext0">
         <div>
-          Showing {filteredMatches.length} matches (limit {page?.limit || 30})
+          Showing {filteredMatches.length} matches (limit {page?.limit || 10})
         </div>
 
         <div className="flex items-center gap-2">
