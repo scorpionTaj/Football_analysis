@@ -238,37 +238,97 @@ def catalog(store: ReadOnlyStore) -> CatalogResponse:
 
 
 def list_teams(store: ReadOnlyStore, competition: str | None, season: int | None) -> TeamListResponse:
-    if not _has(store, "team_seasons"):
+    if not (_has(store, "team_seasons") or _has(store, "recent_matches") or _has(store, "tournament_matches")):
         return TeamListResponse(teams=[], source=_source("duckdb", "empty"))
-    sql = "SELECT league, season, team, played, points FROM team_seasons WHERE 1=1"
+
+    # Unified query combining historical team_seasons, live recent_matches, and tournament_matches
+    q = """
+    WITH all_season_teams AS (
+        -- Historical team_seasons
+        SELECT league, season, team, played, points FROM team_seasons
+        UNION ALL
+        -- Recent matches (both completed and scheduled)
+        SELECT
+            m.league,
+            m.season,
+            m.team,
+            count(CASE WHEN m.home_goals IS NOT NULL OR m.away_goals IS NOT NULL THEN 1 END) AS played,
+            sum(COALESCE(m.points, 0)) AS points
+        FROM (
+            SELECT league, season, home_team AS team, home_goals, away_goals,
+                   CASE WHEN home_goals > away_goals THEN 3 WHEN home_goals = away_goals THEN 1 ELSE 0 END AS points
+            FROM recent_matches
+            UNION ALL
+            SELECT league, season, away_team AS team, home_goals, away_goals,
+                   CASE WHEN away_goals > home_goals THEN 3 WHEN away_goals = home_goals THEN 1 ELSE 0 END AS points
+            FROM recent_matches
+        ) m
+        WHERE NOT EXISTS (SELECT 1 FROM team_seasons ts WHERE ts.league = m.league AND ts.season = m.season)
+        GROUP BY m.league, m.season, m.team
+        UNION ALL
+        -- Tournament matches
+        SELECT
+            t.competition AS league,
+            t.season,
+            t.team,
+            count(CASE WHEN t.home_goals IS NOT NULL OR t.away_goals IS NOT NULL THEN 1 END) AS played,
+            sum(COALESCE(t.points, 0)) AS points
+        FROM (
+            SELECT competition, season, home_team AS team, home_goals, away_goals,
+                   CASE WHEN home_goals > away_goals THEN 3 WHEN home_goals = away_goals THEN 1 ELSE 0 END AS points
+            FROM tournament_matches
+            UNION ALL
+            SELECT competition, season, away_team AS team, home_goals, away_goals,
+                   CASE WHEN away_goals > home_goals THEN 3 WHEN away_goals = home_goals THEN 1 ELSE 0 END AS points
+            FROM tournament_matches
+        ) t
+        WHERE NOT EXISTS (SELECT 1 FROM team_seasons ts WHERE ts.league = t.competition AND ts.season = t.season)
+        GROUP BY t.competition, t.season, t.team
+    )
+    SELECT league, season, team, played, points FROM all_season_teams WHERE 1=1
+    """
     params: list = []
     if competition:
-        sql += " AND league = ?"
+        q += " AND league = ?"
         params.append(competition)
     if season is not None:
-        sql += " AND season = ?"
+        q += " AND season = ?"
         params.append(season)
-    sql += " ORDER BY league, season, team"
-    frame = store.query(sql, params)
-    if competition in TOURNAMENTS and _has(store, "tournament_matches"):
-        tourney = store.query(
-            "SELECT competition AS league, season, home_team AS team FROM tournament_matches "
-            "UNION ALL SELECT competition, season, away_team FROM tournament_matches"
+    q += " ORDER BY league, season, team"
+
+    try:
+        frame = store.query(q, params)
+    except Exception:
+        frame = pd.DataFrame(columns=["league", "season", "team", "played", "points"])
+
+    # Fallback: if a specific season has no teams for the competition, return all known teams for that competition
+    if frame.empty and competition:
+        fallback_q = """
+        SELECT DISTINCT league, ? AS season, team, 0 AS played, 0 AS points
+        FROM (
+            SELECT league, team FROM team_seasons WHERE league = ?
+            UNION
+            SELECT league, home_team AS team FROM recent_matches WHERE league = ?
+            UNION
+            SELECT league, away_team AS team FROM recent_matches WHERE league = ?
+            UNION
+            SELECT competition AS league, home_team AS team FROM tournament_matches WHERE competition = ?
+            UNION
+            SELECT competition AS league, away_team AS team FROM tournament_matches WHERE competition = ?
         )
-        if competition:
-            tourney = tourney[tourney.league == competition]
-        if season is not None:
-            tourney = tourney[tourney.season == season]
-        if not tourney.empty:
-            extra = tourney.drop_duplicates().assign(played=0, points=0)
-            frame = pd.concat([frame, extra], ignore_index=True).drop_duplicates(
-                ["league", "season", "team"], keep="first",
-            )
+        ORDER BY team
+        """
+        fallback_season = season if season is not None else 2026
+        try:
+            frame = store.query(fallback_q, [fallback_season, competition, competition, competition, competition, competition])
+        except Exception:
+            pass
+
     tm_map = _team_media_map(store)
     teams = [
         Team(
             team_id=canonical_team_id(row.team),
-            name=display_team(row.team),
+            name=display_team(row.team) or row.team,
             competition=row.league,
             season=int(row.season),
             played=int(row.played or 0),
@@ -807,7 +867,14 @@ def overview(
         competition = "E0"
 
     tm_map = _team_media_map(store)
-    all_years = seasons() + ([current_season()] if current_season() not in seasons() else [])
+    comp_years = set(seasons() + ([current_season()] if current_season() not in seasons() else []))
+    if _has(store, "tournament_matches") and competition in TOURNAMENTS:
+        try:
+            t_years = store.query("SELECT DISTINCT season FROM tournament_matches WHERE competition = ?", [competition])["season"].tolist()
+            comp_years.update(t_years)
+        except Exception:
+            pass
+    all_years = sorted(list(comp_years))
 
     # Fetch ranking rows for ALL teams in this competition across all seasons
     analysis_filters = AnalysisFilters(
@@ -919,11 +986,18 @@ def list_transfers(
     sql = "SELECT * FROM transfers WHERE 1=1"
     params = []
     if season is not None:
-        sql += " AND season = ?"
-        params.append(season)
-    if competition:
+        try:
+            season_int = int(season)
+            sql += " AND season = ?"
+            params.append(season_int)
+        except (ValueError, TypeError):
+            pass  # season was 'all' or non-integer
+    if competition and str(competition).lower() not in ("all", "any", "none", ""):
         sql += " AND (from_competition = ? OR to_competition = ?)"
         params.extend([competition, competition])
+    elif not competition or str(competition).lower() in ("all", ""):
+        # Showcase top transfers involving Big 5 European leagues
+        sql += " AND (from_competition IN ('E0', 'SP1', 'D1', 'I1', 'F1') OR to_competition IN ('E0', 'SP1', 'D1', 'I1', 'F1'))"
     if club:
         sql += " AND (from_club_name ILIKE ? OR to_club_name ILIKE ?)"
         params.extend([f"%{club}%", f"%{club}%"])
@@ -931,7 +1005,7 @@ def list_transfers(
         sql += " AND (player_name ILIKE ? OR from_club_name ILIKE ? OR to_club_name ILIKE ?)"
         params.extend([f"%{query}%", f"%{query}%", f"%{query}%"])
 
-    sql += " ORDER BY transfer_date DESC NULLS LAST, market_value_eur DESC NULLS LAST, transfer_fee DESC NULLS LAST"
+    sql += " ORDER BY market_value_eur DESC NULLS LAST, transfer_fee DESC NULLS LAST, transfer_date DESC NULLS LAST"
     frame = store.query(sql, params)
     total_count = len(frame)
 

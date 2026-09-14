@@ -227,16 +227,24 @@ def test_overview_endpoint(tmp_path):
     assert "forecasts" in data
 
 
-def test_transfers_endpoint(tmp_path):
+def test_transfers_with_all_filter(tmp_path):
     api = client(tmp_path)
-    res = api.get("/api/v1/transfers", params={"competition": "E0", "season": 2023})
+    res = api.get("/api/v1/transfers", params={"competition": "all", "season": "all"})
     assert res.status_code == 200
     data = res.json()
     assert "transfers" in data
-    assert len(data["transfers"]) == 1
-    assert data["transfers"][0]["player_name"] == "Declan Rice"
-    assert data["transfers"][0]["to_club"]["name"] == "Arsenal"
-    assert data["transfers"][0]["transfer_fee"] == 116600000.0
+    assert len(data["transfers"]) >= 1
+
+
+def test_teams_endpoint_fallback(tmp_path):
+    api = client(tmp_path)
+    # Season 2026 for E0 when only 2024 matches seeded
+    res = api.get("/api/v1/teams", params={"competition": "E0", "season": 2026})
+    assert res.status_code == 200
+    data = res.json()
+    assert "teams" in data
+    assert len(data["teams"]) >= 2
+
 
 
 

@@ -151,16 +151,22 @@ def create_app(database_path: Path | None = None) -> FastAPI:
     @app.get("/api/v1/transfers")
     def transfers(
         request: Request,
-        season: int | None = None,
+        season: str | None = None,
         competition: str | None = None,
         club: str | None = None,
         q: str | None = None,
         cursor: str | None = None,
         limit: int = Query(default=50, ge=1, le=200),
     ):
+        season_val: int | None = None
+        if season is not None and str(season).lower() not in ("all", "any", "none", ""):
+            try:
+                season_val = int(season)
+            except ValueError:
+                season_val = None
         payload = queries.list_transfers(
             require_store(),
-            season=season,
+            season=season_val,
             competition=competition,
             club=club,
             query=q,

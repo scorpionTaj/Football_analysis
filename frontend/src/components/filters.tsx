@@ -68,7 +68,7 @@ export function FilterBar() {
       )}
 
       {/* Team selector */}
-      {uniqueTeams.length > 0 && (
+      {filters.competition && (
         <Select
           label="Team"
           value={filters.team ?? ''}
@@ -77,7 +77,7 @@ export function FilterBar() {
             value: t.team_id,
             label: t.name,
           }))}
-          placeholder="All teams"
+          placeholder={uniqueTeams.length === 0 ? "Loading clubs..." : "All teams"}
         />
       )}
 

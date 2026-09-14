@@ -1,7 +1,8 @@
 'use client';
 
-import { Suspense, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { Card, CardHeader, CardTitle, CardContent, Chip, Button, Input } from '@heroui/react';
+import React, { Suspense, useMemo, useState, useEffect } from 'react';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { queryKeys } from '@/lib/api/query-keys';
 import { SourceBadge } from '@/components/ui/source-badge';
@@ -24,20 +25,30 @@ function formatCurrency(eur: number | null | undefined): string {
 
 export function PlayersContent() {
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [currentCursor, setCurrentCursor] = useState<string | null>(null);
   const [cursorHistory, setCursorHistory] = useState<string[]>([]);
 
+  // 300ms debounce to prevent constant refetching on each keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   // Fetch players list
   const listParams = useMemo(() => ({
-    q: searchQuery || undefined,
+    q: debouncedQuery || undefined,
     cursor: currentCursor || undefined,
     limit: 10,
-  }), [searchQuery, currentCursor]);
+  }), [debouncedQuery, currentCursor]);
 
-  const { data: playerListData, isLoading: isListLoading, error: listError, refetch } = useQuery({
+  const { data: playerListData, isLoading: isListLoading, isFetching: isListFetching, error: listError, refetch } = useQuery({
     queryKey: queryKeys.players(listParams),
     queryFn: () => api.players(listParams),
+    placeholderData: keepPreviousData,
   });
 
   const players = playerListData?.players || [];
@@ -88,52 +99,69 @@ export function PlayersContent() {
     URL.revokeObjectURL(url);
   };
 
-  if (isListLoading && !playerListData) return <LoadingSkeleton lines={10} />;
-  if (listError) {
-    return <ErrorMessage title="Failed to load players" detail={listError.message} retry={() => refetch()} />;
-  }
-
   return (
     <div className="space-y-6">
-      {/* Search Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl bg-surface0 border border-surface1 p-4">
-        <div className="relative w-full sm:w-80">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-overlay0" />
-          <input
-            type="text"
-            placeholder="Search by player name..."
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setCurrentCursor(null);
-              setCursorHistory([]);
-            }}
-            className="w-full rounded-lg border border-surface1 bg-mantle pl-9 pr-3 py-2 text-xs text-text outline-none focus:border-blue placeholder:text-overlay0"
-          />
-        </div>
+      {/* Search Header - persistently mounted, never unmounts */}
+      <Card className="p-4 rounded-xl bg-surface0 border border-surface1 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="relative w-full sm:w-80">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-overlay0 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search player name..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentCursor(null);
+                setCursorHistory([]);
+              }}
+              className="w-full rounded-lg border border-surface1 bg-mantle pl-9 pr-3 py-2 text-xs text-text outline-none focus:border-blue placeholder:text-overlay0 transition-colors"
+            />
+            {isListFetching && (
+              <span className="absolute right-3 top-3 text-[10px] text-blue font-medium animate-pulse">
+                Searching...
+              </span>
+            )}
+          </div>
 
-        <div className="flex items-center gap-3">
-          {playerListData?.source && <SourceBadge meta={playerListData.source} />}
-          <button
-            onClick={exportCsv}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-mantle border border-surface1 hover:border-surface2 text-xs font-medium text-text transition-colors cursor-pointer"
-          >
-            <Download className="h-3.5 w-3.5 text-blue" />
-            <span>Export List</span>
-          </button>
+          <div className="flex items-center gap-3">
+            {playerListData?.source && <SourceBadge meta={playerListData.source} />}
+            <Button
+              size="sm"
+              variant="outline"
+              onPress={exportCsv}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer"
+            >
+              <Download className="h-3.5 w-3.5 text-blue" />
+              <span>Export List</span>
+            </Button>
+          </div>
         </div>
-      </div>
+      </Card>
+
+      {listError && (
+        <ErrorMessage title="Failed to load players" detail={listError.message} retry={() => refetch()} />
+      )}
 
       {/* Two-Pane Layout: Player List + Profile Drawer */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left: Player Discovery List */}
         <div className="lg:col-span-5 space-y-3">
           <div className="rounded-xl border border-surface1 bg-surface0 overflow-hidden">
-            <div className="p-3 border-b border-surface1 bg-mantle text-xs font-semibold text-subtext0">
-              Found {players.length} Players
+            <div className="p-3 border-b border-surface1 bg-mantle text-xs font-semibold text-subtext0 flex items-center justify-between">
+              <span>Found {players.length} Players</span>
+              {debouncedQuery && (
+                <Chip size="sm" variant="soft" color="accent" className="text-[10px]">
+                  Matching &quot;{debouncedQuery}&quot;
+                </Chip>
+              )}
             </div>
 
-            {players.length === 0 ? (
+            {isListLoading && players.length === 0 ? (
+              <div className="p-4">
+                <LoadingSkeleton lines={6} />
+              </div>
+            ) : players.length === 0 ? (
               <div className="p-8 text-center">
                 <EmptyState icon="👤" message="No players found." suggestion="Try another spelling or clear search." />
               </div>
@@ -177,31 +205,27 @@ export function PlayersContent() {
 
             {/* Pagination Controls */}
             <div className="flex items-center justify-between p-3 border-t border-surface1 bg-mantle text-xs text-subtext0">
-              <button
-                onClick={handlePrevPage}
-                disabled={cursorHistory.length === 0}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded border border-surface1 ${
-                  cursorHistory.length === 0
-                    ? 'opacity-40 cursor-not-allowed text-overlay0'
-                    : 'hover:bg-surface1 text-text cursor-pointer'
-                }`}
+              <Button
+                size="sm"
+                variant="outline"
+                isDisabled={cursorHistory.length === 0}
+                onPress={handlePrevPage}
+                className="flex items-center gap-1 px-2.5 py-1 text-xs cursor-pointer"
               >
                 <ChevronLeft className="h-3 w-3" />
                 <span>Prev</span>
-              </button>
-              <span>{players.length} items</span>
-              <button
-                onClick={handleNextPage}
-                disabled={!page?.next_cursor}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded border border-surface1 ${
-                  !page?.next_cursor
-                    ? 'opacity-40 cursor-not-allowed text-overlay0'
-                    : 'hover:bg-surface1 text-text cursor-pointer'
-                }`}
+              </Button>
+              <span className="font-medium text-[11px]">{players.length} items</span>
+              <Button
+                size="sm"
+                variant="outline"
+                isDisabled={!page?.next_cursor}
+                onPress={handleNextPage}
+                className="flex items-center gap-1 px-2.5 py-1 text-xs cursor-pointer"
               >
                 <span>Next</span>
                 <ChevronRight className="h-3 w-3" />
-              </button>
+              </Button>
             </div>
           </div>
         </div>

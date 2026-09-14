@@ -10,6 +10,52 @@ interface FootballBadgeProps {
   className?: string;
 }
 
+const FALLBACK_TEAM_BADGES: Record<string, string> = {
+  'crystal palace': 'https://r2.thesportsdb.com/images/media/team/badge/ia6i3m1656014992.png',
+  'valencia': 'https://r2.thesportsdb.com/images/media/team/badge/dm8l6o1656015091.png',
+  'augsburg': 'https://r2.thesportsdb.com/images/media/team/badge/xqyyvq1473456209.png',
+  'coventry': 'https://r2.thesportsdb.com/images/media/team/badge/uxyqys1420650993.png',
+  'coventry city': 'https://r2.thesportsdb.com/images/media/team/badge/uxyqys1420650993.png',
+  'schalke 04': 'https://r2.thesportsdb.com/images/media/team/badge/hnci291626207185.png',
+  'eintracht frankfurt': 'https://r2.thesportsdb.com/images/media/team/badge/rurwpy1473456382.png',
+  'ein frankfurt': 'https://r2.thesportsdb.com/images/media/team/badge/rurwpy1473456382.png',
+  'rayo vallecano': 'https://r2.thesportsdb.com/images/media/team/badge/nzhu941656015053.png',
+  'vallecano': 'https://r2.thesportsdb.com/images/media/team/badge/nzhu941656015053.png',
+  'aston villa': 'https://r2.thesportsdb.com/images/media/team/badge/uwzw561783094825.png',
+  'atalanta': 'https://r2.thesportsdb.com/images/media/team/badge/qix5ku1783094825.png',
+  'athletic club': 'https://r2.thesportsdb.com/images/media/team/badge/myl7c31678125139.png',
+  'ath bilbao': 'https://r2.thesportsdb.com/images/media/team/badge/myl7c31678125139.png',
+  'alaves': 'https://r2.thesportsdb.com/images/media/team/badge/57m3q21656014949.png',
+  'sevilla': 'https://r2.thesportsdb.com/images/media/team/badge/zbg6b21656015077.png',
+  'real sociedad': 'https://r2.thesportsdb.com/images/media/team/badge/u19a0d1656015067.png',
+  'sociedad': 'https://r2.thesportsdb.com/images/media/team/badge/u19a0d1656015067.png',
+  'villarreal': 'https://r2.thesportsdb.com/images/media/team/badge/wspxwt1420650993.png',
+  'wolfsburg': 'https://r2.thesportsdb.com/images/media/team/badge/wtswyr1473456885.png',
+  'mainz': 'https://r2.thesportsdb.com/images/media/team/badge/trqqxv1473456578.png',
+  'hoffenheim': 'https://r2.thesportsdb.com/images/media/team/badge/rqqwqq1473456488.png',
+  'bologna': 'https://r2.thesportsdb.com/images/media/team/badge/qvvptv1420650993.png',
+  'fiorentina': 'https://r2.thesportsdb.com/images/media/team/badge/84qbbn1656015003.png',
+  'roma': 'https://r2.thesportsdb.com/images/media/team/badge/3w3j3w1656015060.png',
+  'lazio': 'https://r2.thesportsdb.com/images/media/team/badge/pwtwpu1420650993.png',
+  'torino': 'https://r2.thesportsdb.com/images/media/team/badge/8tvy631656015085.png',
+  'monaco': 'https://r2.thesportsdb.com/images/media/team/badge/yqspqu1420650993.png',
+  'lyon': 'https://r2.thesportsdb.com/images/media/team/badge/5d4f3b1656015039.png',
+  'marseille': 'https://r2.thesportsdb.com/images/media/team/badge/tpuuyr1420650993.png',
+  'argentina': 'https://r2.thesportsdb.com/images/media/team/badge/7a3y0t1534960309.png',
+  'france': 'https://r2.thesportsdb.com/images/media/team/badge/d9l6r11534960341.png',
+  'brazil': 'https://r2.thesportsdb.com/images/media/team/badge/1n4x891534960317.png',
+  'england': 'https://r2.thesportsdb.com/images/media/team/badge/4vfqk01534960334.png',
+  'spain': 'https://r2.thesportsdb.com/images/media/team/badge/78x8f41534960370.png',
+  'germany': 'https://r2.thesportsdb.com/images/media/team/badge/8m1z981534960347.png',
+  'portugal': 'https://r2.thesportsdb.com/images/media/team/badge/i0m6v21534960363.png',
+  'netherlands': 'https://r2.thesportsdb.com/images/media/team/badge/97a5a81534960359.png',
+  'croatia': 'https://r2.thesportsdb.com/images/media/team/badge/4l9h181534960328.png',
+  'morocco': 'https://r2.thesportsdb.com/images/media/team/badge/70w2211534960357.png',
+  'japan': 'https://r2.thesportsdb.com/images/media/team/badge/0o2f7t1534960355.png',
+  'usa': 'https://r2.thesportsdb.com/images/media/team/badge/6t29a81534960378.png',
+  'united states': 'https://r2.thesportsdb.com/images/media/team/badge/6t29a81534960378.png',
+};
+
 export function FootballBadge({
   url,
   name,
@@ -17,6 +63,9 @@ export function FootballBadge({
   className = '',
 }: FootballBadgeProps) {
   const [error, setError] = useState(false);
+
+  const cleanName = (name || '').toLowerCase().trim();
+  const resolvedUrl = (!url || error) ? FALLBACK_TEAM_BADGES[cleanName] : url;
 
   const initials = name
     ? name
@@ -28,7 +77,7 @@ export function FootballBadge({
         .toUpperCase()
     : 'FC';
 
-  if (!url || error) {
+  if (!resolvedUrl) {
     return (
       <div
         className={`inline-flex items-center justify-center font-bold text-xs rounded-full shadow-inner border border-surface1/60 bg-surface0 text-text shrink-0 ${className}`}
@@ -45,7 +94,7 @@ export function FootballBadge({
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={url}
+      src={resolvedUrl}
       alt={name}
       width={size}
       height={size}

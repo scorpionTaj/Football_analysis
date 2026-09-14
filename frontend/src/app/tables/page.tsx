@@ -1,5 +1,6 @@
 'use client';
 
+import { Card, Button, Chip } from '@heroui/react';
 import { Suspense, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
@@ -82,93 +83,98 @@ export function LeagueTablesContent() {
   return (
     <div className="space-y-6">
       {/* Controls Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl bg-surface0 border border-surface1 p-4">
-        <div className="flex flex-wrap items-center gap-4">
-          <CompetitionBadge
-            code={selectedCompetition}
-            name={currentComp?.name || selectedCompetition}
-            badge_url={currentComp?.badge_url}
-            size={40}
-          />
-          <div className="flex flex-wrap items-center gap-3">
-            {/* League */}
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-subtext0">League</label>
-              <select
-                value={selectedCompetition}
-                onChange={(e) => filters.set({ competition: e.target.value })}
-                className="rounded-lg border border-surface1 bg-mantle px-3 py-1.5 text-xs font-medium text-text outline-none cursor-pointer hover:border-surface2"
-              >
-                {compOptions.map((c) => (
-                  <option key={c.code} value={c.code}>{c.name}</option>
-                ))}
-              </select>
-            </div>
-
-          {/* Season */}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-subtext0">Season</label>
-            <select
-              value={selectedSeason}
-              onChange={(e) => filters.set({ season: Number(e.target.value) })}
-              className="rounded-lg border border-surface1 bg-mantle px-3 py-1.5 text-xs font-medium text-text outline-none cursor-pointer hover:border-surface2"
-            >
-              {seasons.map((s) => (
-                <option key={s.season} value={s.season}>{s.label}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Venue */}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-subtext0">Venue</label>
-            <div className="flex rounded-lg bg-mantle border border-surface1 p-0.5">
-              {(['All', 'Home', 'Away'] as const).map((v) => (
-                <button
-                  key={v}
-                  onClick={() => setVenueFilter(v)}
-                  className={`px-3 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer ${
-                    venueFilter === v ? 'bg-surface1 text-text' : 'text-subtext0 hover:text-text'
-                  }`}
+      <Card className="p-4 rounded-xl bg-surface0 border border-surface1 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-4">
+            <CompetitionBadge
+              code={selectedCompetition}
+              name={currentComp?.name || selectedCompetition}
+              badge_url={currentComp?.badge_url}
+              size={40}
+            />
+            <div className="flex flex-wrap items-center gap-3">
+              {/* League */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-subtext0">League</label>
+                <select
+                  value={selectedCompetition}
+                  onChange={(e) => filters.set({ competition: e.target.value })}
+                  className="rounded-lg border border-surface1 bg-mantle px-3 py-1.5 text-xs font-medium text-text outline-none cursor-pointer hover:border-surface2"
                 >
-                  {v}
-                </button>
-              ))}
+                  {compOptions.map((c) => (
+                    <option key={c.code} value={c.code}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Season */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-subtext0">Season</label>
+                <select
+                  value={selectedSeason}
+                  onChange={(e) => filters.set({ season: Number(e.target.value) })}
+                  className="rounded-lg border border-surface1 bg-mantle px-3 py-1.5 text-xs font-medium text-text outline-none cursor-pointer hover:border-surface2"
+                >
+                  {seasons.map((s) => (
+                    <option key={s.season} value={s.season}>{s.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Venue */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-subtext0">Venue</label>
+                <div className="flex rounded-lg bg-mantle border border-surface1 p-0.5">
+                  {(['All', 'Home', 'Away'] as const).map((v) => (
+                    <Button
+                      key={v}
+                      size="sm"
+                      variant={venueFilter === v ? 'solid' : 'light'}
+                      color={venueFilter === v ? 'primary' : 'default'}
+                      onPress={() => setVenueFilter(v)}
+                      className={`px-3 py-1 text-xs font-medium min-w-0 h-7 cursor-pointer`}
+                    >
+                      {v}
+                    </Button>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
 
-        <div className="flex items-center gap-3">
-          {analysis?.source && <SourceBadge meta={analysis.source} />}
-          <button
-            onClick={exportCsv}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-mantle border border-surface1 hover:border-surface2 text-xs font-medium text-text transition-colors cursor-pointer"
-          >
-            <Download className="h-3.5 w-3.5 text-blue" />
-            <span>Export CSV</span>
-          </button>
+          <div className="flex items-center gap-3">
+            {analysis?.source && <SourceBadge meta={analysis.source} />}
+            <Button
+              size="sm"
+              variant="outline"
+              onPress={exportCsv}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer"
+            >
+              <Download className="h-3.5 w-3.5 text-blue" />
+              <span>Export CSV</span>
+            </Button>
+          </div>
         </div>
-      </div>
+      </Card>
 
       {/* KPI Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="rounded-xl bg-surface0 border border-surface1 p-4">
+        <Card className="rounded-xl bg-surface0 border border-surface1 p-4 shadow-sm">
           <p className="text-xs text-subtext0 uppercase font-medium">Clubs</p>
           <p className="text-2xl font-bold text-text mt-1">{rankings.length}</p>
-        </div>
-        <div className="rounded-xl bg-surface0 border border-surface1 p-4">
+        </Card>
+        <Card className="rounded-xl bg-surface0 border border-surface1 p-4 shadow-sm">
           <p className="text-xs text-subtext0 uppercase font-medium">Matches Played</p>
           <p className="text-2xl font-bold text-blue mt-1">{totalMatches}</p>
-        </div>
-        <div className="rounded-xl bg-surface0 border border-surface1 p-4">
+        </Card>
+        <Card className="rounded-xl bg-surface0 border border-surface1 p-4 shadow-sm">
           <p className="text-xs text-subtext0 uppercase font-medium">Total Goals</p>
           <p className="text-2xl font-bold text-peach mt-1">{totalGoals}</p>
-        </div>
-        <div className="rounded-xl bg-surface0 border border-surface1 p-4">
+        </Card>
+        <Card className="rounded-xl bg-surface0 border border-surface1 p-4 shadow-sm">
           <p className="text-xs text-subtext0 uppercase font-medium">Goals / Match</p>
           <p className="text-2xl font-bold text-green mt-1">{avgGoals}</p>
-        </div>
+        </Card>
       </div>
 
       {/* Standings Table */}

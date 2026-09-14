@@ -441,23 +441,25 @@ function OverviewContent() {
             </div>
 
             {/* Club Spotlight Selector */}
-            {availableClubs.length > 0 && (
-              <div className="flex items-center gap-2">
-                <Shield size={14} className="text-subtext0" />
-                <span className="text-xs font-semibold text-subtext0 uppercase tracking-wide">Club:</span>
-                <select
-                  value={selectedClub}
-                  onChange={(e) => setSelectedClub(e.target.value)}
-                  className="px-3 py-1.5 rounded-lg bg-mantle border border-surface1 text-xs font-medium text-text focus:outline-none focus:border-blue cursor-pointer max-w-[220px] truncate"
-                >
-                  {availableClubs.map((name) => (
+            <div className="flex items-center gap-2">
+              <Shield size={14} className="text-subtext0" />
+              <span className="text-xs font-semibold text-subtext0 uppercase tracking-wide">Club:</span>
+              <select
+                value={selectedClub}
+                onChange={(e) => setSelectedClub(e.target.value)}
+                className="px-3 py-1.5 rounded-lg bg-mantle border border-surface1 text-xs font-medium text-text focus:outline-none focus:border-blue cursor-pointer max-w-[220px] truncate"
+              >
+                {availableClubs.length === 0 ? (
+                  <option value="">Loading clubs...</option>
+                ) : (
+                  availableClubs.map((name) => (
                     <option key={name} value={name}>
                       {name}
                     </option>
-                  ))}
-                </select>
-              </div>
-            )}
+                  ))
+                )}
+              </select>
+            </div>
           </div>
 
           <div className="flex items-center gap-2">

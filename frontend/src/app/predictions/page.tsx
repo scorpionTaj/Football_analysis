@@ -1,5 +1,6 @@
 'use client';
 
+import { Card, Button, Chip } from '@heroui/react';
 import { Suspense, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
@@ -75,7 +76,7 @@ function PredictionsContent() {
   return (
     <div className="space-y-6">
       {/* Model Card Header */}
-      <div className="rounded-xl border border-surface1 bg-surface0 p-5 space-y-3">
+      <Card className="rounded-xl border border-surface1 bg-surface0 p-5 space-y-3 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-surface1 pb-3">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-lg bg-blue/10 text-blue">
@@ -113,7 +114,7 @@ function PredictionsContent() {
             <p className="text-xl font-bold text-peach mt-1">{forecasts.length}</p>
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* Match Forecasts Section */}
       <div className="space-y-4">
@@ -123,13 +124,15 @@ function PredictionsContent() {
             <h2 className="text-base font-semibold text-text">Upcoming Match Forecasts</h2>
           </div>
           {forecasts.length > 0 && (
-            <button
-              onClick={exportCsv}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface0 border border-surface1 hover:border-surface2 text-xs font-medium text-text transition-colors cursor-pointer"
+            <Button
+              size="sm"
+              variant="outline"
+              onPress={exportCsv}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium cursor-pointer"
             >
               <Download className="h-3.5 w-3.5 text-blue" />
               <span>Export Predictions</span>
-            </button>
+            </Button>
           )}
         </div>
 

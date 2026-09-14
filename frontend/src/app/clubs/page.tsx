@@ -1,5 +1,6 @@
 'use client';
 
+import { Card, Button, Chip } from '@heroui/react';
 import { Suspense, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
@@ -246,101 +247,103 @@ export function ClubLabContent() {
   return (
     <div className="space-y-6">
       {/* Club Selector Bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-xl bg-surface0 border border-surface1 p-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="p-2.5 rounded-lg bg-blue/10 text-blue">
-            <Shield className="h-5 w-5" />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-subtext0 block">Primary Club</label>
-            <select
-              value={selectedClub}
-              onChange={(e) => filters.set({ team: e.target.value })}
-              className="mt-0.5 rounded-lg border border-surface1 bg-mantle px-3 py-1.5 text-sm font-semibold text-text outline-none cursor-pointer hover:border-surface2 focus:border-blue"
-            >
-              {allTeams.map(([name, id]) => (
-                <option key={id} value={name}>{name}</option>
-              ))}
-            </select>
+      <Card className="p-4 rounded-xl bg-surface0 border border-surface1 shadow-sm">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="p-2.5 rounded-lg bg-blue/10 text-blue">
+              <Shield className="h-5 w-5" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-subtext0 block">Primary Club</label>
+              <select
+                value={selectedClub}
+                onChange={(e) => filters.set({ team: e.target.value })}
+                className="mt-0.5 rounded-lg border border-surface1 bg-mantle px-3 py-1.5 text-sm font-semibold text-text outline-none cursor-pointer hover:border-surface2 focus:border-blue"
+              >
+                {allTeams.map(([name, id]) => (
+                  <option key={id} value={name}>{name}</option>
+                ))}
+              </select>
+            </div>
+
+            {activeTab === 'h2h' && (
+              <>
+                <div className="text-overlay0 font-bold px-1 text-sm">VS</div>
+                <div>
+                  <label className="text-xs font-medium text-subtext0 block">Opponent Club</label>
+                  <select
+                    value={opponentClub}
+                    onChange={(e) => setOpponentClub(e.target.value)}
+                    className="mt-0.5 rounded-lg border border-surface1 bg-mantle px-3 py-1.5 text-sm font-semibold text-text outline-none cursor-pointer hover:border-surface2 focus:border-blue"
+                  >
+                    {allTeams.map(([name, id]) => (
+                      <option key={id} value={name}>{name}</option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
           </div>
 
-          {activeTab === 'h2h' && (
-            <>
-              <div className="text-overlay0 font-bold px-1 text-sm">VS</div>
-              <div>
-                <label className="text-xs font-medium text-subtext0 block">Opponent Club</label>
-                <select
-                  value={opponentClub}
-                  onChange={(e) => setOpponentClub(e.target.value)}
-                  className="mt-0.5 rounded-lg border border-surface1 bg-mantle px-3 py-1.5 text-sm font-semibold text-text outline-none cursor-pointer hover:border-surface2 focus:border-blue"
-                >
-                  {allTeams.map(([name, id]) => (
-                    <option key={id} value={name}>{name}</option>
-                  ))}
-                </select>
-              </div>
-            </>
-          )}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Tab switcher */}
+            <div className="flex items-center bg-mantle rounded-lg p-1 border border-surface1">
+              <Button
+                size="sm"
+                variant={activeTab === 'profile' ? 'solid' : 'light'}
+                color={activeTab === 'profile' ? 'primary' : 'default'}
+                onPress={() => setActiveTab('profile')}
+                className="flex items-center gap-1.5 text-xs font-semibold h-8 cursor-pointer"
+              >
+                <BarChart2 className="h-3.5 w-3.5" />
+                <span>Club Profile</span>
+              </Button>
+              <Button
+                size="sm"
+                variant={activeTab === 'h2h' ? 'solid' : 'light'}
+                color={activeTab === 'h2h' ? 'primary' : 'default'}
+                onPress={() => setActiveTab('h2h')}
+                className="flex items-center gap-1.5 text-xs font-semibold h-8 cursor-pointer"
+              >
+                <Swords className="h-3.5 w-3.5" />
+                <span>Head-to-Head</span>
+              </Button>
+            </div>
+
+            {analysis?.source && <SourceBadge meta={analysis.source} />}
+            <Button
+              size="sm"
+              variant="outline"
+              onPress={exportCsv}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer"
+            >
+              <Download className="h-3.5 w-3.5 text-blue" />
+              <span>Export</span>
+            </Button>
+          </div>
         </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Tab switcher */}
-          <div className="flex items-center bg-mantle rounded-lg p-1 border border-surface1">
-            <button
-              onClick={() => setActiveTab('profile')}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-                activeTab === 'profile'
-                  ? 'bg-blue text-mantle font-semibold shadow-sm'
-                  : 'text-subtext0 hover:text-text'
-              }`}
-            >
-              <BarChart2 className="h-3.5 w-3.5" />
-              <span>Club Profile</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('h2h')}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-                activeTab === 'h2h'
-                  ? 'bg-blue text-mantle font-semibold shadow-sm'
-                  : 'text-subtext0 hover:text-text'
-              }`}
-            >
-              <Swords className="h-3.5 w-3.5" />
-              <span>Head-to-Head</span>
-            </button>
-          </div>
-
-          {analysis?.source && <SourceBadge meta={analysis.source} />}
-          <button
-            onClick={exportCsv}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-mantle border border-surface1 hover:border-surface2 text-xs font-medium text-text transition-colors cursor-pointer"
-          >
-            <Download className="h-3.5 w-3.5 text-blue" />
-            <span>Export</span>
-          </button>
-        </div>
-      </div>
+      </Card>
 
       {activeTab === 'profile' ? (
         <>
           {/* Club Overview KPI Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div className="rounded-xl bg-surface0 border border-surface1 p-4">
+            <Card className="rounded-xl bg-surface0 border border-surface1 p-4 shadow-sm">
               <p className="text-xs text-subtext0 uppercase font-medium">Matches (All Seasons)</p>
               <p className="text-2xl font-bold text-text mt-1">{totals.played}</p>
-            </div>
-            <div className="rounded-xl bg-surface0 border border-surface1 p-4">
+            </Card>
+            <Card className="rounded-xl bg-surface0 border border-surface1 p-4 shadow-sm">
               <p className="text-xs text-subtext0 uppercase font-medium">Win Rate</p>
               <p className="text-2xl font-bold text-green mt-1">{totals.winRate}%</p>
-            </div>
-            <div className="rounded-xl bg-surface0 border border-surface1 p-4">
+            </Card>
+            <Card className="rounded-xl bg-surface0 border border-surface1 p-4 shadow-sm">
               <p className="text-xs text-subtext0 uppercase font-medium">Total Points</p>
               <p className="text-2xl font-bold text-blue mt-1">{totals.points}</p>
-            </div>
-            <div className="rounded-xl bg-surface0 border border-surface1 p-4">
+            </Card>
+            <Card className="rounded-xl bg-surface0 border border-surface1 p-4 shadow-sm">
               <p className="text-xs text-subtext0 uppercase font-medium">Overall PPG</p>
               <p className="text-2xl font-bold text-peach mt-1">{totals.ppg}</p>
-            </div>
+            </Card>
           </div>
 
           {/* Season Evolution Chart */}

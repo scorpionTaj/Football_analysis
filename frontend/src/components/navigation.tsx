@@ -19,6 +19,9 @@ export const NAV_ITEMS = [
 
 import { useTheme } from './theme-provider';
 
+import { RefreshCw } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+
 export function Sidebar({
   isOpen = false,
   onClose,
@@ -28,6 +31,14 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
   const { theme, isDark, setMode } = useTheme();
+  const queryClient = useQueryClient();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await queryClient.invalidateQueries();
+    setTimeout(() => setIsRefreshing(false), 800);
+  };
 
   return (
     <aside
@@ -86,8 +97,23 @@ export function Sidebar({
         </ul>
       </nav>
 
-      {/* Footer with Theme Quick Toggle */}
+      {/* Footer with Refresh Data and Theme Quick Toggle */}
       <div className="border-t border-surface0 p-3 space-y-2">
+        <button
+          onClick={handleRefresh}
+          disabled={isRefreshing}
+          className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-blue/10 hover:bg-blue/20 text-xs font-semibold text-blue transition-all cursor-pointer border border-blue/25"
+          title="Refetch all live match, team, and catalog data from API"
+        >
+          <span className="flex items-center gap-2">
+            <RefreshCw size={13} className={isRefreshing ? "animate-spin" : ""} />
+            <span>{isRefreshing ? 'Refreshing...' : 'Refresh Live Data'}</span>
+          </span>
+          <span className="text-[10px] font-mono bg-blue/20 px-1.5 py-0.5 rounded text-blue">
+            API
+          </span>
+        </button>
+
         <button
           onClick={() => setMode(isDark ? 'light' : 'dark')}
           className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-surface0 hover:bg-surface1 text-xs text-subtext1 transition-colors cursor-pointer"
