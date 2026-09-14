@@ -55,8 +55,9 @@ function AnalysisContent() {
   }, [filters.competition]);
 
   const defaultSeason = useMemo(() => {
-    if (catalog?.seasons && catalog.seasons.length > 0) {
-      return Math.max(...catalog.seasons);
+    if (catalog?.competitions && catalog.competitions.length > 0) {
+      const allSeasons = catalog.competitions.flatMap((c) => c.seasons.map((s) => s.season));
+      if (allSeasons.length > 0) return Math.max(...allSeasons);
     }
     return 2026;
   }, [catalog]);

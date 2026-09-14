@@ -8,7 +8,18 @@ import { queryKeys } from '@/lib/api/query-keys';
 import { SourceBadge } from '@/components/ui/source-badge';
 import { LoadingSkeleton, ErrorMessage } from '@/components/ui/loading';
 import { FootballBadge, CompetitionBadge, PlayerAvatar } from '@/lib/media-utils';
-import type { Competition, RankingRow, EloRatingRow, PlayerSummary } from '@/lib/api/types';
+import type { Competition, RankingRow, EloRatingRow, PlayerSummary, TransferRow } from '@/lib/api/types';
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
+  Chip,
+  Button,
+  Badge,
+} from '@heroui/react';
 import {
   Trophy,
   TrendingUp,
@@ -19,8 +30,12 @@ import {
   Target,
   Users,
   ChevronRight,
+  ChevronLeft,
   ExternalLink,
   Sparkles,
+  ArrowRightLeft,
+  DollarSign,
+  Flame,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -48,11 +63,35 @@ const CHART_COLORS = [
   '#74c7ec', // sapphire
 ];
 
+const BIG_5_COMPS = [
+  { code: 'all', name: 'All Big 5 Leagues' },
+  { code: 'E0', name: 'Premier League' },
+  { code: 'SP1', name: 'La Liga' },
+  { code: 'D1', name: 'Bundesliga' },
+  { code: 'I1', name: 'Serie A' },
+  { code: 'F1', name: 'Ligue 1' },
+];
+
+const RECENT_5_SEASONS = [
+  { value: 'all', label: 'All 5 Seasons' },
+  { value: 2025, label: '2025/26' },
+  { value: 2024, label: '2024/25' },
+  { value: 2023, label: '2023/24' },
+  { value: 2022, label: '2022/23' },
+  { value: 2021, label: '2021/22' },
+];
+
 function OverviewContent() {
   const [selectedComp, setSelectedComp] = useState<string>('E0');
   const [selectedSeason, setSelectedSeason] = useState<number>(2026);
-  const [selectedClub, setSelectedClub] = useState<string>('Arsenal');
+  const [selectedClub, setSelectedClub] = useState<string>('');
   const [chartView, setChartView] = useState<'trend' | 'matrix' | 'scatter' | 'elo'>('trend');
+
+  // Transfer Market Filter & Pagination State
+  const [transferComp, setTransferComp] = useState<string>('all');
+  const [transferSeason, setTransferSeason] = useState<number | 'all'>('all');
+  const [transferPage, setTransferPage] = useState<number>(1);
+  const transferPageSize = 10;
 
   // 1. Fetch Catalog
   const { data: catalog, isLoading: isCatalogLoading, error: catalogError, refetch: refetchCatalog } = useQuery({
@@ -60,53 +99,112 @@ function OverviewContent() {
     queryFn: () => api.catalog(),
   });
 
+  // Current active competition object
+  const currentComp = useMemo(() => {
+    return catalog?.competitions.find((c) => c.code === selectedComp);
+  }, [catalog, selectedComp]);
+
+  // Available seasons for this competition (sorted newest first)
+  const availableSeasons = useMemo(() => {
+    if (!currentComp) return [2026, 2025, 2024, 2023, 2022, 2021];
+    return [...currentComp.seasons.map((s) => s.season)].sort((a, b) => b - a);
+  }, [currentComp]);
+
+  // Synchronize default season to always be the most recent season
+  React.useEffect(() => {
+    if (availableSeasons.length > 0) {
+      if (!selectedSeason || !availableSeasons.includes(selectedSeason)) {
+        setSelectedSeason(availableSeasons[0]);
+      }
+    }
+  }, [availableSeasons, selectedSeason]);
+
   // 2. Fetch Health
   const { data: health } = useQuery({
     queryKey: queryKeys.health,
     queryFn: () => api.health(),
   });
 
-  // 3. Fetch Overview Spotlight & Trends
-  const { data: overviewData, isLoading: isOverviewLoading } = useQuery({
-    queryKey: queryKeys.overview({ team: selectedClub, competition: selectedComp, season: selectedSeason }),
-    queryFn: () => api.overview({ team: selectedClub, competition: selectedComp, season: selectedSeason }),
+  // 3. Fetch Teams in this competition & season (to populate all real clubs)
+  const { data: teamsData } = useQuery({
+    queryKey: queryKeys.teams(selectedComp, selectedSeason),
+    queryFn: () => api.teams(selectedComp, selectedSeason),
+    enabled: Boolean(selectedComp),
   });
 
-  // 4. Fetch Star Players
+  // 4. Fetch Overview Spotlight & Trends
+  const { data: overviewData, isLoading: isOverviewLoading } = useQuery({
+    queryKey: queryKeys.overview({ team: selectedClub || undefined, competition: selectedComp, season: selectedSeason }),
+    queryFn: () => api.overview({ team: selectedClub || undefined, competition: selectedComp, season: selectedSeason }),
+  });
+
+  // Available clubs in this competition
+  const availableClubs = useMemo(() => {
+    const names = new Set<string>();
+    if (teamsData?.teams && teamsData.teams.length > 0) {
+      for (const t of teamsData.teams) {
+        if (t.name) names.add(t.name);
+      }
+    }
+    if (overviewData?.performance_over_time) {
+      for (const r of overviewData.performance_over_time) {
+        if (r.competition === selectedComp && r.team?.name) {
+          names.add(r.team.name);
+        }
+      }
+    }
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
+  }, [teamsData, overviewData, selectedComp]);
+
+  // Synchronize selected club: when competition changes or spotlight returns
+  React.useEffect(() => {
+    if (overviewData?.spotlight?.team?.name) {
+      if (!selectedClub || !availableClubs.includes(selectedClub)) {
+        setSelectedClub(overviewData.spotlight.team.name);
+      }
+    } else if (availableClubs.length > 0 && (!selectedClub || !availableClubs.includes(selectedClub))) {
+      setSelectedClub(availableClubs[0]);
+    }
+  }, [overviewData, availableClubs, selectedClub]);
+
+  // Handle Competition Change
+  const handleSelectComp = (code: string) => {
+    setSelectedComp(code);
+    setSelectedClub(''); // Reset so backend auto-picks #1 club in this league
+    const comp = catalog?.competitions.find((c) => c.code === code);
+    if (comp && comp.seasons.length > 0) {
+      const latest = Math.max(...comp.seasons.map((s) => s.season));
+      setSelectedSeason(latest);
+    }
+  };
+
+  // 5. Fetch Star Players
   const { data: starPlayersData } = useQuery({
     queryKey: queryKeys.players({ sort_by: 'market_value', limit: 8 }),
     queryFn: () => api.players({ sort_by: 'market_value', limit: 8 }),
   });
 
-  // Available clubs in this competition from performance_over_time
-  const availableClubs = useMemo(() => {
-    if (!overviewData?.performance_over_time) return [];
-    const clubMap = new Map<string, string>();
-    for (const r of overviewData.performance_over_time) {
-      if (r.competition === selectedComp) {
-        clubMap.set(r.team.name, r.team.team_id);
-      }
-    }
-    return Array.from(clubMap.keys()).sort();
-  }, [overviewData, selectedComp]);
+  // 6. Fetch Transfer Market (Top 5 Competitions & Last 5 Seasons)
+  const { data: transfersData, isLoading: isTransfersLoading } = useQuery({
+    queryKey: queryKeys.transfers({
+      competition: transferComp === 'all' ? undefined : transferComp,
+      season: transferSeason === 'all' ? undefined : transferSeason,
+      limit: 100,
+    }),
+    queryFn: () =>
+      api.transfers({
+        competition: transferComp === 'all' ? undefined : transferComp,
+        season: transferSeason === 'all' ? undefined : transferSeason,
+        limit: 100,
+      }),
+  });
 
-  // If selected club is not in available clubs for new competition, auto-select first
-  React.useEffect(() => {
-    if (availableClubs.length > 0 && !availableClubs.includes(selectedClub)) {
-      setSelectedClub(availableClubs[0]);
-    }
-  }, [availableClubs, selectedClub]);
-
-  // Current active competition object
-  const currentComp = useMemo(() => {
-    return catalog?.competitions.find((c) => c.code === selectedComp);
-  }, [catalog, selectedComp]);
-
-  // Available seasons for this competition
-  const availableSeasons = useMemo(() => {
-    if (!currentComp) return [2026, 2025, 2024, 2023, 2022, 2021];
-    return currentComp.seasons.map((s) => s.season).sort((a, b) => b - a);
-  }, [currentComp]);
+  const allTransfers = transfersData?.transfers || [];
+  const totalTransferPages = Math.max(1, Math.ceil(allTransfers.length / transferPageSize));
+  const paginatedTransfers = useMemo(() => {
+    const start = (transferPage - 1) * transferPageSize;
+    return allTransfers.slice(start, start + transferPageSize);
+  }, [allTransfers, transferPage]);
 
   // -------------------------------------------------------------
   // Chart Data Preparations
@@ -289,22 +387,16 @@ function OverviewContent() {
           </h2>
           <span className="text-xs text-overlay1 hidden sm:inline">10 Domestic Leagues + 2 Major Tournaments</span>
         </div>
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin">
+        <div className="flex items-center gap-2.5 overflow-x-auto pb-2 scrollbar-thin">
           {catalog.competitions.map((comp) => {
             const isSelected = comp.code === selectedComp;
             return (
               <button
                 key={comp.code}
-                onClick={() => {
-                  setSelectedComp(comp.code);
-                  if (comp.seasons.length > 0) {
-                    const latest = Math.max(...comp.seasons.map((s) => s.season));
-                    setSelectedSeason(latest);
-                  }
-                }}
-                className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer shrink-0 shadow-sm ${
+                onClick={() => handleSelectComp(comp.code)}
+                className={`flex items-center gap-2.5 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer shrink-0 shadow-sm ${
                   isSelected
-                    ? 'bg-surface1 text-blue border-blue shadow-blue/10 scale-[1.02]'
+                    ? 'bg-surface1 text-blue border-blue shadow-blue/15 scale-[1.02]'
                     : 'bg-surface0 text-subtext1 border-surface1 hover:border-surface2 hover:text-text'
                 }`}
               >
@@ -316,9 +408,9 @@ function OverviewContent() {
                 />
                 <span>{comp.name}</span>
                 {comp.kind === 'tournament' && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow/15 text-yellow font-bold uppercase">
+                  <Chip color="warning" variant="soft" size="sm" className="text-[10px] uppercase font-bold">
                     Cup
-                  </span>
+                  </Chip>
                 )}
               </button>
             );
@@ -327,82 +419,84 @@ function OverviewContent() {
       </div>
 
       {/* 3. Controls & Filter Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-surface0/70 border border-surface1/80 backdrop-blur-sm shadow-sm">
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Season Selector */}
-          <div className="flex items-center gap-2">
-            <Calendar size={14} className="text-subtext0" />
-            <span className="text-xs font-semibold text-subtext0 uppercase tracking-wide">Season:</span>
-            <select
-              value={selectedSeason}
-              onChange={(e) => setSelectedSeason(Number(e.target.value))}
-              className="px-3 py-1.5 rounded-lg bg-mantle border border-surface1 text-xs font-medium text-text focus:outline-none focus:border-blue cursor-pointer"
-            >
-              {availableSeasons.map((yr) => (
-                <option key={yr} value={yr}>
-                  {selectedComp === 'WC' ? `${yr}` : `${yr}/${String(yr + 1).slice(-2)}`}
-                  {yr === 2026 && ' (Live)'}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Club Spotlight Selector */}
-          {availableClubs.length > 0 && (
+      <Card className="p-4 rounded-2xl bg-surface0/70 border border-surface1/80 backdrop-blur-sm shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-4">
+            {/* Season Selector */}
             <div className="flex items-center gap-2">
-              <Shield size={14} className="text-subtext0" />
-              <span className="text-xs font-semibold text-subtext0 uppercase tracking-wide">Club:</span>
+              <Calendar size={14} className="text-subtext0" />
+              <span className="text-xs font-semibold text-subtext0 uppercase tracking-wide">Season:</span>
               <select
-                value={selectedClub}
-                onChange={(e) => setSelectedClub(e.target.value)}
-                className="px-3 py-1.5 rounded-lg bg-mantle border border-surface1 text-xs font-medium text-text focus:outline-none focus:border-blue cursor-pointer max-w-[180px] truncate"
+                value={selectedSeason}
+                onChange={(e) => setSelectedSeason(Number(e.target.value))}
+                className="px-3 py-1.5 rounded-lg bg-mantle border border-surface1 text-xs font-medium text-text focus:outline-none focus:border-blue cursor-pointer"
               >
-                {availableClubs.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
+                {availableSeasons.map((yr) => (
+                  <option key={yr} value={yr}>
+                    {selectedComp === 'WC' ? `${yr}` : `${yr}/${String(yr + 1).slice(-2)}`}
+                    {yr === 2026 && ' (Live)'}
                   </option>
                 ))}
               </select>
             </div>
-          )}
-        </div>
 
-        <div className="flex items-center gap-2">
-          <Link
-            href={`/tables?competition=${selectedComp}&season=${selectedSeason}`}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue hover:text-lavender transition-colors"
-          >
-            <span>Full Standings</span>
-            <ChevronRight size={14} />
-          </Link>
+            {/* Club Spotlight Selector */}
+            {availableClubs.length > 0 && (
+              <div className="flex items-center gap-2">
+                <Shield size={14} className="text-subtext0" />
+                <span className="text-xs font-semibold text-subtext0 uppercase tracking-wide">Club:</span>
+                <select
+                  value={selectedClub}
+                  onChange={(e) => setSelectedClub(e.target.value)}
+                  className="px-3 py-1.5 rounded-lg bg-mantle border border-surface1 text-xs font-medium text-text focus:outline-none focus:border-blue cursor-pointer max-w-[220px] truncate"
+                >
+                  {availableClubs.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/tables?competition=${selectedComp}&season=${selectedSeason}`}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue hover:text-lavender transition-colors"
+            >
+              <span>Full Standings</span>
+              <ChevronRight size={14} />
+            </Link>
+          </div>
         </div>
-      </div>
+      </Card>
 
       {/* 4. Club Spotlight & KPIs */}
       {spotlight && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Spotlight Overview Card */}
-          <div className="lg:col-span-4 rounded-2xl bg-surface0 border border-surface1/80 p-6 flex flex-col justify-between relative overflow-hidden shadow-sm">
+          <Card className="lg:col-span-4 rounded-2xl bg-surface0 border border-surface1/80 p-6 flex flex-col justify-between relative overflow-hidden shadow-sm">
             {/* Background Ambient Glow */}
-            <div className="absolute top-0 right-0 -mt-8 -mr-8 w-40 h-40 bg-blue/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute top-0 right-0 -mt-8 -mr-8 w-44 h-44 bg-blue/15 rounded-full blur-3xl pointer-events-none" />
 
             <div>
               <div className="flex items-center gap-4 mb-4">
                 <FootballBadge
                   url={spotlight.team.badge_url}
                   name={spotlight.team.name}
-                  size={56}
+                  size={58}
                 />
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold uppercase tracking-wider text-blue">
                       Club Spotlight
                     </span>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-surface1 text-subtext1 font-mono">
+                    <Chip size="sm" variant="soft" color="accent" className="font-mono text-xs">
                       {spotlight.season}/{String(spotlight.season + 1).slice(-2)}
-                    </span>
+                    </Chip>
                   </div>
-                  <h3 className="text-2xl font-black text-text mt-0.5">
+                  <h3 className="text-2xl font-black text-text mt-1">
                     {spotlight.team.name}
                   </h3>
                   <p className="text-xs text-subtext0">
@@ -413,7 +507,7 @@ function OverviewContent() {
 
               {/* 4 Spotlight KPIs */}
               <div className="grid grid-cols-2 gap-3 mt-6">
-                <div className="p-3 rounded-xl bg-mantle border border-surface1">
+                <div className="p-3.5 rounded-xl bg-mantle border border-surface1">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-subtext0">
                     Matches Played
                   </span>
@@ -422,7 +516,7 @@ function OverviewContent() {
                   </p>
                 </div>
 
-                <div className="p-3 rounded-xl bg-mantle border border-surface1">
+                <div className="p-3.5 rounded-xl bg-mantle border border-surface1">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-subtext0">
                     W – D – L Record
                   </span>
@@ -433,7 +527,7 @@ function OverviewContent() {
                   </p>
                 </div>
 
-                <div className="p-3 rounded-xl bg-mantle border border-surface1">
+                <div className="p-3.5 rounded-xl bg-mantle border border-surface1">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-subtext0">
                     Points / Match
                   </span>
@@ -442,7 +536,7 @@ function OverviewContent() {
                   </p>
                 </div>
 
-                <div className="p-3 rounded-xl bg-mantle border border-surface1">
+                <div className="p-3.5 rounded-xl bg-mantle border border-surface1">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-subtext0">
                     Goal Difference
                   </span>
@@ -454,7 +548,7 @@ function OverviewContent() {
             </div>
 
             <div className="mt-6 pt-4 border-t border-surface1 flex items-center justify-between text-xs text-subtext0">
-              <span>Total Points: <strong className="text-text">{spotlight.points}</strong></span>
+              <span>Total Points: <strong className="text-text font-bold">{spotlight.points}</strong></span>
               <Link
                 href={`/clubs?team=${encodeURIComponent(spotlight.team.name)}`}
                 className="text-blue hover:underline font-semibold flex items-center gap-1"
@@ -463,12 +557,12 @@ function OverviewContent() {
                 <ExternalLink size={12} />
               </Link>
             </div>
-          </div>
+          </Card>
 
           {/* 3 Match Cards Strip (Latest, Previous, Next Fixture) */}
           <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* 1. Latest Completed Match */}
-            <div className="rounded-2xl bg-surface0 border border-surface1 p-4 flex flex-col justify-between shadow-sm">
+            <Card className="rounded-2xl bg-surface0 border border-surface1 p-4 flex flex-col justify-between shadow-sm">
               <div>
                 <div className="flex items-center justify-between text-xs mb-3">
                   <span className="font-bold uppercase text-subtext0 tracking-wider flex items-center gap-1">
@@ -481,12 +575,12 @@ function OverviewContent() {
 
                 {spotlight.latest_match ? (
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between p-2 rounded-xl bg-mantle border border-surface1/60">
-                      <div className="flex items-center gap-2 truncate">
+                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-mantle border border-surface1/60">
+                      <div className="flex items-center gap-2.5 truncate">
                         <FootballBadge
                           url={spotlight.latest_match.home.badge_url}
                           name={spotlight.latest_match.home.name}
-                          size={24}
+                          size={26}
                         />
                         <span className="text-xs font-semibold text-text truncate">
                           {spotlight.latest_match.home.name}
@@ -497,12 +591,12 @@ function OverviewContent() {
                       </span>
                     </div>
 
-                    <div className="flex items-center justify-between p-2 rounded-xl bg-mantle border border-surface1/60">
-                      <div className="flex items-center gap-2 truncate">
+                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-mantle border border-surface1/60">
+                      <div className="flex items-center gap-2.5 truncate">
                         <FootballBadge
                           url={spotlight.latest_match.away.badge_url}
                           name={spotlight.latest_match.away.name}
-                          size={24}
+                          size={26}
                         />
                         <span className="text-xs font-semibold text-text truncate">
                           {spotlight.latest_match.away.name}
@@ -525,10 +619,10 @@ function OverviewContent() {
                   Ref: {spotlight.latest_match.referee}
                 </div>
               )}
-            </div>
+            </Card>
 
             {/* 2. Previous Match */}
-            <div className="rounded-2xl bg-surface0 border border-surface1 p-4 flex flex-col justify-between shadow-sm">
+            <Card className="rounded-2xl bg-surface0 border border-surface1 p-4 flex flex-col justify-between shadow-sm">
               <div>
                 <div className="flex items-center justify-between text-xs mb-3">
                   <span className="font-bold uppercase text-subtext0 tracking-wider flex items-center gap-1">
@@ -541,12 +635,12 @@ function OverviewContent() {
 
                 {spotlight.previous_match ? (
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between p-2 rounded-xl bg-mantle border border-surface1/60">
-                      <div className="flex items-center gap-2 truncate">
+                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-mantle border border-surface1/60">
+                      <div className="flex items-center gap-2.5 truncate">
                         <FootballBadge
                           url={spotlight.previous_match.home.badge_url}
                           name={spotlight.previous_match.home.name}
-                          size={24}
+                          size={26}
                         />
                         <span className="text-xs font-semibold text-text truncate">
                           {spotlight.previous_match.home.name}
@@ -557,12 +651,12 @@ function OverviewContent() {
                       </span>
                     </div>
 
-                    <div className="flex items-center justify-between p-2 rounded-xl bg-mantle border border-surface1/60">
-                      <div className="flex items-center gap-2 truncate">
+                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-mantle border border-surface1/60">
+                      <div className="flex items-center gap-2.5 truncate">
                         <FootballBadge
                           url={spotlight.previous_match.away.badge_url}
                           name={spotlight.previous_match.away.name}
-                          size={24}
+                          size={26}
                         />
                         <span className="text-xs font-semibold text-text truncate">
                           {spotlight.previous_match.away.name}
@@ -585,11 +679,11 @@ function OverviewContent() {
                   Comp: {spotlight.previous_match.competition}
                 </div>
               )}
-            </div>
+            </Card>
 
             {/* 3. Next Listed Fixture / ML Forecast */}
-            <div className="rounded-2xl bg-surface0 border border-surface1 p-4 flex flex-col justify-between shadow-sm relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-mauve/10 rounded-full blur-2xl pointer-events-none" />
+            <Card className="rounded-2xl bg-surface0 border border-surface1 p-4 flex flex-col justify-between shadow-sm relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-28 h-28 bg-mauve/15 rounded-full blur-2xl pointer-events-none" />
 
               <div>
                 <div className="flex items-center justify-between text-xs mb-3">
@@ -604,21 +698,21 @@ function OverviewContent() {
                 {spotlight.next_fixture ? (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between text-xs font-bold text-text">
-                      <div className="flex items-center gap-1.5 truncate">
+                      <div className="flex items-center gap-2 truncate">
                         <FootballBadge
                           url={spotlight.next_fixture.home.badge_url}
                           name={spotlight.next_fixture.home.name}
-                          size={20}
+                          size={22}
                         />
                         <span className="truncate">{spotlight.next_fixture.home.name}</span>
                       </div>
-                      <span className="text-subtext0 text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-mantle">VS</span>
-                      <div className="flex items-center gap-1.5 truncate justify-end">
+                      <span className="text-subtext0 text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-mantle">VS</span>
+                      <div className="flex items-center gap-2 truncate justify-end">
                         <span className="truncate">{spotlight.next_fixture.away.name}</span>
                         <FootballBadge
                           url={spotlight.next_fixture.away.badge_url}
                           name={spotlight.next_fixture.away.name}
-                          size={20}
+                          size={22}
                         />
                       </div>
                     </div>
@@ -630,29 +724,29 @@ function OverviewContent() {
                         <span className="text-yellow">D: {(spotlight.next_fixture.draw_probability * 100).toFixed(0)}%</span>
                         <span className="text-peach">A: {(spotlight.next_fixture.away_probability * 100).toFixed(0)}%</span>
                       </div>
-                      <div className="h-2 w-full rounded-full bg-mantle overflow-hidden flex">
+                      <div className="h-2.5 w-full rounded-full bg-mantle overflow-hidden flex">
                         <div
                           style={{ width: `${spotlight.next_fixture.home_probability * 100}%` }}
-                          className="bg-blue h-full"
+                          className="bg-blue h-full transition-all"
                           title={`Home Win: ${(spotlight.next_fixture.home_probability * 100).toFixed(1)}%`}
                         />
                         <div
                           style={{ width: `${spotlight.next_fixture.draw_probability * 100}%` }}
-                          className="bg-yellow h-full"
+                          className="bg-yellow h-full transition-all"
                           title={`Draw: ${(spotlight.next_fixture.draw_probability * 100).toFixed(1)}%`}
                         />
                         <div
                           style={{ width: `${spotlight.next_fixture.away_probability * 100}%` }}
-                          className="bg-peach h-full"
+                          className="bg-peach h-full transition-all"
                           title={`Away Win: ${(spotlight.next_fixture.away_probability * 100).toFixed(1)}%`}
                         />
                       </div>
                     </div>
 
                     <div className="text-center pt-1">
-                      <span className="inline-block text-[10px] font-bold uppercase tracking-wider text-mauve px-2 py-0.5 rounded-full bg-mauve/15">
+                      <Chip size="sm" variant="soft" color="accent" className="text-[10px] font-bold uppercase tracking-wider">
                         Predicted: {spotlight.next_fixture.predicted_result}
-                      </span>
+                      </Chip>
                     </div>
                   </div>
                 ) : (
@@ -676,13 +770,13 @@ function OverviewContent() {
                   All Forecasts
                 </Link>
               </div>
-            </div>
+            </Card>
           </div>
         </div>
       )}
 
       {/* 5. Streamlit-Replica Analytics Visualizations */}
-      <div className="rounded-2xl bg-surface0 border border-surface1/80 p-6 shadow-sm">
+      <Card className="rounded-2xl bg-surface0 border border-surface1/80 p-6 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-surface1/60 pb-4 mb-6">
           <div>
             <h2 className="text-lg font-bold text-text flex items-center gap-2">
@@ -695,7 +789,7 @@ function OverviewContent() {
           </div>
 
           {/* Visualization Tab Switcher */}
-          <div className="flex items-center gap-1.5 p-1 bg-mantle rounded-xl border border-surface1 text-xs">
+          <div className="flex flex-wrap items-center gap-1.5 p-1 bg-mantle rounded-xl border border-surface1 text-xs">
             <button
               onClick={() => setChartView('trend')}
               className={`px-3 py-1.5 rounded-lg font-semibold transition-colors cursor-pointer ${
@@ -940,19 +1034,219 @@ function OverviewContent() {
             </div>
           </div>
         )}
-      </div>
+      </Card>
 
-      {/* 6. Star Players Spotlight (Transfermarkt Snapshot) */}
+      {/* 6. Transfer Market Showcase (5 Biggest Competitions & Last 5 Seasons) */}
+      <Card className="rounded-2xl bg-surface0 border border-surface1/80 p-6 shadow-sm">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-surface1/60 pb-5 mb-6">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <ArrowRightLeft size={18} className="text-green" />
+              <h2 className="text-lg font-bold text-text">
+                Transfer Market Showcase
+              </h2>
+              <Chip size="sm" variant="soft" color="success" className="font-mono text-xs">
+                30,000+ Deals
+              </Chip>
+            </div>
+            <p className="text-xs text-subtext0">
+              Top recorded transfers across the 5 biggest competitions for the last 5 seasons (2021–2026)
+            </p>
+          </div>
+
+          {/* Transfer Filters */}
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Competition Filter */}
+            <div className="flex items-center gap-2">
+              <Shield size={14} className="text-subtext0" />
+              <select
+                value={transferComp}
+                onChange={(e) => {
+                  setTransferComp(e.target.value);
+                  setTransferPage(1);
+                }}
+                className="px-3 py-1.5 rounded-lg bg-mantle border border-surface1 text-xs font-medium text-text focus:outline-none focus:border-blue cursor-pointer"
+              >
+                {BIG_5_COMPS.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Season Filter */}
+            <div className="flex items-center gap-2">
+              <Calendar size={14} className="text-subtext0" />
+              <select
+                value={transferSeason}
+                onChange={(e) => {
+                  const val = e.target.value === 'all' ? 'all' : Number(e.target.value);
+                  setTransferSeason(val);
+                  setTransferPage(1);
+                }}
+                className="px-3 py-1.5 rounded-lg bg-mantle border border-surface1 text-xs font-medium text-text focus:outline-none focus:border-blue cursor-pointer"
+              >
+                {RECENT_5_SEASONS.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Transfers List */}
+        {isTransfersLoading ? (
+          <LoadingSkeleton lines={5} />
+        ) : paginatedTransfers.length > 0 ? (
+          <div className="space-y-3">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="border-b border-surface1 bg-mantle text-[11px] uppercase tracking-wider text-subtext0">
+                  <tr>
+                    <th className="py-3 px-4">Player</th>
+                    <th className="py-3 px-4">From Club</th>
+                    <th className="py-3 px-4 text-center">Movement</th>
+                    <th className="py-3 px-4">To Club</th>
+                    <th className="py-3 px-4 text-right">Transfer Fee</th>
+                    <th className="py-3 px-4 text-right">Market Value</th>
+                    <th className="py-3 px-4 text-right">Season / Date</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-surface1/50">
+                  {paginatedTransfers.map((t) => (
+                    <tr key={t.transfer_id} className="hover:bg-surface1/40 transition-colors">
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-3">
+                          <PlayerAvatar
+                            image_url={t.image_url}
+                            name={t.player_name}
+                            size={44}
+                            ring={true}
+                          />
+                          <div>
+                            <p className="font-bold text-text text-sm hover:text-blue transition-colors">
+                              {t.player_name}
+                            </p>
+                            <span className="text-[10px] text-subtext0 font-mono">
+                              ID: {t.player_id}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-2">
+                          <FootballBadge
+                            url={t.from_club.badge_url}
+                            name={t.from_club.name}
+                            size={24}
+                          />
+                          <span className="text-subtext1 font-medium truncate max-w-[140px]">
+                            {t.from_club.name}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <div className="inline-flex items-center justify-center p-1.5 rounded-full bg-mantle text-green">
+                          <ArrowRightLeft size={14} />
+                        </div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-2">
+                          <FootballBadge
+                            url={t.to_club.badge_url}
+                            name={t.to_club.name}
+                            size={24}
+                          />
+                          <span className="text-text font-bold truncate max-w-[140px]">
+                            {t.to_club.name}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono">
+                        {t.transfer_fee && t.transfer_fee > 0 ? (
+                          <Chip size="sm" variant="soft" color="success" className="font-bold text-xs">
+                            €{(t.transfer_fee / 1e6).toFixed(1)}M
+                          </Chip>
+                        ) : (
+                          <span className="text-subtext0 italic">Free / Loan</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono">
+                        {t.market_value_eur && t.market_value_eur > 0 ? (
+                          <Chip size="sm" variant="soft" color="accent" className="font-semibold text-[11px]">
+                            €{(t.market_value_eur / 1e6).toFixed(0)}M
+                          </Chip>
+                        ) : (
+                          <span className="text-overlay0">—</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono text-[11px] text-subtext0">
+                        <span className="px-2 py-0.5 rounded bg-surface1 text-subtext1 font-semibold mr-1.5">
+                          {t.transfer_season}
+                        </span>
+                        <span>{t.transfer_date || ''}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Controls (10 items per page) */}
+            <div className="pt-4 border-t border-surface1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs">
+              <span className="text-subtext0 font-medium">
+                Showing deals {(transferPage - 1) * transferPageSize + 1} to{' '}
+                {Math.min(transferPage * transferPageSize, allTransfers.length)} of {allTransfers.length} loaded
+              </span>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  isDisabled={transferPage <= 1}
+                  onPress={() => setTransferPage((p) => Math.max(1, p - 1))}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer"
+                >
+                  <ChevronLeft size={14} className="mr-1 inline" /> Previous
+                </Button>
+
+                <span className="px-3 py-1 rounded bg-surface1 text-text font-mono text-xs">
+                  Page {transferPage} of {totalTransferPages}
+                </span>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  isDisabled={transferPage >= totalTransferPages}
+                  onPress={() => setTransferPage((p) => Math.min(totalTransferPages, p + 1))}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer"
+                >
+                  Next <ChevronRight size={14} className="ml-1 inline" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p className="text-xs text-subtext0 italic text-center py-8">
+            No transfer deals found for the selected season or competition filters.
+          </p>
+        )}
+      </Card>
+
+      {/* 7. Star Players Spotlight (Transfermarkt Snapshot) */}
       {starPlayersData?.players && starPlayersData.players.length > 0 && (
-        <div className="rounded-2xl bg-surface0 border border-surface1/80 p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
+        <Card className="rounded-2xl bg-surface0 border border-surface1/80 p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-5">
             <div>
               <h2 className="text-lg font-bold text-text flex items-center gap-2">
                 <Sparkles size={18} className="text-yellow" />
                 World Star Players Spotlight
               </h2>
               <p className="text-xs text-subtext0">
-                Highest market valuation stars with squad roles and player portraits
+                Highest market valuation stars with prominent player portraits & squad roles
               </p>
             </div>
             <Link
@@ -964,46 +1258,47 @@ function OverviewContent() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3.5">
             {starPlayersData.players.map((p) => (
               <Link
                 key={p.player_id}
                 href={`/players?q=${encodeURIComponent(p.name)}`}
-                className="group p-3 rounded-xl bg-mantle border border-surface1 hover:border-blue/50 transition-all flex flex-col items-center text-center"
+                className="group p-3.5 rounded-xl bg-mantle border border-surface1 hover:border-blue/60 transition-all flex flex-col items-center text-center shadow-xs hover:scale-[1.02]"
               >
-                <div className="relative mb-2">
+                <div className="relative mb-2.5">
                   <PlayerAvatar
                     image_url={p.image_url}
                     name={p.name}
-                    size={52}
-                    className="group-hover:scale-105"
+                    size={60}
+                    ring={true}
+                    className="group-hover:ring-blue"
                   />
-                  <div className="absolute -bottom-1 -right-1">
+                  <div className="absolute -bottom-1 -right-1 drop-shadow-md">
                     <FootballBadge
                       url={p.team.badge_url}
                       name={p.team.name}
-                      size={18}
+                      size={20}
                     />
                   </div>
                 </div>
                 <p className="text-xs font-bold text-text truncate w-full group-hover:text-blue transition-colors">
                   {p.name}
                 </p>
-                <p className="text-[10px] text-subtext0 truncate w-full">
+                <p className="text-[10px] text-subtext0 truncate w-full mt-0.5">
                   {p.position || 'Player'}
                 </p>
                 {p.market_value_eur && (
-                  <span className="mt-1 text-[10px] font-mono font-bold text-teal px-1.5 py-0.5 rounded bg-teal/10">
+                  <Chip size="sm" variant="soft" color="success" className="mt-2 text-[10px] font-mono font-bold">
                     €{(p.market_value_eur / 1e6).toFixed(0)}M
-                  </span>
+                  </Chip>
                 )}
               </Link>
             ))}
           </div>
-        </div>
+        </Card>
       )}
 
-      {/* 7. All 12 Competitions Grid */}
+      {/* 8. All 12 Supported Competitions Grid */}
       <div>
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -1040,19 +1335,16 @@ function OverviewContent() {
                       code={comp.code}
                       name={comp.name}
                       badge_url={comp.badge_url}
-                      size={38}
+                      size={40}
                     />
-                    <span
-                      className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                        isTourney
-                          ? 'bg-yellow/15 text-yellow'
-                          : liveSeason
-                          ? 'bg-green/15 text-green'
-                          : 'bg-surface1 text-subtext1'
-                      }`}
+                    <Chip
+                      size="sm"
+                      variant="soft"
+                      color={isTourney ? 'warning' : liveSeason ? 'success' : 'default'}
+                      className="text-[10px] font-bold uppercase tracking-wider"
                     >
                       {isTourney ? 'Tournament' : liveSeason ? 'Live Active' : 'Domestic'}
-                    </span>
+                    </Chip>
                   </div>
 
                   <h3 className="font-bold text-text text-sm group-hover:text-blue transition-colors">
