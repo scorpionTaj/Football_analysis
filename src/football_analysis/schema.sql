@@ -50,6 +50,19 @@ CREATE TABLE IF NOT EXISTS recent_events (
  home_goals INTEGER, away_goals INTEGER, status VARCHAR, event_kind VARCHAR NOT NULL,
  source VARCHAR NOT NULL, fetched_at TIMESTAMP NOT NULL
 );
+CREATE TABLE IF NOT EXISTS tournament_matches (
+ competition VARCHAR NOT NULL, season INTEGER NOT NULL, stage VARCHAR NOT NULL,
+ group_name VARCHAR, match_date DATE NOT NULL,
+ home_team VARCHAR NOT NULL, away_team VARCHAR NOT NULL,
+ home_goals INTEGER NOT NULL CHECK(home_goals >= 0),
+ away_goals INTEGER NOT NULL CHECK(away_goals >= 0),
+ home_penalties INTEGER, away_penalties INTEGER, venue VARCHAR,
+ neutral BOOLEAN NOT NULL, status VARCHAR NOT NULL,
+ source VARCHAR NOT NULL, source_url VARCHAR NOT NULL,
+ fetched_at TIMESTAMP NOT NULL,
+ PRIMARY KEY(competition, season, match_date, home_team, away_team),
+ CHECK(home_team <> away_team)
+);
 CREATE TABLE IF NOT EXISTS players (
  source VARCHAR NOT NULL, player_id VARCHAR NOT NULL, team_id VARCHAR NOT NULL,
  team VARCHAR NOT NULL, player VARCHAR NOT NULL, position VARCHAR,

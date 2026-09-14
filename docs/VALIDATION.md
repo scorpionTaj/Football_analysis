@@ -30,5 +30,10 @@
 - Integrated current analytics: 672 current Elo team-match rows across 182 clubs and 182 current shot-efficiency rows were rebuilt from 336 matches. The combined analytics cache records 9,244 fixtures.
 - Direct navigation: Discover and the standalone Current season centre were removed. Overview now owns the selected club's live W/D/L and match cards; seven primary pages remain.
 - Connected browser: the Catppuccin Overview rendered the 2026/27 Real Madrid live metrics and two completed-match cards, all seven tabs were visible, and no browser warning/error console entries were returned.
+- Iteration 2.7 tournaments: 985 CC0 matches loaded — 753 UEFA Champions League results across 2021/22–2025/26 and 232 FIFA World Cup results across 2018, 2022 and 2026.
+- Current domestic club coverage: 182 distinct clubs across the ten live league feeds are now selectable and searchable; the original 12 clubs remain defaults only.
+- Analysis system: one reusable Python interface now returns filtered match rows, performance rankings, recent-form summaries and metric correlations for both domestic and tournament inputs.
+- Automated tests: 33 passed, including Champions League text parsing, World Cup JSON variants and penalties, transactional tournament replacement, analysis filters, neutral-venue expansion and nine-page dashboard rendering.
+- Real-database Streamlit AppTest: all nine pages load with no application exception; Champions League is the primary tournament option and the custom Analysis lab is populated.
 
 The working installation is /home/scorpiontaj/Projects/Football_analysis. The outputs copy contains the same source, documentation, lockfile and downloaded data as the initial deliverable; future development should use the working installation.

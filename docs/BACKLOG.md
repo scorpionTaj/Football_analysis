@@ -77,10 +77,21 @@
 - [x] FA-064 Remove the redundant Discover and Current season pages; keep one search and seven focused pages.
 - [x] FA-065 Verify the consolidated navigation, live calculations, tests and connected-browser rendering.
 
+## Iteration 2.7 — tournament intelligence and analysis system
+- [x] FA-066 Add a no-key CC0 adapter for five Champions League seasons and three FIFA World Cups.
+- [x] FA-067 Promote Champions League and World Cup into a dedicated tournament page with stage, team and edition filters.
+- [x] FA-068 Expose all 182 clubs found in the ten current domestic leagues through club focus, comparison and platform search.
+- [x] FA-069 Add a reusable analysis system for filtering, rankings, recent form and metric correlations.
+- [x] FA-070 Add a custom Analysis lab with domestic/tournament datasets, venue slices, metric rankings and CSV exports.
+- [x] FA-071 Keep tournament and analysis logic independent of Streamlit and document the Next.js migration seam.
+- [x] FA-072 Add parser, transaction, analysis-engine and nine-page dashboard tests.
+
 ## Iteration 3 — packaging and operations
 - [ ] FA-014 CI with offline tests, dependency updates and scheduled source availability checks.
 - [ ] FA-015 Optional PostgreSQL deployment adapter when multi-user writing is needed.
 - [ ] FA-016 Container and deployment guide after source redistribution/hosting terms review.
 - [ ] FA-017 Optional StatsBomb event exploration with explicit partial coverage and required branding.
+- [ ] FA-073 Add a read-only FastAPI layer over `AnalysisSystem` before starting the Next.js frontend.
+- [ ] FA-074 Add cursor pagination and response-cache headers for match and player API routes.
 
 Tasks are local backlog items; no external issue tracker or recurring automation was created.

@@ -5,7 +5,7 @@ from datetime import datetime
 
 import pandas as pd
 
-from .config import CLUBS, DB, RECENT_LEAGUES, THESPORTSDB_LEAGUE_IDS
+from .config import CLUBS, COMPETITIONS, DB, RECENT_LEAGUES, THESPORTSDB_LEAGUE_IDS
 from .ingest import connect
 from .players import SOURCE, TheSportsDBPlayers
 
@@ -55,7 +55,7 @@ def _competition_media_frame(rows):
 
 def sync_media(db=DB, clubs=None, leagues=None, adapter=None):
     clubs = clubs if clubs is not None else list(CLUBS.values())
-    leagues = leagues if leagues is not None else list(RECENT_LEAGUES)
+    leagues = leagues if leagues is not None else list(COMPETITIONS)
     adapter = adapter or TheSportsDBMedia()
     report = []
     team_rows = []
@@ -79,13 +79,13 @@ def sync_media(db=DB, clubs=None, leagues=None, adapter=None):
                 raise ValueError("Competition was not found")
             league_rows.append({
                 "league_code": league_code,
-                "league": RECENT_LEAGUES[league_code],
+                "league": COMPETITIONS[league_code],
                 "provider": provider,
             })
-            report.append({"kind": "competition", "name": RECENT_LEAGUES[league_code], "status": "success"})
+            report.append({"kind": "competition", "name": COMPETITIONS[league_code], "status": "success"})
         except Exception as exc:
             report.append({
-                "kind": "competition", "name": RECENT_LEAGUES.get(league_code, league_code),
+                "kind": "competition", "name": COMPETITIONS.get(league_code, league_code),
                 "status": "failed", "detail": str(exc),
             })
         print(report[-1], flush=True)

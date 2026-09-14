@@ -14,9 +14,15 @@ RECENT_LEAGUES = {
     "T1": "Turkish Süper Lig",
     "G1": "Greek Super League",
 }
+TOURNAMENTS = {
+    "UCL": "UEFA Champions League",
+    "WC": "FIFA World Cup",
+}
+COMPETITIONS = {**RECENT_LEAGUES, **TOURNAMENTS}
 THESPORTSDB_LEAGUE_IDS = {
     "E0": 4328, "D1": 4331, "I1": 4332, "F1": 4334, "SP1": 4335,
     "G1": 4336, "N1": 4337, "B1": 4338, "T1": 4339, "P1": 4344,
+    "UCL": 4480, "WC": 4429,
 }
 CLUBS = {"Real Madrid": "Real Madrid", "Barcelona": "FC Barcelona", "Ath Madrid": "Atlético Madrid", "Man City": "Manchester City", "Liverpool": "Liverpool", "Arsenal": "Arsenal", "Bayern Munich": "Bayern Munich", "Dortmund": "Borussia Dortmund", "Paris SG": "Paris Saint-Germain", "Inter": "Inter Milan", "Milan": "AC Milan", "Juventus": "Juventus"}
 

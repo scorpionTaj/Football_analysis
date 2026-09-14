@@ -18,6 +18,15 @@ Competition documentation: https://docs.football-data.org/general/v4/competition
 
 The pricing page lists a €0 tier with 12 competitions, delayed scores/schedules, fixtures and league tables at 10 calls/minute. Ten seasons of history are listed in a paid ML package, while lineups, scorers and squads appear in paid deep-data tiers. Consequently five-season/player coverage is not assumed available free, and this app does not depend on this provider. No paid endpoint, account or token was configured.
 
+## Added: OpenFootball tournament feeds
+
+Champions League repository: https://github.com/openfootball/champions-league
+World Cup JSON repository: https://github.com/openfootball/worldcup.json
+
+Both repositories publish their match data under CC0/public-domain terms and expose raw files without a key. The Champions League adapter imports the completed 2021/22 through 2025/26 match lists. The World Cup adapter imports the structured 2018, 2022 and 2026 editions. Files are cached locally, parsed into a common provider-independent tournament table and replaced one competition-edition partition at a time.
+
+The text and JSON formats are public data files rather than a service-level API. The adapter therefore validates non-empty match sets and duplicate identities, stores the source URL and checksum, and keeps parsing behind one interface. OpenFootball is the required no-key baseline; football-data.org can later become an optional authenticated supplement without changing the analytical pages.
+
 ## Evaluated: StatsBomb Open Data
 
 Primary repository: https://github.com/hudl/open-data

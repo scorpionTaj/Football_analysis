@@ -13,6 +13,7 @@ uv run football-sync-recent
 uv run football-sync-players
 uv run football-sync-open-players
 uv run football-sync-media
+uv run football-sync-tournaments
 uv run streamlit run app.py --server.address 127.0.0.1
 ```
 
@@ -22,11 +23,13 @@ Open http://localhost:8501. Network is needed for the first download only. Use `
 
 ## Scope
 
-Real Madrid, FC Barcelona, Atlético Madrid, Manchester City, Liverpool, Arsenal, Bayern Munich, Borussia Dortmund, Paris Saint-Germain, Inter Milan, AC Milan and Juventus. All teams in their domestic leagues are ingested to preserve opponent context.
+All 182 clubs currently present across the Premier League, La Liga, Bundesliga, Serie A, Ligue 1, Eredivisie, Primeira Liga, Belgian Pro League, Turkish Süper Lig and Greek Super League are selectable. Twelve elite clubs remain convenient defaults. UEFA Champions League and FIFA World Cup results are available through a separate tournament workflow.
 
 The analytical range is 2021/22–2025/26 plus the live 2026/27 campaign. The July rollover selects five candidate completed seasons; each completed CSV must independently pass full double-round-robin coverage checks. Live rows are clearly labelled as partial and never presented as a completed season.
 
-Dashboard: one platform-wide search, three analysis modes, season/competition/club filters and seven direct pages: Overview, League tables, Club lab, Shot lab, Match explorer, Players and Data quality. The same filters drive results-derived tables, season-aware rolling form, chronological Elo, coverage-gated shot efficiency, W/D/L, goals, clean sheets, trends, attack/defence comparison and match export.
+Dashboard: one platform-wide search, three domestic analysis modes and nine focused pages: Overview, Champions & World Cup, Analysis lab, League tables, Club lab, Shot lab, Match explorer, Players and Data quality. The analysis lab slices domestic and tournament data by competition, edition, team and venue; ranks teams by seven metrics; builds a correlation matrix; and exports both the rankings and exact match slice.
+
+The tournament adapter loads five completed Champions League seasons (753 matches) and the 2018, 2022 and 2026 World Cups (232 matches) from OpenFootball's CC0 repositories without an API key. Champions League is the first tournament option and has stage, team, performance, scoring and match-result views.
 
 The 2026/27 campaign is integrated into every match-driven page and adds the Eredivisie, Primeira Liga, Belgian Pro League, Turkish Süper Lig and Greek Super League to the core five leagues. Overview shows the selected club's two nearest completed matches and next listed fixture when available; League tables reconstruct live partial standings; Club lab, Shot lab and Match explorer use the same current rows. The player explorer contains 458 tracked 2025/26 player records for the 12 clubs and 4,633 competition-season rows covering appearances, goals, assists, minutes and cards in 41 competitions. These come from the CC0 Transfermarkt Open Dataset, whose update pause and cutoff are visible in the interface. TheSportsDB remains an image and nearby-event fallback. The Catppuccin Mocha interface respects reduced-motion preferences. The app does not claim current 2026/27 squad accuracy, xG or possession.
 
@@ -40,7 +43,10 @@ The 2026/27 campaign is integrated into every match-driven page and adds the Ere
 - `src/football_analysis/open_players.py`: full featured-club snapshot and five-season player aggregation from published CC0 CSVs.
 - `src/football_analysis/players.py`: capped TheSportsDB profile and artwork fallback synchronization.
 - `src/football_analysis/media.py`: cached club and competition artwork synchronization.
+- `src/football_analysis/tournaments.py`: no-key CC0 Champions League and World Cup adapter, parsers, cache and transactional synchronization.
+- `src/football_analysis/analysis_system.py`: reusable filtering, ranking, form and correlation interface for Streamlit and a future HTTP/Next.js frontend.
 - `app.py`: dashboard (read-only database access).
+- `docs/NEXTJS_READINESS.md`: migration boundary and suggested API contract.
 - `docs/SOURCES.md`: source research and constraints.
 - `docs/BACKLOG.md`: implementation tasks and next iterations.
 - `tests/`: data-quality, idempotency and dashboard tests.

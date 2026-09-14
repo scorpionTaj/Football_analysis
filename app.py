@@ -6,7 +6,11 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-from football_analysis.config import CLUBS, DB, LEAGUES, RECENT_LEAGUES, current_season, label, seasons
+from football_analysis.config import (
+    CLUBS, COMPETITIONS, DB, LEAGUES, RECENT_LEAGUES, TOURNAMENTS,
+    current_season, label, seasons,
+)
+from football_analysis.analysis_system import AnalysisRequest, AnalysisSystem, tournament_team_matches
 from football_analysis.analytics import (
     elo_history,
     shot_coverage,
@@ -103,6 +107,10 @@ def load_data():
                 con.sql("SELECT * FROM external_source_metadata").df()
                 if "external_source_metadata" in tables else pd.DataFrame()
             )
+            tournament_matches = (
+                con.sql("SELECT * FROM tournament_matches").df()
+                if "tournament_matches" in tables else pd.DataFrame()
+            )
             return (
                 con.sql("SELECT * FROM team_seasons").df(),
                 con.sql("SELECT * FROM team_matches").df(),
@@ -121,6 +129,7 @@ def load_data():
                 open_players,
                 open_player_stats,
                 source_metadata,
+                tournament_matches,
             )
     except duckdb.Error as exc:
         st.error(f"Database unavailable: {exc}")
@@ -208,6 +217,7 @@ if data is None:
     cached_shots, analytics_metadata, recent_matches, recent_events,
     players, player_stats, team_media, competition_media,
     open_players, open_player_stats, source_metadata,
+    tournament_matches,
 ) = data
 
 
@@ -237,7 +247,7 @@ def competition_badge(code):
 def badge_rail(codes):
     chips = []
     for code in codes:
-        name = RECENT_LEAGUES.get(code, code)
+        name = COMPETITIONS.get(code, code)
         url = competition_badge(code)
         visual = (
             f'<img src="{html.escape(url)}" alt="{html.escape(name)} badge">'
@@ -279,6 +289,10 @@ expected = completed_seasons + ([live_season] if live_season not in completed_se
 def season_label(year):
     text = label(int(year))
     return f"{text} · Live" if int(year) == live_season else text
+
+
+def competition_season_label(code, year):
+    return str(int(year)) if code == "WC" else season_label(year)
 
 
 summaries = summaries[summaries.season.isin(completed_seasons)].copy()
@@ -340,6 +354,13 @@ if summaries.empty:
 elite_available = [team for team in CLUBS if team in set(summaries.team)]
 available_competitions = [code for code in RECENT_LEAGUES if code in set(summaries.league)]
 
+tournament_games = tournament_team_matches(tournament_matches)
+analysis_games = (
+    pd.concat([games, tournament_games], ignore_index=True)
+    if not tournament_games.empty else games.copy()
+)
+analysis_system = AnalysisSystem(analysis_games)
+
 
 elo = cached_elo if not cached_elo.empty else elo_history(fixtures)
 shot_coverage_frame = shot_coverage(fixtures)
@@ -355,12 +376,12 @@ with st.sidebar:
     st.caption("Search, compare and explore")
     platform_search = st.text_input(
         "Search platform", placeholder="Player, club or competition…",
-        help="Search all featured clubs, competitions and the complete player snapshot.",
+        help="Search every covered club, competition, tournament and the player snapshot.",
     ).strip()
     st.divider()
     analysis_mode = st.radio(
         "Analysis mode", ["Compare clubs", "Club focus", "Competition view"],
-        captions=["Benchmark elite teams", "One club in depth", "Full league standings"],
+        captions=["Benchmark any teams", "One club in depth", "Full league standings"],
     )
     st.divider()
     year_range = st.select_slider(
@@ -393,18 +414,21 @@ with st.sidebar:
         ].unique(),
         key=display_team,
     )
-    available_clubs = [team for team in elite_available if team in all_available_clubs]
+    available_clubs = all_available_clubs
     if analysis_mode == "Club focus":
         selected_club = st.selectbox(
             "Primary club", available_clubs,
-            format_func=lambda team: CLUBS[team],
+            format_func=display_team,
         ) if available_clubs else None
         compare_clubs = [selected_club] if selected_club else []
     elif analysis_mode == "Compare clubs":
+        featured_defaults = [team for team in elite_available if team in available_clubs][:6]
+        if not featured_defaults:
+            featured_defaults = available_clubs[: min(6, len(available_clubs))]
         compare_clubs = st.multiselect(
-            "Elite clubs", available_clubs,
-            default=available_clubs[: min(6, len(available_clubs))],
-            format_func=lambda team: CLUBS[team], max_selections=8,
+            "Clubs", available_clubs,
+            default=featured_defaults,
+            format_func=display_team, max_selections=8,
             placeholder="Choose up to 8 clubs",
         )
         selected_club = compare_clubs[0] if compare_clubs else None
@@ -449,7 +473,7 @@ elif analysis_mode == "Competition view":
 else:
     hero_title = "Football Intelligence"
     hero_eyebrow = "European club performance lab"
-    hero_text = "Compare elite clubs across five completed seasons and the live 2026/27 campaign."
+    hero_text = "Compare every covered club across five completed seasons and the live 2026/27 campaign."
     hero_image = team_badge(selected_club)
 
 hero_mark = (
@@ -482,12 +506,18 @@ if search_term:
             | open_players.position.str.casefold().str.contains(search_term, regex=False, na=False)
             | open_players.nationality.str.casefold().str.contains(search_term, regex=False, na=False)
         ].copy()
+    searchable_clubs = sorted(
+        set(summaries.team)
+        | set(tournament_matches.home_team if not tournament_matches.empty else [])
+        | set(tournament_matches.away_team if not tournament_matches.empty else []),
+        key=display_team,
+    )
     club_hits = [
-        (code, name) for code, name in CLUBS.items()
-        if search_term in name.casefold()
+        (name, display_team(name)) for name in searchable_clubs
+        if search_term in display_team(name).casefold()
     ]
     competition_hits = [
-        (code, name) for code, name in RECENT_LEAGUES.items()
+        (code, name) for code, name in COMPETITIONS.items()
         if search_term in name.casefold()
     ]
     total_hits = len(player_hits) + len(club_hits) + len(competition_hits)
@@ -526,9 +556,10 @@ if analysis_mode == "Competition view":
 else:
     st.caption(f"Results through {latest_date:%d %B %Y}. Each selected club's performance is counted independently.")
 
-overview, standings_tab, club_lab, shots_tab, matches_tab, players_tab, quality = st.tabs(
+overview, tournaments_tab, analysis_tab, standings_tab, club_lab, shots_tab, matches_tab, players_tab, quality = st.tabs(
     [
-        "Overview", "League tables", "Club lab", "Shot lab", "Match explorer", "Players", "Data quality",
+        "Overview", "Champions & World Cup", "Analysis lab", "League tables",
+        "Club lab", "Shot lab", "Match explorer", "Players", "Data quality",
     ]
 )
 
@@ -635,6 +666,241 @@ with overview:
     st.caption("Elo is calculated chronologically from domestic league matches. Same-day fixtures use the same pre-match rating snapshot.")
     if len(league_filter) > 1:
         st.caption("Absolute Elo levels are calibrated within each domestic competition. Use cross-league Elo to compare trends, not exact strength gaps.")
+
+with tournaments_tab:
+    st.subheader("Champions League & World Cup")
+    st.markdown(
+        '<div class="section-note">Complete, no-key tournament results from the CC0 OpenFootball feeds. Champions League is the primary tournament view.</div>',
+        unsafe_allow_html=True,
+    )
+    if tournament_matches.empty:
+        st.info("Tournament data is not loaded yet. Run football-sync-tournaments, then refresh.")
+    else:
+        tc1, tc2, tc3 = st.columns([1.2, 1, 1.2])
+        tournament_code = tc1.selectbox(
+            "Tournament", [code for code in TOURNAMENTS if code in set(tournament_matches.competition)],
+            format_func=lambda code: TOURNAMENTS[code], key="tournament_code",
+        )
+        tournament_years = sorted(
+            tournament_matches.loc[tournament_matches.competition == tournament_code, "season"].unique(),
+            reverse=True,
+        )
+        tournament_year = tc2.selectbox(
+            "Edition", tournament_years,
+            format_func=lambda year: competition_season_label(tournament_code, year),
+            key="tournament_year",
+        )
+        tournament_slice = tournament_matches[
+            (tournament_matches.competition == tournament_code)
+            & (tournament_matches.season == tournament_year)
+        ].sort_values("match_date").copy()
+        stage_options = list(dict.fromkeys(tournament_slice.stage.tolist()))
+        tournament_stage = tc3.selectbox(
+            "Stage", ["All stages", *stage_options], key="tournament_stage",
+        )
+        if tournament_stage != "All stages":
+            tournament_slice = tournament_slice[tournament_slice.stage == tournament_stage]
+
+        tournament_teams = sorted(
+            set(tournament_slice.home_team) | set(tournament_slice.away_team), key=display_team,
+        )
+        team_focus = st.selectbox(
+            "Team", ["All teams", *tournament_teams],
+            format_func=lambda team: team if team == "All teams" else display_team(team),
+            key="tournament_team",
+        )
+        if team_focus != "All teams":
+            tournament_slice = tournament_slice[
+                (tournament_slice.home_team == team_focus)
+                | (tournament_slice.away_team == team_focus)
+            ]
+
+        tournament_image = competition_badge(tournament_code)
+        mark = (
+            f'<img src="{html.escape(tournament_image)}" alt="{html.escape(TOURNAMENTS[tournament_code])} badge">'
+            if tournament_image else f'<span class="no-art">{tournament_code}</span>'
+        )
+        st.markdown(
+            f'<div class="identity-card">{mark}<div><span class="art-kicker">Tournament intelligence</span>'
+            f'<h2>{html.escape(TOURNAMENTS[tournament_code])}</h2>'
+            f'<p>{html.escape(competition_season_label(tournament_code, tournament_year))} · '
+            f'{len(tournament_slice):,} selected matches</p></div></div>',
+            unsafe_allow_html=True,
+        )
+        if tournament_slice.empty:
+            st.info("No tournament matches fit these filters.")
+        else:
+            total_goals = int(tournament_slice.home_goals.sum() + tournament_slice.away_goals.sum())
+            tk1, tk2, tk3, tk4 = st.columns(4)
+            tk1.metric("Matches", f"{len(tournament_slice):,}")
+            tk2.metric("Teams", len(set(tournament_slice.home_team) | set(tournament_slice.away_team)))
+            tk3.metric("Goals", f"{total_goals:,}")
+            tk4.metric("Goals / match", f"{total_goals / len(tournament_slice):.2f}")
+
+            tournament_report = AnalysisSystem(
+                tournament_team_matches(tournament_slice)
+            ).build_report(AnalysisRequest(form_window=form_window))
+            ranking = tournament_report.rankings.copy()
+            ranking["Team"] = ranking.team.map(display_team)
+            stage_goals = tournament_slice.assign(
+                goals=tournament_slice.home_goals + tournament_slice.away_goals
+            ).groupby("stage", as_index=False).agg(
+                Matches=("goals", "size"), Goals=("goals", "sum"),
+            )
+            stage_goals["Goals / match"] = stage_goals.Goals / stage_goals.Matches
+            left, right = st.columns([1.1, 1])
+            left.plotly_chart(style_chart(px.bar(
+                stage_goals, x="stage", y="Goals / match", color="Goals",
+                color_continuous_scale=[MOCHA["blue"], ACCENT],
+                title="Scoring by stage", labels={"stage": "Stage"},
+            ), 420), width="stretch")
+            right.dataframe(
+                ranking[[
+                    "rank", "Team", "played", "wins", "draws", "losses",
+                    "goals_for", "goals_against", "goal_difference", "form",
+                ]].head(20),
+                hide_index=True, width="stretch",
+                column_config={
+                    "rank": "Rank", "played": "P", "wins": "W", "draws": "D",
+                    "losses": "L", "goals_for": "GF", "goals_against": "GA",
+                    "goal_difference": "GD", "form": "Recent form",
+                },
+            )
+            results = tournament_slice[[
+                "match_date", "stage", "home_team", "away_team", "home_goals",
+                "away_goals", "home_penalties", "away_penalties", "venue",
+            ]].copy()
+            results["Home"] = results.home_team.map(display_team)
+            results["Away"] = results.away_team.map(display_team)
+            results["Score"] = results.home_goals.astype(str) + "–" + results.away_goals.astype(str)
+            penalty_mask = results.home_penalties.notna() & results.away_penalties.notna()
+            results.loc[penalty_mask, "Score"] += (
+                " (pens " + results.loc[penalty_mask, "home_penalties"].astype(int).astype(str)
+                + "–" + results.loc[penalty_mask, "away_penalties"].astype(int).astype(str) + ")"
+            )
+            st.markdown("#### Match results")
+            st.dataframe(
+                results[["match_date", "stage", "Home", "Score", "Away", "venue"]],
+                hide_index=True, width="stretch",
+                column_config={"match_date": "Date", "stage": "Stage", "venue": "Venue"},
+            )
+            st.download_button(
+                "Download tournament results", results.to_csv(index=False),
+                f"{tournament_code.lower()}_{tournament_year}_results.csv", "text/csv",
+                key="download_tournament",
+            )
+            st.caption("Knockout rankings describe performance in the selected matches; they are not an official tournament table.")
+
+with analysis_tab:
+    st.subheader("Analysis lab")
+    st.markdown(
+        '<div class="section-note">Build a custom analytical slice across domestic leagues and major tournaments, compare metrics and export the exact result set.</div>',
+        unsafe_allow_html=True,
+    )
+    analysis_competition_options = [
+        code for code in COMPETITIONS if code in set(analysis_games.league)
+    ]
+    default_analysis_competitions = [
+        code for code in ["UCL", *league_filter] if code in analysis_competition_options
+    ]
+    ac1, ac2 = st.columns([1.4, 1])
+    analysis_competitions = ac1.multiselect(
+        "Datasets", analysis_competition_options, default=default_analysis_competitions,
+        format_func=lambda code: COMPETITIONS[code], key="analysis_competitions",
+    )
+    analysis_season_options = sorted(
+        analysis_games.loc[analysis_games.league.isin(analysis_competitions), "season"].unique(),
+        reverse=True,
+    )
+    analysis_seasons = ac2.multiselect(
+        "Seasons / editions", analysis_season_options,
+        default=analysis_season_options[:2], format_func=lambda year: str(int(year)),
+        key="analysis_seasons",
+    )
+    candidate_teams = sorted(
+        analysis_games.loc[
+            analysis_games.league.isin(analysis_competitions)
+            & analysis_games.season.isin(analysis_seasons), "team"
+        ].unique(), key=display_team,
+    )
+    ac3, ac4 = st.columns([1.5, 1])
+    analysis_teams = ac3.multiselect(
+        "Teams", candidate_teams, format_func=display_team,
+        placeholder="All teams", key="analysis_teams",
+    )
+    analysis_venue = ac4.selectbox(
+        "Venue", ["All venues", "Home", "Away", "Neutral"], key="analysis_venue",
+    )
+    report = analysis_system.build_report(AnalysisRequest(
+        competitions=tuple(analysis_competitions), seasons=tuple(int(year) for year in analysis_seasons),
+        teams=tuple(analysis_teams),
+        venue=None if analysis_venue == "All venues" else analysis_venue,
+        form_window=form_window,
+    ))
+    if report.rankings.empty:
+        st.info("Select at least one dataset and season with available matches.")
+    else:
+        metric_labels = {
+            "points_per_game": "Points per game", "goals_per_game": "Goals per game",
+            "conceded_per_game": "Goals conceded per game", "win_rate": "Win rate (%)",
+            "clean_sheet_rate": "Clean-sheet rate (%)", "goal_difference": "Goal difference",
+            "form_ppg": f"Last {form_window} matches PPG",
+        }
+        metric_col, limit_col = st.columns(2)
+        analysis_metric = metric_col.selectbox(
+            "Ranking metric", list(metric_labels), format_func=metric_labels.get,
+            key="analysis_metric",
+        )
+        analysis_limit = limit_col.slider("Teams shown", 5, 30, 15, key="analysis_limit")
+        ranking = report.rankings.copy()
+        ranking["Team"] = ranking.team.map(display_team)
+        ranking["Competition"] = ranking.league.map(COMPETITIONS)
+        ranking["Season"] = ranking.apply(
+            lambda row: competition_season_label(row.league, row.season), axis=1,
+        )
+        sort_ascending = analysis_metric == "conceded_per_game"
+        ranking_chart = ranking.sort_values(analysis_metric, ascending=sort_ascending).head(analysis_limit)
+        chart = px.bar(
+            ranking_chart.sort_values(analysis_metric, ascending=not sort_ascending),
+            x=analysis_metric, y="Team", orientation="h", color="Competition",
+            facet_col="Season" if ranking_chart.Season.nunique() > 1 else None,
+            title=f"{metric_labels[analysis_metric]} ranking",
+            labels={analysis_metric: metric_labels[analysis_metric]},
+        )
+        st.plotly_chart(style_chart(chart, max(430, 34 * len(ranking_chart))), width="stretch")
+        st.dataframe(
+            ranking[[
+                "Competition", "Season", "Team", "played", "points_per_game",
+                "goals_per_game", "conceded_per_game", "win_rate",
+                "clean_sheet_rate", "form",
+            ]].sort_values(["Competition", "Season", "points_per_game"], ascending=[True, False, False]),
+            hide_index=True, width="stretch",
+            column_config={
+                "played": "Matches", "points_per_game": st.column_config.NumberColumn("PPG", format="%.2f"),
+                "goals_per_game": st.column_config.NumberColumn("GF / match", format="%.2f"),
+                "conceded_per_game": st.column_config.NumberColumn("GA / match", format="%.2f"),
+                "win_rate": st.column_config.NumberColumn("Win rate", format="%.1f%%"),
+                "clean_sheet_rate": st.column_config.NumberColumn("Clean sheets", format="%.1f%%"),
+                "form": "Recent form",
+            },
+        )
+        if len(ranking) > 2:
+            correlation = report.correlations.set_index("metric")
+            correlation_chart = px.imshow(
+                correlation, text_auto=".2f", aspect="auto",
+                color_continuous_scale=[MOCHA["red"], MOCHA["surface0"], MOCHA["teal"]],
+                zmin=-1, zmax=1, title="Metric correlation matrix",
+            )
+            st.plotly_chart(style_chart(correlation_chart, 460), width="stretch")
+        dl1, dl2 = st.columns(2)
+        dl1.download_button(
+            "Download rankings", ranking.to_csv(index=False), "analysis_rankings.csv",
+            "text/csv", key="download_analysis_rankings",
+        )
+        dl2.download_button(
+            "Download match slice", report.matches.to_csv(index=False), "analysis_matches.csv",
+            "text/csv", key="download_analysis_matches",
+        )
 
 with standings_tab:
     st.subheader("Reconstructed league table")
@@ -1147,6 +1413,13 @@ with quality:
             extended_refreshes.append(pd.to_datetime(dataset.fetched_at).max())
     if extended_refreshes:
         st.caption(f"Extended free-source data refreshed {max(extended_refreshes):%d %b %Y %H:%M}")
+    if not tournament_matches.empty:
+        st.markdown("#### Major tournament coverage")
+        tq1, tq2, tq3, tq4 = st.columns(4)
+        tq1.metric("Tournament matches", f"{len(tournament_matches):,}")
+        tq2.metric("Champions League", f"{len(tournament_matches[tournament_matches.competition == 'UCL']):,}", "5 seasons")
+        tq3.metric("FIFA World Cup", f"{len(tournament_matches[tournament_matches.competition == 'WC']):,}", "3 editions")
+        tq4.metric("Tournament teams", len(set(tournament_matches.home_team) | set(tournament_matches.away_team)))
     with st.expander("Ingestion history"):
         st.dataframe(runs.drop(columns=["run_id"]), hide_index=True, width="stretch")
     st.markdown("#### Shot-field coverage")
@@ -1169,4 +1442,4 @@ if len(completed_coverage) < len(LEAGUES) * len(completed_seasons):
         "Missing partitions are excluded."
     )
 st.divider()
-st.caption("Data: Football-Data.co.uk public CSV archive · Transfermarkt Open Dataset (CC0) · TheSportsDB media · Match-derived analytics · Cached locally")
+st.caption("Data: Football-Data.co.uk public CSV archive · OpenFootball tournaments (CC0) · Transfermarkt Open Dataset (CC0) · TheSportsDB media · Match-derived analytics · Cached locally")
