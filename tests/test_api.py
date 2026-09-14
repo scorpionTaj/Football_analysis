@@ -24,6 +24,13 @@ def seed(path):
             VALUES ('r1', 'E0', 2024, 'memory', 'abc123', 2, 'success', 'ok')
         """)
         con.execute("""
+            INSERT INTO reference_standings (
+                source, league, season, rank, team, played, points, goal_difference,
+                form, description, source_updated_at, fetched_at
+            ) VALUES ('TheSportsDB', 'E0', 2024, 1, 'Arsenal', 2, 7, 2,
+                      'WW', 'Champions League', current_timestamp, current_timestamp)
+        """)
+        con.execute("""
             INSERT INTO tournament_matches (
                 competition, season, stage, group_name, match_date, home_team, away_team,
                 home_goals, away_goals, home_penalties, away_penalties, venue, neutral, status,
@@ -99,6 +106,13 @@ def seed(path):
                       2, 1, 'Match Finished', 'past', 'TheSportsDB', current_timestamp)
         """)
         con.execute("""
+            INSERT INTO recent_events (
+                event_id, league, season, match_date, home_team, away_team,
+                home_goals, away_goals, status, event_kind, source, fetched_at
+            ) VALUES ('event-next', 'E0', 2026, '2026-09-27', 'Arsenal', 'Chelsea',
+                      NULL, NULL, 'Not Started', 'next', 'TheSportsDB', current_timestamp)
+        """)
+        con.execute("""
             INSERT INTO event_statistics (source, event_id, statistic, home_value, away_value, fetched_at)
             VALUES ('TheSportsDB', 'event-1', 'Shots on Goal', 5, 3, current_timestamp)
         """)
@@ -161,6 +175,7 @@ def test_health_and_openapi_document_v1_routes(tmp_path):
         "/api/v1/tournaments/{competition}/{season}", "/api/v1/predictions",
         "/api/v1/players", "/api/v1/players/{player_id}", "/api/v1/quality",
         "/api/v1/overview", "/api/v1/transfers",
+        "/api/v1/standings",
         "/api/v1/shots", "/api/v1/event-details", "/api/v1/event-details/{event_id}",
     ):
         assert path in spec["paths"]
@@ -223,6 +238,11 @@ def test_tournament_players_predictions_and_quality(tmp_path):
     assert preds["calibration"][0]["samples"] == 1
     quality = api.get("/api/v1/quality").json()
     assert quality["match_records"] >= 2
+    assert quality["reference_rows"] == 1
+    assert quality["tracked_players"] == 1
+    assert quality["tournament_matches"] == 1
+    assert quality["detailed_event_stats"] == 1
+    assert quality["shot_coverage"]
     assert quality["source_caps"]
 
 
@@ -260,6 +280,28 @@ def test_overview_endpoint(tmp_path):
     assert "performance_over_time" in data
     assert "forecasts" in data
 
+    live = api.get("/api/v1/overview", params={"team": "Arsenal", "competition": "E0", "season": 2026}).json()
+    assert live["spotlight"]["next_match"]["away"]["name"] == "Chelsea"
+
+
+def test_standings_include_external_reference_deltas(tmp_path):
+    api = client(tmp_path)
+    data = api.get("/api/v1/standings", params={"competition": "E0", "season": 2024}).json()
+    assert data["rankings"][0]["team"]["name"] == "Arsenal"
+    assert data["reference"][0]["results_points"] == 6
+    assert data["reference"][0]["point_adjustment"] == 1
+
+
+def test_player_search_and_facets_cover_legacy_filters(tmp_path):
+    api = client(tmp_path)
+    by_nation = api.get("/api/v1/players", params={"q": "England"}).json()
+    assert by_nation["players"][0]["name"] == "Bukayo Saka"
+    assert by_nation["total_count"] == 1
+    assert by_nation["nationality_count"] == 1
+    assert by_nation["teams"][0]["name"] == "Arsenal"
+    by_position = api.get("/api/v1/players", params={"position": "Attack"}).json()
+    assert by_position["players"][0]["position"] == "Attack"
+
 
 def test_transfers_with_all_filter(tmp_path):
     api = client(tmp_path)
@@ -270,7 +312,7 @@ def test_transfers_with_all_filter(tmp_path):
     assert len(data["transfers"]) >= 1
 
 
-def test_shots_and_event_details_close_streamlit_parity(tmp_path):
+def test_shots_and_event_details_contract(tmp_path):
     api = client(tmp_path)
     shots = api.get("/api/v1/shots", params={"competition": "E0", "season": 2024})
     assert shots.status_code == 200
@@ -296,5 +338,3 @@ def test_teams_endpoint_fallback(tmp_path):
     data = res.json()
     assert "teams" in data
     assert len(data["teams"]) >= 2
-
-

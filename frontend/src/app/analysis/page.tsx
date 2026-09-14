@@ -82,6 +82,10 @@ function AnalysisContent() {
   const rankings = useMemo(() => data?.rankings || [], [data?.rankings]);
   const { paginatedItems: paginatedRankings, PaginationComponent: AnalysisPagination } = usePagination(rankings, 10);
   const matchFactors = data?.match_factors;
+  const correlationMetrics = useMemo(() => {
+    const first = data?.correlations?.[0];
+    return first ? Object.keys(first).filter((key) => key !== 'metric') : [];
+  }, [data?.correlations]);
 
   // Active metric config
   const metricInfo = METRIC_CONFIGS.find((m) => m.key === selectedMetric) || METRIC_CONFIGS[0];
@@ -369,6 +373,27 @@ function AnalysisContent() {
           <AnalysisPagination />
         </div>
       </div>
+
+      {data?.correlations?.length && correlationMetrics.length ? (
+        <div className="overflow-hidden rounded-xl border border-surface1 bg-surface0">
+          <div className="border-b border-surface1 p-4">
+            <h2 className="font-semibold text-text">Metric correlation matrix</h2>
+            <p className="mt-1 text-xs text-subtext0">Values near +1 move together; values near −1 move in opposite directions.</p>
+          </div>
+          <div className="overflow-x-auto p-4">
+            <table className="w-full text-center text-xs">
+              <thead><tr><th className="p-2 text-left text-subtext0">Metric</th>{correlationMetrics.map((metric) => <th key={metric} className="min-w-24 p-2 text-subtext0">{metric.replaceAll('_', ' ')}</th>)}</tr></thead>
+              <tbody>
+                {data.correlations.map((row) => <tr key={String(row.metric)}><th className="p-2 text-left font-semibold text-text">{String(row.metric).replaceAll('_', ' ')}</th>{correlationMetrics.map((metric) => {
+                  const value = typeof row[metric] === 'number' ? row[metric] as number : null;
+                  const intensity = value == null ? 0 : Math.min(0.32, Math.abs(value) * 0.32);
+                  return <td key={metric} className="border border-surface1 p-2 font-mono text-text" style={{ backgroundColor: value == null ? undefined : value >= 0 ? `rgba(137,180,250,${intensity})` : `rgba(243,139,168,${intensity})` }}>{value == null ? '—' : value.toFixed(2)}</td>;
+                })}</tr>)}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
 
       {/* Match Factors & Disciplinary Context */}
       {matchFactors && (

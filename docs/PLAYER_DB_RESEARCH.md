@@ -44,7 +44,7 @@ A conservative refresh for this project fits within the free quota:
 | Validation/retry reserve | 20 |
 | **Expected daily total** | **61–73** |
 
-This estimate is intentionally below the 100-request allowance. The ingestion job should stop before the provider's remaining-quota header reaches a configurable reserve. It should never poll player endpoints during a Streamlit page render.
+This estimate is intentionally below the 100-request allowance. The ingestion job should stop before the provider's remaining-quota header reaches a configurable reserve. It should never poll provider endpoints during a frontend page render.
 
 API-Football is free to query but is **not open data**. Its [terms](https://www.api-football.com/terms) prohibit direct resale and say the service does not grant publication rights in the underlying sports data. A portfolio dashboard can use it as an application data source, but any public/commercial launch should re-check the terms and the rights for competition logos and player photos.
 

@@ -317,6 +317,7 @@ function OverviewContent() {
     .reduce((sum, s) => sum + s.match_count, 0);
 
   const spotlight = overviewData?.spotlight;
+  const nextListedMatch = spotlight?.next_match || spotlight?.next_fixture;
 
   return (
     <div className="space-y-8 animate-fade-in pb-12">
@@ -672,34 +673,33 @@ function OverviewContent() {
                     <Zap size={12} className="text-yellow" /> Upcoming Forecast
                   </span>
                   <span className="font-mono text-[11px] text-overlay1">
-                    {spotlight.next_fixture?.match_date || 'Forecast'}
+                    {nextListedMatch?.match_date || 'Not listed'}
                   </span>
                 </div>
 
-                {spotlight.next_fixture ? (
+                {nextListedMatch ? (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between text-xs font-bold text-text">
                       <div className="flex items-center gap-2 truncate">
                         <FootballBadge
-                          url={spotlight.next_fixture.home.badge_url}
-                          name={spotlight.next_fixture.home.name}
+                          url={nextListedMatch.home.badge_url}
+                          name={nextListedMatch.home.name}
                           size={22}
                         />
-                        <span className="truncate">{spotlight.next_fixture.home.name}</span>
+                        <span className="truncate">{nextListedMatch.home.name}</span>
                       </div>
                       <span className="text-subtext0 text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-mantle">VS</span>
                       <div className="flex items-center gap-2 truncate justify-end">
-                        <span className="truncate">{spotlight.next_fixture.away.name}</span>
+                        <span className="truncate">{nextListedMatch.away.name}</span>
                         <FootballBadge
-                          url={spotlight.next_fixture.away.badge_url}
-                          name={spotlight.next_fixture.away.name}
+                          url={nextListedMatch.away.badge_url}
+                          name={nextListedMatch.away.name}
                           size={22}
                         />
                       </div>
                     </div>
 
-                    {/* Calibrated Probabilities Progress Bar */}
-                    <div className="space-y-1 mt-2">
+                    {spotlight.next_fixture ? <div className="space-y-1 mt-2">
                       <div className="flex justify-between text-[11px] font-mono text-subtext1">
                         <span className="text-blue">H: {(spotlight.next_fixture.home_probability * 100).toFixed(0)}%</span>
                         <span className="text-yellow">D: {(spotlight.next_fixture.draw_probability * 100).toFixed(0)}%</span>
@@ -722,13 +722,13 @@ function OverviewContent() {
                           title={`Away Win: ${(spotlight.next_fixture.away_probability * 100).toFixed(1)}%`}
                         />
                       </div>
-                    </div>
+                    </div> : <p className="text-center text-[11px] text-subtext0">Listed fixture · prediction not available yet</p>}
 
-                    <div className="text-center pt-1">
+                    {spotlight.next_fixture ? <div className="text-center pt-1">
                       <Chip size="sm" variant="soft" color="accent" className="text-[10px] font-bold uppercase tracking-wider">
                         Predicted: {spotlight.next_fixture.predicted_result}
                       </Chip>
-                    </div>
+                    </div> : null}
                   </div>
                 ) : (
                   <div className="py-4 text-center">
@@ -756,7 +756,7 @@ function OverviewContent() {
         </div>
       )}
 
-      {/* 5. Streamlit-Replica Analytics Visualizations */}
+      {/* 5. Analytics Visualizations */}
       <Card className="rounded-2xl bg-surface0 border border-surface1/80 p-6 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-surface1/60 pb-4 mb-6">
           <div>

@@ -330,6 +330,12 @@ class PlayerSummary(BaseModel):
 class PlayerListResponse(BaseModel):
     players: list[PlayerSummary]
     page: PageMeta
+    total_count: int = 0
+    teams: list[TeamRef] = Field(default_factory=list)
+    positions: list[str] = Field(default_factory=list)
+    average_age: float | None = None
+    nationality_count: int = 0
+    total_market_value_eur: int = 0
     source: SourceMeta
 
 
@@ -405,6 +411,7 @@ class ClubSpotlight(BaseModel):
     goal_difference: int = 0
     latest_match: Match | None = None
     previous_match: Match | None = None
+    next_match: Match | None = None
     next_fixture: Forecast | None = None
 
 
@@ -428,11 +435,56 @@ class QualityResponse(BaseModel):
     live_competitions: str
     match_records: int
     impossible_shot_rows: int
+    reference_rows: int = 0
+    recent_competitions: int = 0
+    completed_results: int = 0
+    tracked_players: int = 0
+    player_clubs: int = 0
+    player_stat_rows: int = 0
+    artwork_rows: int = 0
+    tournament_matches: int = 0
+    tournament_teams: int = 0
+    tournament_breakdown: dict[str, int] = Field(default_factory=dict)
+    context_rich_matches: int = 0
+    tournament_goals: int = 0
+    detailed_event_stats: int = 0
+    timeline_events: int = 0
+    lineup_rows: int = 0
+    model_predictions: int = 0
     source_caps: list[str] = Field(default_factory=list)
     null_coverage: dict[str, float] = Field(default_factory=dict)
     checksums: list[dict[str, Any]] = Field(default_factory=list)
     refresh_timestamps: dict[str, datetime | str | None] = Field(default_factory=dict)
     grid: list[QualityCell] = Field(default_factory=list)
+    shot_coverage: list[ShotCoverageRow] = Field(default_factory=list)
+    source: SourceMeta
+
+
+class ReferenceStandingRow(BaseModel):
+    competition: str
+    season: int
+    source_name: str
+    rank: int
+    team: TeamRef
+    played: int | None = None
+    points: int | None = None
+    goal_difference: int | None = None
+    form: str | None = None
+    description: str | None = None
+    source_updated_at: datetime | None = None
+    fetched_at: datetime | None = None
+    results_rank: int | None = None
+    results_points: int | None = None
+    results_goal_difference: int | None = None
+    point_adjustment: int | None = None
+    rank_difference: int | None = None
+
+
+class StandingsResponse(BaseModel):
+    competition: str
+    season: int
+    rankings: list[RankingRow] = Field(default_factory=list)
+    reference: list[ReferenceStandingRow] = Field(default_factory=list)
     source: SourceMeta
 
 

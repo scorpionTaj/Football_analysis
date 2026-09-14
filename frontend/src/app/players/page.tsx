@@ -13,6 +13,7 @@ import { usePagination } from '@/components/ui/pagination';
 import type { PlayerProfileResponse } from '@/lib/api/types';
 import { FootballBadge, PlayerAvatar } from '@/lib/media-utils';
 import { User, Search, ChevronRight, ChevronLeft, Download, Award } from 'lucide-react';
+import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 function formatCurrency(eur: number | null | undefined): string {
   if (!eur) return 'N/A';
@@ -30,6 +31,8 @@ function PlayersContent() {
   const [searchQuery, setSearchQuery] = useState(filters.get('q') || '');
   const [debouncedQuery, setDebouncedQuery] = useState(filters.get('q') || '');
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(filters.get('player'));
+  const [selectedTeam, setSelectedTeam] = useState('');
+  const [selectedPosition, setSelectedPosition] = useState('');
   const [currentCursor, setCurrentCursor] = useState<string | null>(null);
   const [cursorHistory, setCursorHistory] = useState<string[]>([]);
 
@@ -44,9 +47,11 @@ function PlayersContent() {
   // Fetch players list
   const listParams = useMemo(() => ({
     q: debouncedQuery || undefined,
+    team: selectedTeam || undefined,
+    position: selectedPosition || undefined,
     cursor: currentCursor || undefined,
     limit: 10,
-  }), [debouncedQuery, currentCursor]);
+  }), [debouncedQuery, selectedTeam, selectedPosition, currentCursor]);
 
   const { data: playerListData, isLoading: isListLoading, isFetching: isListFetching, error: listError, refetch } = useQuery({
     queryKey: queryKeys.players(listParams),
@@ -66,6 +71,27 @@ function PlayersContent() {
     queryFn: () => api.player(effectivePlayerId || ''),
     enabled: !!effectivePlayerId,
   });
+
+  const profileSeasonTotals = useMemo(() => {
+    const totals = new Map<string, { season: string; appearances: number; goals: number; assists: number; minutes: number }>();
+    for (const row of profile?.stats || []) {
+      const season = String(row.season ?? 'Unknown');
+      const item = totals.get(season) || { season, appearances: 0, goals: 0, assists: 0, minutes: 0 };
+      item.appearances += row.appearances ?? 0;
+      item.goals += row.goals ?? 0;
+      item.assists += row.assists ?? 0;
+      item.minutes += row.minutes_played ?? 0;
+      totals.set(season, item);
+    }
+    return Array.from(totals.values()).sort((a, b) => a.season.localeCompare(b.season));
+  }, [profile?.stats]);
+
+  const profileTotals = useMemo(() => profileSeasonTotals.reduce((acc, row) => ({
+    appearances: acc.appearances + row.appearances,
+    goals: acc.goals + row.goals,
+    assists: acc.assists + row.assists,
+    minutes: acc.minutes + row.minutes,
+  }), { appearances: 0, goals: 0, assists: 0, minutes: 0 }), [profileSeasonTotals]);
 
   const handleNextPage = () => {
     if (page?.next_cursor) {
@@ -107,7 +133,37 @@ function PlayersContent() {
       {/* Search Header - persistently mounted, never unmounts */}
       <Card className="p-4 rounded-xl bg-surface0 border border-surface1 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="relative w-full sm:w-80">
+          <div className="grid w-full gap-3 sm:grid-cols-3 lg:max-w-3xl">
+            <select
+              value={selectedTeam}
+              onChange={(event) => {
+                setSelectedTeam(event.target.value);
+                setSelectedPosition('');
+                setSelectedPlayerId(null);
+                setCurrentCursor(null);
+                setCursorHistory([]);
+              }}
+              className="rounded-lg border border-surface1 bg-mantle px-3 py-2 text-xs text-text outline-none focus:border-blue"
+              aria-label="Filter players by club"
+            >
+              <option value="">All clubs</option>
+              {(playerListData?.teams || []).map((team) => <option key={team.team_id} value={team.name}>{team.name}</option>)}
+            </select>
+            <select
+              value={selectedPosition}
+              onChange={(event) => {
+                setSelectedPosition(event.target.value);
+                setSelectedPlayerId(null);
+                setCurrentCursor(null);
+                setCursorHistory([]);
+              }}
+              className="rounded-lg border border-surface1 bg-mantle px-3 py-2 text-xs text-text outline-none focus:border-blue"
+              aria-label="Filter players by position"
+            >
+              <option value="">All positions</option>
+              {(playerListData?.positions || []).map((position) => <option key={position} value={position}>{position}</option>)}
+            </select>
+            <div className="relative">
             <Search className="absolute left-3 top-3 h-4 w-4 text-overlay0 pointer-events-none" />
             <input
               type="text"
@@ -125,6 +181,7 @@ function PlayersContent() {
                 Searching...
               </span>
             )}
+            </div>
           </div>
 
           <div className="flex items-center gap-3">
@@ -142,6 +199,15 @@ function PlayersContent() {
         </div>
       </Card>
 
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {[
+          ['Players', playerListData?.total_count ?? 0],
+          ['Average age', playerListData?.average_age ?? '—'],
+          ['Nationalities', playerListData?.nationality_count ?? 0],
+          ['Squad value', formatCurrency(playerListData?.total_market_value_eur)],
+        ].map(([label, value]) => <Card key={String(label)} className="rounded-xl border border-surface1 bg-surface0 p-4"><p className="text-xs uppercase text-subtext0">{label}</p><p className="mt-1 text-xl font-bold text-text">{value}</p></Card>)}
+      </div>
+
       {listError && (
         <ErrorMessage title="Failed to load players" detail={listError.message} retry={() => refetch()} />
       )}
@@ -152,7 +218,7 @@ function PlayersContent() {
         <div className="lg:col-span-5 space-y-3">
           <div className="rounded-xl border border-surface1 bg-surface0 overflow-hidden">
             <div className="p-3 border-b border-surface1 bg-mantle text-xs font-semibold text-subtext0 flex items-center justify-between">
-              <span>Found {players.length} Players</span>
+              <span>Found {playerListData?.total_count ?? players.length} Players</span>
               {debouncedQuery && (
                 <Chip size="sm" variant="soft" color="accent" className="text-[10px]">
                   Matching &quot;{debouncedQuery}&quot;
@@ -301,6 +367,30 @@ function PlayersContent() {
                 </h3>
                 <PlayerStatsTable stats={profile.stats} />
               </div>
+
+              {profileSeasonTotals.length ? (
+                <div className="space-y-4 border-t border-surface1 pt-5">
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    {[
+                      ['Appearances', profileTotals.appearances], ['Goals', profileTotals.goals],
+                      ['Assists', profileTotals.assists], ['Minutes', profileTotals.minutes.toLocaleString()],
+                    ].map(([label, value]) => <div key={String(label)} className="rounded-lg border border-surface1 bg-mantle p-3"><p className="text-xs text-subtext0">{label}</p><p className="mt-1 text-lg font-bold text-text">{value}</p></div>)}
+                  </div>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={profileSeasonTotals} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#313244" />
+                        <XAxis dataKey="season" stroke="#7f849c" fontSize={11} />
+                        <YAxis stroke="#7f849c" fontSize={11} />
+                        <Tooltip contentStyle={{ backgroundColor: '#181825', borderColor: '#45475a', borderRadius: 8 }} />
+                        <Legend />
+                        <Bar dataKey="goals" fill="#cba6f7" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="assists" fill="#89b4fa" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              ) : null}
             </div>
           )}
         </div>

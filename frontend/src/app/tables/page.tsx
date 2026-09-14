@@ -1,7 +1,7 @@
 'use client';
 
 import { Card, Button } from '@heroui/react';
-import { Suspense, useMemo, useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { queryKeys } from '@/lib/api/query-keys';
@@ -29,20 +29,12 @@ function LeagueTablesContent() {
   const latestSeason = seasons.length > 0 ? Math.max(...seasons.map((s) => s.season)) : 2026;
   const selectedSeason = filters.season || latestSeason;
 
-  const requestBody = useMemo(() => ({
-    competitions: [selectedCompetition],
-    seasons: [selectedSeason],
-    teams: [],
-    venue: venueFilter === 'All' ? null : venueFilter,
-    form_window: 5,
-  }), [selectedCompetition, selectedSeason, venueFilter]);
-
-  const { data: analysis, isLoading, error, refetch } = useQuery({
-    queryKey: queryKeys.analysis(requestBody),
-    queryFn: () => api.analysis(requestBody),
+  const { data: standingData, isLoading, error, refetch } = useQuery({
+    queryKey: queryKeys.standings(selectedCompetition, selectedSeason, 5, venueFilter === 'All' ? undefined : venueFilter),
+    queryFn: () => api.standings(selectedCompetition, selectedSeason, 5, venueFilter === 'All' ? undefined : venueFilter),
   });
 
-  const rankings = analysis?.rankings || [];
+  const rankings = standingData?.rankings || [];
   const { paginatedItems: paginatedRankings, PaginationComponent: TablePagination } = usePagination(rankings, 10);
 
   // Export CSV
@@ -78,7 +70,7 @@ function LeagueTablesContent() {
   }
 
   const totalGoals = rankings.reduce((acc, r) => acc + r.goals_for, 0);
-  const totalMatches = analysis?.match_count || (rankings.reduce((acc, r) => acc + r.played, 0) / 2);
+  const totalMatches = rankings.reduce((acc, r) => acc + r.played, 0) / 2;
   const avgGoals = totalMatches > 0 ? (totalGoals / totalMatches).toFixed(2) : '0';
 
   return (
@@ -143,7 +135,7 @@ function LeagueTablesContent() {
           </div>
 
           <div className="flex items-center gap-3">
-            {analysis?.source && <SourceBadge meta={analysis.source} />}
+            {standingData?.source && <SourceBadge meta={standingData.source} />}
             <Button
               size="sm"
               variant="outline"
@@ -281,6 +273,38 @@ function LeagueTablesContent() {
           </div>
         </div>
       )}
+
+      {venueFilter === 'All' ? (
+        <Card className="overflow-hidden rounded-xl border border-surface1 bg-surface0 shadow-sm">
+          <div className="border-b border-surface1 p-4">
+            <h2 className="font-semibold text-text">External reference validation</h2>
+            <p className="mt-1 text-xs text-subtext0">Reference minus results points exposes administrative adjustments; rank differences expose provider or tiebreak differences.</p>
+          </div>
+          {standingData?.reference.length ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="border-b border-surface1 bg-mantle uppercase text-subtext0">
+                  <tr><th className="px-3 py-3">Ref</th><th className="px-3 py-3">Club</th><th className="px-3 py-3 text-center">P</th><th className="px-3 py-3 text-center">Ref pts</th><th className="px-3 py-3 text-center">Results pts</th><th className="px-3 py-3 text-center">Adjustment</th><th className="px-3 py-3 text-center">Rank Δ</th><th className="px-3 py-3">Qualification</th></tr>
+                </thead>
+                <tbody className="divide-y divide-surface1">
+                  {standingData.reference.map((row) => (
+                    <tr key={`${row.source_name}-${row.rank}-${row.team.team_id}`}>
+                      <td className="px-3 py-3 font-mono">{row.rank}</td>
+                      <td className="px-3 py-3"><span className="flex items-center gap-2 font-semibold text-text"><FootballBadge url={row.team.badge_url} name={row.team.name} size={20} />{row.team.name}</span></td>
+                      <td className="px-3 py-3 text-center">{row.played ?? '—'}</td>
+                      <td className="px-3 py-3 text-center font-bold text-blue">{row.points ?? '—'}</td>
+                      <td className="px-3 py-3 text-center">{row.results_points ?? '—'}</td>
+                      <td className={`px-3 py-3 text-center font-mono ${(row.point_adjustment ?? 0) !== 0 ? 'text-yellow' : 'text-green'}`}>{row.point_adjustment == null ? '—' : `${row.point_adjustment > 0 ? '+' : ''}${row.point_adjustment}`}</td>
+                      <td className="px-3 py-3 text-center font-mono">{row.rank_difference == null ? '—' : `${row.rank_difference > 0 ? '+' : ''}${row.rank_difference}`}</td>
+                      <td className="px-3 py-3 text-subtext0">{row.description || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : <p className="p-5 text-sm text-subtext0">No external reference table is cached for this competition and season.</p>}
+        </Card>
+      ) : null}
     </div>
   );
 }

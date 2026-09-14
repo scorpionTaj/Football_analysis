@@ -1,6 +1,6 @@
 # football_analysis
 
-Linux-friendly football analytics with Python, DuckDB, Plotly and Streamlit. No payment, API key, or subscription is required.
+Linux-friendly football analytics with FastAPI, DuckDB and a responsive Next.js/HeroUI frontend. No payment, API key, or subscription is required.
 
 ## Start
 
@@ -13,20 +13,23 @@ uv run football-sync-recent
 uv run football-sync-event-details
 uv run football-sync-players
 uv run football-sync-open-players
-uv run football-sync-media
+uv run football-sync-media --all-teams
 uv run football-sync-tournaments
 uv run football-train-predictions
 uv run football-api
-uv run streamlit run app.py --server.address 127.0.0.1
+
+cd frontend
+npm install
+npm run dev -- --port 3001
 ```
 
-Alternatively: create a Python 3.11+ virtual environment, run `pip install -e '.[dev]'`, then `football-ingest` and `streamlit run app.py`.
+Alternatively: create a Python 3.11+ virtual environment and run `pip install -e '.[dev]'`.
 
-Open http://localhost:8501. Network is needed for the first download only. Use `uv run football-ingest --offline data/raw` for offline replay; `--refresh` redownloads archives. `--seasons 2024 --leagues E0` is useful for a small trial. Ingestion persists Elo and shot-efficiency analytics after committing source data; `uv run football-refresh-analytics` rebuilds only those caches. Failed partitions yield exit code 1 and appear in the source health panel; existing valid data remains intact. Stop ingestion before launching the dashboard (DuckDB uses a single writer).
+Open http://localhost:3001 while FastAPI runs at http://127.0.0.1:8000. Network is needed for the first source refresh; latest-season responses are cached briefly, completed seasons are cached for a day, and the navbar refresh button invalidates active frontend queries. Use `uv run football-ingest --offline data/raw` for offline replay; `--refresh` redownloads archives. `--seasons 2024 --leagues E0` is useful for a small trial. Ingestion persists Elo and shot-efficiency analytics after committing source data; `uv run football-refresh-analytics` rebuilds only those caches. Failed partitions yield exit code 1 and appear in the source health panel; existing valid data remains intact. Stop the API before a database-writing refresh because DuckDB uses a single writer; refresh into a snapshot and replace the database atomically when continuous serving is required.
 
 ## Scope
 
-All 182 clubs currently present across the Premier League, La Liga, Bundesliga, Serie A, Ligue 1, Eredivisie, Primeira Liga, Belgian Pro League, Turkish Süper Lig and Greek Super League are selectable. Twelve elite clubs remain convenient defaults. UEFA Champions League and FIFA World Cup results are available through a separate tournament workflow.
+All clubs currently present across the Premier League, La Liga, Bundesliga, Serie A, Ligue 1, Eredivisie, Primeira Liga, Belgian Pro League, Turkish Süper Lig and Greek Super League are selectable. UEFA Champions League, FIFA Club World Cup and FIFA World Cup results are available through the tournament workflow.
 
 The analytical range is 2021/22–2025/26 plus the live 2026/27 campaign. The July rollover selects five candidate completed seasons; each completed CSV must independently pass full double-round-robin coverage checks. Live rows are clearly labelled as partial and never presented as a completed season.
 
@@ -34,7 +37,7 @@ Dashboard: one platform-wide search, three domestic analysis modes and nine focu
 
 The predictive section trains a regularized three-outcome softmax model on pre-match Elo, ten-match rolling points, scoring, conceding and rest-day features. Confidence temperature is learned from an earlier chronological calibration window; the latest 20% of match dates remain unseen during evaluation. The current model reaches 50.5% holdout accuracy versus a 42.9% majority-class baseline and improves log loss from 1.076 to 1.003. Ten next-listed fixtures are cached as home/draw/away probabilities, while conservative current-points projections provide title shares for all ten domestic leagues. This structured dataset is too small to justify a deep neural network; the compact model is faster, more auditable and easier to serve.
 
-The tournament adapter loads five completed Champions League seasons (753 matches) and the 2018, 2022 and 2026 World Cups (232 matches) from OpenFootball's CC0 repositories without an API key. Champions League is the first tournament option and has stage, team, performance, scoring and match-result views. The World Cup view also uses 649 published goal events for scorer, penalty and own-goal analysis.
+The tournament adapter loads five completed Champions League seasons (753 matches), the 2025 Club World Cup (64 matches), and the 2018, 2022 and 2026 World Cups (232 matches) from OpenFootball's CC0 repositories without an API key. All three competition families have stage, team, performance, scoring and match-result views. The World Cup view also uses 649 published goal events for scorer, penalty and own-goal analysis.
 
 The 2026/27 campaign is integrated into every match-driven page and adds the Eredivisie, Primeira Liga, Belgian Pro League, Turkish Süper Lig and Greek Super League to the core five leagues. Overview shows the selected club's two nearest completed matches and next listed fixture when available; League tables reconstruct live partial standings; Club lab, Shot lab and Match explorer use the same current rows. The player explorer contains 458 tracked 2025/26 player records for the 12 clubs and 4,633 competition-season rows covering appearances, goals, assists, minutes and cards in 41 competitions. These come from the CC0 Transfermarkt Open Dataset, whose update pause and cutoff are visible in the interface. TheSportsDB remains an image and nearby-event fallback. The Catppuccin Mocha interface respects reduced-motion preferences. The app does not claim current 2026/27 squad accuracy, xG or possession.
 
@@ -49,12 +52,12 @@ The 2026/27 campaign is integrated into every match-driven page and adds the Ere
 - `src/football_analysis/players.py`: capped TheSportsDB profile and artwork fallback synchronization.
 - `src/football_analysis/media.py`: cached club and competition artwork synchronization.
 - `src/football_analysis/tournaments.py`: no-key CC0 Champions League, Club World Cup and World Cup adapters, cache and transactional synchronization.
-- `src/football_analysis/analysis_system.py`: reusable filtering, ranking, form and correlation interface for Streamlit and a future HTTP/Next.js frontend.
+- `src/football_analysis/analysis_system.py`: reusable filtering, ranking, form and correlation engine served through FastAPI.
 - `src/football_analysis/event_details.py`: explicitly capped match statistics, timelines and lineup samples from the free TheSportsDB endpoints.
 - `src/football_analysis/predictions.py`: leakage-aware feature engineering, softmax training, chronological evaluation and fixture forecasts.
-- `app.py`: dashboard (read-only database access).
-- `docs/NEXTJS_READINESS.md`: migration boundary and suggested API contract.
-- `docs/NEXTJS_MIGRATION_PLAN.md`: phased FastAPI and Next.js cutover plan with validation gates.
+- `frontend/`: responsive Next.js and HeroUI application using the versioned FastAPI contracts.
+- `docs/NEXTJS_READINESS.md`: completed frontend cutover and API contract status.
+- `docs/NEXTJS_MIGRATION_PLAN.md`: phased FastAPI and Next.js cutover record with validation gates.
 - `docs/SOURCE_CAPABILITY_AUDIT.md`: primary-source endpoint and dataset utilization audit.
 - `docs/SOURCES.md`: source research and constraints.
 - `docs/BACKLOG.md`: implementation tasks and next iterations.

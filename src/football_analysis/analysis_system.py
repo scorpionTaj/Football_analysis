@@ -1,4 +1,4 @@
-"""Reusable match-analysis interface for Streamlit and future HTTP frontends."""
+"""Reusable match-analysis engine for the versioned HTTP API."""
 
 from __future__ import annotations
 

@@ -1,6 +1,6 @@
-# Next.js migration boundary
+# Next.js cutover status
 
-The Streamlit app is now a presentation layer over reusable Python and DuckDB modules. Tournament fetching and parsing live in `football_analysis.tournaments`; custom analysis lives behind `AnalysisSystem.build_report(AnalysisRequest)`. Neither module imports Streamlit.
+The responsive Next.js/HeroUI client is the only application frontend. Tournament fetching and parsing live in `football_analysis.tournaments`; custom analysis lives behind `AnalysisSystem.build_report(AnalysisRequest)` and every UI read crosses FastAPI v1.
 
 ## API service status ✅
 
@@ -15,10 +15,11 @@ A read-only FastAPI service now owns the DuckDB connection and exposes all initi
 - [x] `GET /api/v1/tournaments/{competition}/{season}` — stage summary and tournament results.
 - [x] `GET /api/v1/players` and `GET /api/v1/players/{player_id}` — paginated player discovery and existing profile/stat rows.
 - [x] `GET /api/v1/predictions` — model card, holdout metrics, calibration and current forecasts.
-- [x] `GET /api/v1/shots` — shot coverage and efficiency with the same 95% quality gate as Streamlit.
+- [x] `GET /api/v1/shots` — shot coverage and efficiency behind a 95% quality gate.
 - [x] `GET /api/v1/event-details` and `GET /api/v1/event-details/{event_id}` — cached event summaries, statistics, timeline and lineup samples.
 - [x] `GET /api/v1/overview` and `GET /api/v1/transfers` — dashboard spotlight and transfer showcase data.
 - [x] `GET /api/v1/quality` — source caps, null coverage, checksums and refresh timestamps.
+- [x] `GET /api/v1/standings` — results table, reference table and reconciliation deltas.
 
 ### Infrastructure
 
@@ -50,14 +51,14 @@ The frontend shell has been built in [`frontend/`](frontend/) with Next.js App R
 All core analytical views have been migrated to the Next.js frontend with full selector parity, interactive Recharts visualizations, and CSV export capabilities:
 
 - [x] **Overview** ([`frontend/src/app/page.tsx`](frontend/src/app/page.tsx)): Real-time health indicator, KPI statistics, domestic league & tournament catalog cards.
-- [x] **Champions League, Club World Cup & World Cup** ([`frontend/src/app/tournaments/page.tsx`](frontend/src/app/tournaments/page.tsx)): Edition selector, stage scoring rates, match scorelines with shootouts, scorer table and CSV export.
-- [x] **Analysis Lab** ([`frontend/src/app/analysis/page.tsx`](frontend/src/app/analysis/page.tsx)): Multi-metric rankings (PPG, GF, GA, Win %, Clean Sheet %, Form PPG), horizontal bar chart, form streak badges, in-match goals breakdown, referee disciplinary table, CSV export.
+- [x] **Champions League, Club World Cup & World Cup** ([`frontend/src/app/tournaments/page.tsx`](frontend/src/app/tournaments/page.tsx)): Edition/stage/team selectors, selected-slice scoring rates, match scorelines with shootouts, filtered scorer table, team performance ranking and CSV export.
+- [x] **Analysis Lab** ([`frontend/src/app/analysis/page.tsx`](frontend/src/app/analysis/page.tsx)): Multi-metric rankings, horizontal bar chart, form streak badges, correlation matrix, match factors, referee disciplinary table and CSV export.
 - [x] **Predictions** ([`frontend/src/app/predictions/page.tsx`](frontend/src/app/predictions/page.tsx)): calibrated match probabilities, holdout metrics, reliability evidence and title outlooks for every domestic league.
-- [x] **League Tables** ([`frontend/src/app/tables/page.tsx`](frontend/src/app/tables/page.tsx)): Full domestic tables, European qualification & relegation indicators, home/away splits, goal difference, recent form streak, and CSV export.
-- [x] **Club Lab** ([`frontend/src/app/clubs/page.tsx`](frontend/src/app/clubs/page.tsx)): Club selector, historical multi-season trajectory line chart, comprehensive season table, and recent club fixture results.
+- [x] **League Tables** ([`frontend/src/app/tables/page.tsx`](frontend/src/app/tables/page.tsx)): Full domestic tables, home/away splits, goal difference, recent form, external reference table and administrative/rank deltas.
+- [x] **Club Lab** ([`frontend/src/app/clubs/page.tsx`](frontend/src/app/clubs/page.tsx)): Club selector, configurable rolling form, percentile profile, historical trajectory/table, recent results and head-to-head comparison.
 - [x] **Match Explorer** ([`frontend/src/app/matches/page.tsx`](frontend/src/app/matches/page.tsx)): Cursor-paginated match list, referee metadata, scorelines, search filter, and CSV export.
-- [x] **Players** ([`frontend/src/app/players/page.tsx`](frontend/src/app/players/page.tsx)): Real-time search & cursor pagination, bio drawer, market valuation formatting in EUR, and historical career season statistics.
-- [x] **Data Quality** ([`frontend/src/app/quality/page.tsx`](frontend/src/app/quality/page.tsx)): 60-cell competition completeness grid, source governance notes, null rate metrics, and SHA-256 ingestion audit logs.
+- [x] **Players** ([`frontend/src/app/players/page.tsx`](frontend/src/app/players/page.tsx)): Name/team/position/nationality search, club and position facets, squad summaries, bio drawer, season aggregates and complete competition rows.
+- [x] **Data Quality** ([`frontend/src/app/quality/page.tsx`](frontend/src/app/quality/page.tsx)): Coverage matrix, all source counters, refresh timestamps, shot coverage, governance notes, null rates and SHA-256 ingestion history.
 
 ## Phase 5: Multi-Theme Engine & Settings Dashboard ✅
 
@@ -80,7 +81,7 @@ In accordance with dashboard usability standards, all views displaying collectio
 - [x] **Players** (`/players`): Player discovery cursor list (10/page) and player career stats table (10/page).
 - [x] **Data Quality** (`/quality`): Ingestion checksums and audit records paginated at 10/page.
 
-## Phase 7: Streamlit Deep Integrations ✅
+## Phase 7: Deep Analytical Integrations ✅
 
 - [x] **Head-to-Head Club Comparison** ([`frontend/src/app/clubs/page.tsx`](frontend/src/app/clubs/page.tsx)): Toggle between individual Club Profile and direct Head-to-Head comparison between any two clubs. Includes direct clashes record, goals distribution bar, side-by-side PPG / Win % / Goals scored / Clean sheet benchmarking, and paginated match encounters.
 
@@ -101,7 +102,7 @@ In accordance with dashboard usability standards, all views displaying collectio
   - Live pulse header and horizontal 13-competition switcher rail.
   - Club spotlight hero with 4 KPIs (Matches, W-D-L, PPG, Goal Difference).
   - 3 match strip cards: Latest completed match, Previous match, Next listed fixture with ML win/draw/loss probability bars.
-  - 4 Streamlit-replica analytical visualizations:
+  - 4 parity analytical visualizations:
     1. **Performance Over Time**: PPG line chart across seasons.
     2. **Season Strength Map**: Heatmap matrix showing PPG per season for top clubs.
     3. **Attacking Output vs Defensive Control**: Reversed scatter plot (Goals/match vs Conceded/match) with bubble size = PPG.
@@ -112,5 +113,4 @@ In accordance with dashboard usability standards, all views displaying collectio
   - `@heroui/react` 3.2.5 components (Card, Chip, Avatar, Badge, Button, Tabs, Tooltip).
   - Enhanced glassmorphic styles and custom smooth animations.
 
-The Next.js client should consume these routes rather than query DuckDB or reproduce football calculations. That keeps rankings and source semantics identical during the migration and allows Streamlit to remain available as a validation client until the replacement is complete.
-
+The cutover is complete. The Next.js client consumes these routes rather than query DuckDB or reproduce football calculations. The retired client, its UI tests, and its UI-only dependencies have been removed after API tests and connected-browser parity checks passed.

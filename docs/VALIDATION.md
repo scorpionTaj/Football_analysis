@@ -1,39 +1,31 @@
 # Validation — 14 September 2026
 
-- Live public CSV ingestion: 25/25 league-season partitions succeeded.
-- Matches loaded: 8,908 across five leagues and 2021/22–2025/26.
-- Elite coverage: 60 club-season records (12 clubs × 5 seasons).
-- Automated tests: 27 passed. Covers date rollover, complete and partial-season normalization, corruption cases, repeat ingestion, failed refresh preservation, known-score calculations, NULL optional stats, canonical teams, player and artwork normalization, open-snapshot aggregation, current team summaries, dashboard filters and missing database.
-- Real database Streamlit AppTest: 12 clubs, no coverage warning, no application exception.
-- Connected browser: page, filters, metrics, season chart and comparison charts rendered; comparison tab navigation worked. No warning/error console entries were returned.
-- Iteration 2: 15 automated tests passed, including Elo chronology, same-day snapshot behavior, shot coverage, and the 95% metric gate.
-- Real-data analytics: 17,816 Elo team-match rows from 8,908 fixtures; 484 eligible club-seasons for shot analysis, including all 60 selected elite club-seasons.
-- External standings: 125 TheSportsDB reference rows; exactly five rows for each of 25 league-season partitions, matching the documented free-response cap.
-- Streamlit test suite: seven focused pages load against an isolated database with no application exception. A real-database AppTest also loaded all seven pages and the 2021/22–2026/27 selector without an exception.
-- Database validates completeness and internal consistency, not independent reconciliation against a second provider.
-- Preferred agent-browser CLI was unavailable; visual verification used the connected in-app browser instead.
-- Iteration 2.1: 19 automated tests passed, including canonical team identities, impossible-shot quarantine and persisted analytics.
-- Real-data cache: 17,816 Elo rows and 484 shot-efficiency rows persisted for 8,908 matches; a cold in-process Elo rebuild previously took about 1.7 seconds.
-- Data invariants: zero impossible shot rows remain. Two source matches have incomplete shot fields and are excluded by the 95% coverage gate.
-- Standings reconciliation: all 125 reference rows map to the result-derived club identity. Nice 2021/22 is the sole points delta (reference 66, results 67), exposing the known one-point administrative adjustment.
-- Iteration 2.2 current-season results: 336 completed matches across ten leagues, with source dates through 10 September 2026. Ten supplemental latest events bring the match-centre view to 346 deduplicated rows through 12 September 2026; ten next events are listed for 13 September 2026.
-- Player sample: 120 profiles, exactly ten for each of the 12 elite clubs, plus 141 sparse historical statistic rows. Available types are appearances (75), goals (25), minutes played (22) and assists (19); absent values are not inferred.
-- Connected browser: all ten recent competition choices rendered, the match-centre metrics showed 346 matches and a 12 September latest result, and the player selector rendered both an empty-stat state and Aurélien Tchouaméni's ten returned statistic rows.
-- Iteration 2.3 artwork: 12/12 featured clubs have cached badge and logo URLs; 10/10 competitions have cached badge and logo URLs.
-- Connected browser: the comparison hero displayed the selected club emblem, Club focus displayed a responsive identity card, Competition view displayed the competition emblem, and Player explorer displayed the player cutout and shirt-number treatment. Motion CSS includes a `prefers-reduced-motion` fallback.
-- Iteration 2.4 player snapshot: 458 tracked 2025/26 player records across all 12 clubs and 4,633 competition-season statistic rows across 41 domestic, cup, UEFA and international competitions. The appearance rows total 46,545 appearances, 6,744 goals, 5,221 assists and 3,244,816 minutes from 2021/22 through 2025/26.
-- Connected browser: global search returned Kylian Mbappé; the Real Madrid squad view reported 44 records and rendered profile media, season charts, competition selection and full-squad totals.
-- Iteration 2.5 current season: all ten 2026/27 CSV partitions refreshed successfully on 13 September 2026, retaining 336 completed result rows through 10 September. Ten supplemental latest completed events extend the visible result timeline through 13 September, and ten next-event records extend through 19 September.
-- Current-season analytics: the selected club always exposes its nearest completed result when present, plus the previous result, W/D/L form, cumulative points and a partial league table derived only from completed matches. Upcoming cards appear only for source-returned fixtures.
-- Visual system: Streamlit configuration, custom cards, navigation, inputs and Plotly charts use Catppuccin Mocha colors. The existing reduced-motion fallback remains active.
-- Iteration 2.6 integrated season: the shared selector lists 2021/22 through `2026/27 · Live`; 336 current results across ten competitions feed the same summary, table, club, shot and match views as historical results.
-- Integrated current analytics: 672 current Elo team-match rows across 182 clubs and 182 current shot-efficiency rows were rebuilt from 336 matches. The combined analytics cache records 9,244 fixtures.
-- Direct navigation: Discover and the standalone Current season centre were removed. Overview now owns the selected club's live W/D/L and match cards; seven primary pages remain.
-- Connected browser: the Catppuccin Overview rendered the 2026/27 Real Madrid live metrics and two completed-match cards, all seven tabs were visible, and no browser warning/error console entries were returned.
-- Iteration 2.7 tournaments: 985 CC0 matches loaded — 753 UEFA Champions League results across 2021/22–2025/26 and 232 FIFA World Cup results across 2018, 2022 and 2026.
-- Current domestic club coverage: 182 distinct clubs across the ten live league feeds are now selectable and searchable; the original 12 clubs remain defaults only.
-- Analysis system: one reusable Python interface now returns filtered match rows, performance rankings, recent-form summaries and metric correlations for both domestic and tournament inputs.
-- Automated tests: 33 passed, including Champions League text parsing, World Cup JSON variants and penalties, transactional tournament replacement, analysis filters, neutral-venue expansion and nine-page dashboard rendering.
-- Real-database Streamlit AppTest: all nine pages load with no application exception; Champions League is the primary tournament option and the custom Analysis lab is populated.
+## Final frontend cutover
 
-The working installation is /home/scorpiontaj/Projects/Football_analysis. The outputs copy contains the same source, documentation, lockfile and downloaded data as the initial deliverable; future development should use the working installation.
+- FastAPI is the only presentation data boundary; the Next.js/HeroUI application is the only frontend.
+- The former nine-view workflow is covered by Overview, Tournaments, Analysis, League Tables, Club Lab, Shot Intelligence, Match Centre, Players and Data Quality. Predictions and Settings remain dedicated additional routes.
+- Parity gaps closed before removal: external reference standings and deltas, complete quality counters and shot coverage, filtered tournament scorers and team performance, correlation rendering, player club/position facets and aggregates, actual listed fixtures without model coverage, rolling club form, percentile profile and newest-first match pagination.
+- Backend verification: 57 tests passed before removal, including route contracts, external standings reconciliation, player facets, quality telemetry, event details and listed-fixture fallback.
+- Browser verification: Overview, League Tables, Analysis, Players, Tournaments, Club Lab and Data Quality rendered against the real database. New parity controls and sections were visible; player club/position filtering returned Arsenal attackers; tournament performance rendered 20 rows.
+- Browser integrity: zero framework overlays, zero console errors and zero broken loaded images on the checked routes.
+- Responsive check: 390 px viewport, 382 px document width, mobile navigation present and no horizontal overflow.
+- Production gate: TypeScript, ESLint and the optimized Next.js build pass after contraction.
+
+## Data snapshot
+
+- Historical ingestion: 25/25 core league-season partitions.
+- Live season: ten domestic competitions with 2026/27 partial results.
+- Major tournaments: five Champions League seasons, the 2025 Club World Cup and three World Cup editions.
+- Player snapshot: 458 tracked players and 4,633 competition-season statistic rows from the published open dataset.
+- Media cache: 414 team badges, with resilient initials or silhouette fallback when a provider has no usable image.
+- Prediction model: chronological calibration and untouched holdout evaluation; match forecasts and all ten domestic title outlooks are served from cached model tables.
+
+## Source constraints retained
+
+- Live-season values remain explicitly partial.
+- The open player snapshot stops before current 2026/27 squad changes.
+- Provider event statistics, timeline and lineup collections remain explicitly capped.
+- Full future fixture calendars are not claimed where no complete permitted source is available.
+- Result-derived tables exclude administrative deductions and competition-specific tiebreak rules; the external reference table exposes known differences where cached.
+
+The working installation is `/home/scorpiontaj/Projects/Football_analysis`.

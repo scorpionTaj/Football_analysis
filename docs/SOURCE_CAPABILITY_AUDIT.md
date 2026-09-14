@@ -168,7 +168,7 @@ The event-detail adapter targets one recent event per league by default. Because
 
 TheSportsDB describes itself as crowd-sourced. Its terms permit copying and modifying content returned by official API endpoints, prohibit scraping the website, restrict app-store publication on the free plan, prohibit API resale, require trademarked logos to remain unmodified, and advise checking the `strCreativeCommons` flag for player artwork. The project should preserve attribution and rights metadata for every external asset.
 
-All calls should pass through one quota-aware, cached client recording endpoint, parameters, fetch time, response count and completeness label. Streamlit or a future Next.js server must never fan out provider requests while rendering a page.
+All calls should pass through one quota-aware, cached client recording endpoint, parameters, fetch time, response count and completeness label. The Next.js client must never fan out provider requests while rendering a page.
 
 Primary sources: [v1 documentation, endpoint caps and rate limit](https://www.thesportsdb.com/documentation), [crowd-sourced database description](https://www.thesportsdb.com/docs_about), [terms of use](https://www.thesportsdb.com/docs_terms_of_use.php), and [artwork types](https://www.thesportsdb.com/docs_artwork).
 

@@ -546,6 +546,22 @@
             }
           },
           {
+            "name": "position",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Position"
+            }
+          },
+          {
             "name": "sort_by",
             "in": "query",
             "required": false,
@@ -664,6 +680,82 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/QualityResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/standings": {
+      "get": {
+        "summary": "Standings",
+        "operationId": "standings_api_v1_standings_get",
+        "parameters": [
+          {
+            "name": "competition",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Competition"
+            }
+          },
+          {
+            "name": "season",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Season"
+            }
+          },
+          {
+            "name": "form_window",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 10,
+              "minimum": 1,
+              "default": 5,
+              "title": "Form Window"
+            }
+          },
+          {
+            "name": "venue",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Venue"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StandingsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -1134,6 +1226,16 @@
             ]
           },
           "previous_match": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Match"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "next_match": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/Match"
@@ -2188,6 +2290,46 @@
           "page": {
             "$ref": "#/components/schemas/PageMeta"
           },
+          "total_count": {
+            "type": "integer",
+            "title": "Total Count",
+            "default": 0
+          },
+          "teams": {
+            "items": {
+              "$ref": "#/components/schemas/TeamRef"
+            },
+            "type": "array",
+            "title": "Teams"
+          },
+          "positions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Positions"
+          },
+          "average_age": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Age"
+          },
+          "nationality_count": {
+            "type": "integer",
+            "title": "Nationality Count",
+            "default": 0
+          },
+          "total_market_value_eur": {
+            "type": "integer",
+            "title": "Total Market Value Eur",
+            "default": 0
+          },
           "source": {
             "$ref": "#/components/schemas/SourceMeta"
           }
@@ -2643,6 +2785,88 @@
             "type": "integer",
             "title": "Impossible Shot Rows"
           },
+          "reference_rows": {
+            "type": "integer",
+            "title": "Reference Rows",
+            "default": 0
+          },
+          "recent_competitions": {
+            "type": "integer",
+            "title": "Recent Competitions",
+            "default": 0
+          },
+          "completed_results": {
+            "type": "integer",
+            "title": "Completed Results",
+            "default": 0
+          },
+          "tracked_players": {
+            "type": "integer",
+            "title": "Tracked Players",
+            "default": 0
+          },
+          "player_clubs": {
+            "type": "integer",
+            "title": "Player Clubs",
+            "default": 0
+          },
+          "player_stat_rows": {
+            "type": "integer",
+            "title": "Player Stat Rows",
+            "default": 0
+          },
+          "artwork_rows": {
+            "type": "integer",
+            "title": "Artwork Rows",
+            "default": 0
+          },
+          "tournament_matches": {
+            "type": "integer",
+            "title": "Tournament Matches",
+            "default": 0
+          },
+          "tournament_teams": {
+            "type": "integer",
+            "title": "Tournament Teams",
+            "default": 0
+          },
+          "tournament_breakdown": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Tournament Breakdown"
+          },
+          "context_rich_matches": {
+            "type": "integer",
+            "title": "Context Rich Matches",
+            "default": 0
+          },
+          "tournament_goals": {
+            "type": "integer",
+            "title": "Tournament Goals",
+            "default": 0
+          },
+          "detailed_event_stats": {
+            "type": "integer",
+            "title": "Detailed Event Stats",
+            "default": 0
+          },
+          "timeline_events": {
+            "type": "integer",
+            "title": "Timeline Events",
+            "default": 0
+          },
+          "lineup_rows": {
+            "type": "integer",
+            "title": "Lineup Rows",
+            "default": 0
+          },
+          "model_predictions": {
+            "type": "integer",
+            "title": "Model Predictions",
+            "default": 0
+          },
           "source_caps": {
             "items": {
               "type": "string"
@@ -2689,6 +2913,13 @@
             },
             "type": "array",
             "title": "Grid"
+          },
+          "shot_coverage": {
+            "items": {
+              "$ref": "#/components/schemas/ShotCoverageRow"
+            },
+            "type": "array",
+            "title": "Shot Coverage"
           },
           "source": {
             "$ref": "#/components/schemas/SourceMeta"
@@ -2857,6 +3088,172 @@
           "matches"
         ],
         "title": "RefereeSummary"
+      },
+      "ReferenceStandingRow": {
+        "properties": {
+          "competition": {
+            "type": "string",
+            "title": "Competition"
+          },
+          "season": {
+            "type": "integer",
+            "title": "Season"
+          },
+          "source_name": {
+            "type": "string",
+            "title": "Source Name"
+          },
+          "rank": {
+            "type": "integer",
+            "title": "Rank"
+          },
+          "team": {
+            "$ref": "#/components/schemas/TeamRef"
+          },
+          "played": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Played"
+          },
+          "points": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Points"
+          },
+          "goal_difference": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Goal Difference"
+          },
+          "form": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Form"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "source_updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Updated At"
+          },
+          "fetched_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fetched At"
+          },
+          "results_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Results Rank"
+          },
+          "results_points": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Results Points"
+          },
+          "results_goal_difference": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Results Goal Difference"
+          },
+          "point_adjustment": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Point Adjustment"
+          },
+          "rank_difference": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rank Difference"
+          }
+        },
+        "type": "object",
+        "required": [
+          "competition",
+          "season",
+          "source_name",
+          "rank",
+          "team"
+        ],
+        "title": "ReferenceStandingRow"
       },
       "SeasonCoverage": {
         "properties": {
@@ -3074,6 +3471,42 @@
           "coverage"
         ],
         "title": "SourceMeta"
+      },
+      "StandingsResponse": {
+        "properties": {
+          "competition": {
+            "type": "string",
+            "title": "Competition"
+          },
+          "season": {
+            "type": "integer",
+            "title": "Season"
+          },
+          "rankings": {
+            "items": {
+              "$ref": "#/components/schemas/RankingRow"
+            },
+            "type": "array",
+            "title": "Rankings"
+          },
+          "reference": {
+            "items": {
+              "$ref": "#/components/schemas/ReferenceStandingRow"
+            },
+            "type": "array",
+            "title": "Reference"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceMeta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "competition",
+          "season",
+          "source"
+        ],
+        "title": "StandingsResponse"
       },
       "Team": {
         "properties": {

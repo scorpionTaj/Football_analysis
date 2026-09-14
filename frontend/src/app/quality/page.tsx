@@ -107,6 +107,65 @@ function QualityContent() {
         </div>
       </div>
 
+      <div className="rounded-xl border border-surface1 bg-surface0 p-5 space-y-4">
+        <h3 className="text-sm font-semibold text-text">Current-season, player and media coverage</h3>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+          {[
+            ['Recent competitions', data.recent_competitions.toLocaleString()],
+            ['Completed live results', data.completed_results.toLocaleString()],
+            ['Reference rows', data.reference_rows.toLocaleString()],
+            ['Tracked players', data.tracked_players.toLocaleString()],
+            ['Player clubs', data.player_clubs.toLocaleString()],
+            ['Player stat rows', data.player_stat_rows.toLocaleString()],
+            ['Cached artwork', data.artwork_rows.toLocaleString()],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-lg border border-surface1 bg-mantle p-3">
+              <p className="text-[11px] uppercase text-subtext0">{label}</p>
+              <p className="mt-1 text-xl font-bold text-text">{value}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="rounded-xl border border-surface1 bg-surface0 p-5 space-y-4">
+          <h3 className="text-sm font-semibold text-text">Major tournament coverage</h3>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div className="rounded-lg bg-mantle p-3"><p className="text-xs text-subtext0">Matches</p><p className="text-xl font-bold text-blue">{data.tournament_matches.toLocaleString()}</p></div>
+            <div className="rounded-lg bg-mantle p-3"><p className="text-xs text-subtext0">Teams</p><p className="text-xl font-bold text-teal">{data.tournament_teams.toLocaleString()}</p></div>
+            {Object.entries(data.tournament_breakdown).map(([competition, count]) => (
+              <div key={competition} className="rounded-lg bg-mantle p-3"><p className="text-xs text-subtext0">{competition}</p><p className="text-xl font-bold text-text">{count.toLocaleString()}</p></div>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-xl border border-surface1 bg-surface0 p-5 space-y-4">
+          <h3 className="text-sm font-semibold text-text">Extended source capabilities</h3>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {[
+              ['Context-rich matches', data.context_rich_matches],
+              ['Tournament goals', data.tournament_goals],
+              ['Detailed statistics', data.detailed_event_stats],
+              ['Timeline events', data.timeline_events],
+              ['Lineup rows', data.lineup_rows],
+              ['Model predictions', data.model_predictions],
+            ].map(([label, value]) => (
+              <div key={String(label)} className="rounded-lg bg-mantle p-3"><p className="text-xs text-subtext0">{label}</p><p className="text-xl font-bold text-text">{Number(value).toLocaleString()}</p></div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {Object.keys(data.refresh_timestamps).length ? (
+        <div className="rounded-xl border border-surface1 bg-surface0 p-5">
+          <h3 className="mb-3 text-sm font-semibold text-text">Refresh timestamps</h3>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {Object.entries(data.refresh_timestamps).map(([source, timestamp]) => (
+              <div key={source} className="flex items-center justify-between gap-3 rounded-lg bg-mantle px-3 py-2 text-xs"><span className="capitalize text-subtext0">{source.replaceAll('_', ' ')}</span><span className="font-mono text-text">{timestamp ? timestamp.slice(0, 16).replace('T', ' ') : '—'}</span></div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       {/* Source Caps & Limitations */}
       <div className="rounded-xl border border-surface1 bg-surface0 p-5 space-y-3">
         <h3 className="text-sm font-semibold text-text flex items-center gap-2">
@@ -193,6 +252,20 @@ function QualityContent() {
           </div>
         </div>
       )}
+
+      {data.shot_coverage.length ? (
+        <div className="overflow-hidden rounded-xl border border-surface1 bg-surface0">
+          <div className="border-b border-surface1 p-4"><h3 className="text-sm font-semibold text-text">Shot-field coverage</h3></div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b border-surface1 bg-mantle uppercase text-subtext0"><tr><th className="px-4 py-3">Competition</th><th className="px-4 py-3">Season</th><th className="px-4 py-3 text-right">Matches</th><th className="px-4 py-3 text-right">Complete</th><th className="px-4 py-3 text-right">Coverage</th></tr></thead>
+              <tbody className="divide-y divide-surface1">
+                {data.shot_coverage.map((row) => <tr key={`${row.competition}-${row.season}`}><td className="px-4 py-3 font-semibold text-text">{row.competition}</td><td className="px-4 py-3 font-mono">{row.season}/{String(row.season + 1).slice(-2)}</td><td className="px-4 py-3 text-right">{row.matches}</td><td className="px-4 py-3 text-right">{row.shot_matches}</td><td className="px-4 py-3 text-right font-bold text-green">{row.coverage_pct.toFixed(1)}%</td></tr>)}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
 
       {/* Checksums & Ingestion Run Logs */}
       {data.checksums && data.checksums.length > 0 && (

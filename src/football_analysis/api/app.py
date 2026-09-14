@@ -24,6 +24,7 @@ from football_analysis.api.contracts import (
     PredictionsResponse,
     QualityResponse,
     ShotAnalysisResponse,
+    StandingsResponse,
     TeamListResponse,
     TournamentResponse,
     TransferListResponse,
@@ -164,12 +165,13 @@ def create_app(database_path: Path | None = None) -> FastAPI:
         request: Request,
         q: str | None = None,
         team: str | None = None,
+        position: str | None = None,
         sort_by: str | None = None,
         cursor: str | None = None,
         limit: int = Query(default=50, ge=1, le=200),
     ):
         try:
-            payload = queries.list_players(require_store(), q, team, sort_by, cursor, limit)
+            payload = queries.list_players(require_store(), q, team, position, sort_by, cursor, limit)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return with_cache(payload, request)
@@ -184,6 +186,20 @@ def create_app(database_path: Path | None = None) -> FastAPI:
     @app.get("/api/v1/quality", response_model=QualityResponse)
     def quality(request: Request):
         return with_cache(queries.quality(require_store()), request, CACHE_STABLE)
+
+    @app.get("/api/v1/standings", response_model=StandingsResponse)
+    def standings(
+        request: Request,
+        competition: str,
+        season: int,
+        form_window: int = Query(default=5, ge=1, le=10),
+        venue: str | None = None,
+    ):
+        return with_cache(
+            queries.standings(require_store(), competition, season, form_window, venue),
+            request,
+            cache_for_season(season),
+        )
 
     @app.get("/api/v1/overview", response_model=OverviewResponse)
     def overview(

@@ -2,7 +2,7 @@
 
 ## Decision
 
-Keep **DuckDB** as the default database for the current Streamlit application. It is open source, embedded in the Python process, requires no server administration, reads compressed CSV directly and is designed for analytical SQL workloads. That matches a locally run, read-heavy portfolio dashboard with one ingestion writer and cached analytical tables.
+Keep **DuckDB** as the default database for the FastAPI analytical service. It is open source, embedded in the Python process, requires no server administration, reads compressed CSV directly and is designed for analytical SQL workloads. That matches a locally run, read-heavy platform with one ingestion writer and cached analytical tables.
 
 Add **PostgreSQL** only when the application becomes a deployed multi-user service with concurrent ingestion, user accounts or multiple application workers. PostgreSQL is free and open source, ACID-compliant and uses MVCC so readers and writers can operate concurrently. Moving now would add a server, credentials, migrations and operations work without improving the current single-process experience.
 
@@ -10,7 +10,7 @@ Add **PostgreSQL** only when the application becomes a deployed multi-user servi
 |---|---|---|
 | Linux/local setup | One embedded database file | Separate server and configuration |
 | Analytical scans and CSV ingestion | Excellent fit | Capable, with more loading/operations work |
-| Streamlit read-only dashboard | Excellent fit | Good fit |
+| FastAPI read-only analytical service | Excellent fit | Good fit |
 | Multiple concurrent writers/workers | Limited; coordinate one writer | Strong fit through server concurrency and MVCC |
 | User accounts and row-level application data | Possible but awkward | Strong fit |
 | Cost/licence | Free, open source | Free, PostgreSQL permissive licence |

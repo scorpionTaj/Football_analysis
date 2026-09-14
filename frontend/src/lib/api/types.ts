@@ -316,6 +316,7 @@ export interface ClubSpotlight {
   goal_difference: number;
   latest_match: Match | null;
   previous_match: Match | null;
+  next_match: Match | null;
   next_fixture: Forecast | null;
 }
 
@@ -330,6 +331,12 @@ export interface OverviewResponse {
 export interface PlayerListResponse {
   players: PlayerSummary[];
   page: PageMeta;
+  total_count: number;
+  teams: TeamRef[];
+  positions: string[];
+  average_age: number | null;
+  nationality_count: number;
+  total_market_value_eur: number;
   source: SourceMeta;
 }
 
@@ -404,11 +411,56 @@ export interface QualityResponse {
   live_competitions: string;
   match_records: number;
   impossible_shot_rows: number;
+  reference_rows: number;
+  recent_competitions: number;
+  completed_results: number;
+  tracked_players: number;
+  player_clubs: number;
+  player_stat_rows: number;
+  artwork_rows: number;
+  tournament_matches: number;
+  tournament_teams: number;
+  tournament_breakdown: Record<string, number>;
+  context_rich_matches: number;
+  tournament_goals: number;
+  detailed_event_stats: number;
+  timeline_events: number;
+  lineup_rows: number;
+  model_predictions: number;
   source_caps: string[];
   null_coverage: Record<string, number>;
   checksums: Record<string, unknown>[];
   refresh_timestamps: Record<string, string | null>;
   grid: QualityCell[];
+  shot_coverage: ShotCoverageRow[];
+  source: SourceMeta;
+}
+
+export interface ReferenceStandingRow {
+  competition: string;
+  season: number;
+  source_name: string;
+  rank: number;
+  team: TeamRef;
+  played: number | null;
+  points: number | null;
+  goal_difference: number | null;
+  form: string | null;
+  description: string | null;
+  source_updated_at: string | null;
+  fetched_at: string | null;
+  results_rank: number | null;
+  results_points: number | null;
+  results_goal_difference: number | null;
+  point_adjustment: number | null;
+  rank_difference: number | null;
+}
+
+export interface StandingsResponse {
+  competition: string;
+  season: number;
+  rankings: RankingRow[];
+  reference: ReferenceStandingRow[];
   source: SourceMeta;
 }
 

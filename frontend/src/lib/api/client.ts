@@ -52,6 +52,7 @@ import type {
   PredictionsResponse,
   QualityResponse,
   ShotAnalysisResponse,
+  StandingsResponse,
   TeamListResponse,
   TournamentResponse,
   TransferListResponse,
@@ -100,13 +101,16 @@ export const api = {
 
   predictions: () => request<PredictionsResponse>('/api/v1/predictions'),
 
-  players: (opts?: { q?: string; team?: string; sort_by?: string; cursor?: string; limit?: number }) =>
+  players: (opts?: { q?: string; team?: string; position?: string; sort_by?: string; cursor?: string; limit?: number }) =>
     request<PlayerListResponse>(`/api/v1/players${params(opts || {})}`),
 
   player: (playerId: string) =>
     request<PlayerProfileResponse>(`/api/v1/players/${playerId}`),
 
   quality: () => request<QualityResponse>('/api/v1/quality'),
+
+  standings: (competition: string, season: number, formWindow = 5, venue?: string) =>
+    request<StandingsResponse>(`/api/v1/standings${params({ competition, season, form_window: formWindow, venue })}`),
 
   overview: (opts?: { team?: string; competition?: string; season?: number }) =>
     request<OverviewResponse>(`/api/v1/overview${params(opts || {})}`),

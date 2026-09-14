@@ -27,6 +27,7 @@ function ClubLabContent() {
   const selectedClub = filters.team || 'Arsenal';
   const [activeTab, setActiveTab] = useState<'profile' | 'h2h'>('profile');
   const [opponentClub, setOpponentClub] = useState<string>('Chelsea');
+  const [formWindow, setFormWindow] = useState(5);
 
   // Fetch all teams to populate the club selector
   const { data: teamData } = useQuery({
@@ -48,8 +49,8 @@ function ClubLabContent() {
     seasons: [],
     teams: [selectedClub],
     venue: null,
-    form_window: 5,
-  }), [selectedClub]);
+    form_window: formWindow,
+  }), [selectedClub, formWindow]);
 
   const { data: analysis, isLoading: isAnalysisLoading, error: analysisError, refetch } = useQuery({
     queryKey: queryKeys.analysis(requestBody),
@@ -89,6 +90,20 @@ function ClubLabContent() {
   const seasonsList = useMemo(() => {
     return (analysis?.rankings || []).sort((a, b) => a.season - b.season);
   }, [analysis]);
+
+  const benchmarkRequest = useMemo(() => ({
+    competitions: Array.from(new Set(seasonsList.map((row) => row.competition))),
+    seasons: Array.from(new Set(seasonsList.map((row) => row.season))),
+    teams: [],
+    venue: null,
+    form_window: formWindow,
+  }), [seasonsList, formWindow]);
+
+  const { data: benchmark } = useQuery({
+    queryKey: queryKeys.analysis(benchmarkRequest),
+    queryFn: () => api.analysis(benchmarkRequest),
+    enabled: benchmarkRequest.competitions.length > 0,
+  });
 
   // Paginated season history table (10 per page)
   const { paginatedItems: paginatedSeasons, PaginationComponent: SeasonsPagination } = usePagination(seasonsList, 10);
@@ -157,7 +172,35 @@ function ClubLabContent() {
     }));
   }, [seasonsList]);
 
-  const matches = matchData?.matches || [];
+  const matches = useMemo(() => matchData?.matches || [], [matchData?.matches]);
+  const rollingForm = useMemo(() => {
+    const ordered = [...matches].filter((match) => match.home_goals != null && match.away_goals != null).sort((a, b) => a.match_date.localeCompare(b.match_date));
+    const points: number[] = ordered.map((match) => {
+      const isHome = match.home.name === selectedClub;
+      const goalsFor = isHome ? match.home_goals! : match.away_goals!;
+      const goalsAgainst = isHome ? match.away_goals! : match.home_goals!;
+      return goalsFor > goalsAgainst ? 3 : goalsFor === goalsAgainst ? 1 : 0;
+    });
+    return ordered.map((match, index) => {
+      const window = points.slice(Math.max(0, index - formWindow + 1), index + 1);
+      return { date: match.match_date, PPG: Number((window.reduce((sum, value) => sum + value, 0) / window.length).toFixed(2)) };
+    });
+  }, [matches, selectedClub, formWindow]);
+
+  const percentileProfile = useMemo(() => {
+    const rows = benchmark?.rankings || [];
+    const own = rows.filter((row) => row.team.name === selectedClub);
+    const metrics = [
+      ['Scoring', 'goals_per_game'], ['Points', 'points_per_game'],
+      ['Win rate', 'win_rate'], ['Clean sheets', 'clean_sheet_rate'],
+    ] as const;
+    return metrics.map(([label, key]) => {
+      const ownValue = own.length ? own.reduce((sum, row) => sum + row[key], 0) / own.length : 0;
+      const values = rows.map((row) => row[key]);
+      const percentile = values.length ? 100 * values.filter((value) => value <= ownValue).length / values.length : 0;
+      return { label, percentile: Number(percentile.toFixed(0)) };
+    });
+  }, [benchmark?.rankings, selectedClub]);
   // Paginated club recent fixtures (10 per page)
   const { paginatedItems: paginatedMatches, PaginationComponent: MatchesPagination } = usePagination(matches, 10);
 
@@ -284,6 +327,12 @@ function ClubLabContent() {
                 </div>
               </>
             )}
+            <div>
+              <label className="text-xs font-medium text-subtext0 block">Recent form</label>
+              <select value={formWindow} onChange={(event) => setFormWindow(Number(event.target.value))} className="mt-0.5 rounded-lg border border-surface1 bg-mantle px-3 py-1.5 text-sm font-semibold text-text outline-none">
+                {[3, 5, 8, 10].map((value) => <option key={value} value={value}>Last {value}</option>)}
+              </select>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -371,6 +420,19 @@ function ClubLabContent() {
               </div>
             </div>
           )}
+
+          <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+            <div className="rounded-xl border border-surface1 bg-surface0 p-5">
+              <h3 className="mb-4 font-semibold text-text">Rolling {formWindow}-match form</h3>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%"><LineChart data={rollingForm} margin={{ top: 8, right: 12, left: -20, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" stroke="#313244" /><XAxis dataKey="date" stroke="#7f849c" fontSize={10} /><YAxis domain={[0, 3]} stroke="#7f849c" fontSize={11} /><Tooltip contentStyle={{ backgroundColor: '#181825', borderColor: '#45475a', borderRadius: 8 }} /><Line type="monotone" dataKey="PPG" stroke="#94e2d5" strokeWidth={2.5} dot={false} /></LineChart></ResponsiveContainer>
+              </div>
+            </div>
+            <div className="rounded-xl border border-surface1 bg-surface0 p-5">
+              <h3 className="mb-4 font-semibold text-text">Selected-competition percentile profile</h3>
+              <div className="space-y-4">{percentileProfile.map((row) => <div key={row.label}><div className="mb-1 flex justify-between text-xs"><span className="text-subtext0">{row.label}</span><span className="font-mono font-bold text-blue">{row.percentile}%</span></div><div className="h-2 overflow-hidden rounded-full bg-mantle"><div className="h-full rounded-full bg-blue" style={{ width: `${row.percentile}%` }} /></div></div>)}</div>
+            </div>
+          </div>
 
           {/* Season-by-Season Breakdown Table (Paginated: 10 per page) */}
           <div className="rounded-xl border border-surface1 bg-surface0 overflow-hidden">

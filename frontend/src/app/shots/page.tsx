@@ -176,7 +176,7 @@ function ShotIntelligenceContent() {
 export default function ShotsPage() {
   return (
     <div className="space-y-6">
-      <PageHeader icon={Crosshair} eyebrow="Chance creation and finishing" title="Shot Intelligence" description="Compare volume, accuracy and finishing only where the source clears the same 95% completeness rule used by Streamlit." />
+      <PageHeader icon={Crosshair} eyebrow="Chance creation and finishing" title="Shot Intelligence" description="Compare volume, accuracy and finishing only where the source clears the 95% completeness rule." />
       <Suspense fallback={<LoadingSkeleton lines={10} />}>
         <ShotIntelligenceContent />
       </Suspense>

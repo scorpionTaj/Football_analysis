@@ -54,7 +54,7 @@ function TournamentsContent() {
   const currentTournamentConfig = TOURNAMENT_CONFIGS.find((c) => c.code === selectedTournament) || TOURNAMENT_CONFIGS[0];
   const selectedYear = filters.season || currentTournamentConfig.defaultYear;
 
-  const [activeTab, setActiveTab] = useState<'matches' | 'scorers' | 'stages'>('matches');
+  const [activeTab, setActiveTab] = useState<'matches' | 'scorers' | 'performance' | 'stages'>('matches');
   const [matchSearch, setMatchSearch] = useState('');
   const [stageFilter, setStageFilter] = useState<string>('all');
   const [teamFilter, setTeamFilter] = useState<string>('all');
@@ -105,15 +105,16 @@ function TournamentsContent() {
 
   // Metrics calculation
   const totalGoals = useMemo(() => {
-    return matches.reduce((acc, m) => acc + (m.home_goals || 0) + (m.away_goals || 0), 0);
-  }, [matches]);
+    return filteredMatches.reduce((acc, m) => acc + (m.home_goals || 0) + (m.away_goals || 0), 0);
+  }, [filteredMatches]);
 
-  const avgGoals = matches.length > 0 ? (totalGoals / matches.length).toFixed(2) : '0';
+  const avgGoals = filteredMatches.length > 0 ? (totalGoals / filteredMatches.length).toFixed(2) : '0';
+  const filteredTeamCount = new Set(filteredMatches.flatMap((match) => [match.home.team_id, match.away.team_id])).size;
 
   // Stage scoring chart data
   const stageChartData = useMemo(() => {
     const stageMap = new Map<string, { matches: number; goals: number }>();
-    for (const m of matches) {
+    for (const m of filteredMatches) {
       const stage = m.stage || 'Unknown';
       const existing = stageMap.get(stage) || { matches: 0, goals: 0 };
       existing.matches += 1;
@@ -127,13 +128,16 @@ function TournamentsContent() {
       totalGoals: stats.goals,
       matches: stats.matches,
     }));
-  }, [matches]);
+  }, [filteredMatches]);
 
   // Scorers ranking calculation
   const topScorers = useMemo(() => {
     const scorerMap = new Map<string, { player: string; team: string; goals: number; penalties: number }>();
+    const selectedDates = new Set(filteredMatches.map((match) => match.match_date));
     for (const g of scorers) {
       if (g.own_goal) continue;
+      if ((stageFilter !== 'all' || teamFilter !== 'all') && !selectedDates.has(g.match_date)) continue;
+      if (teamFilter !== 'all' && g.team.team_id !== teamFilter) continue;
       const key = `${g.player}_${g.team.name}`;
       const existing = scorerMap.get(key) || { player: g.player, team: g.team.name, goals: 0, penalties: 0 };
       existing.goals += 1;
@@ -141,7 +145,31 @@ function TournamentsContent() {
       scorerMap.set(key, existing);
     }
     return Array.from(scorerMap.values()).sort((a, b) => b.goals - a.goals || a.player.localeCompare(b.player));
-  }, [scorers]);
+  }, [scorers, filteredMatches, stageFilter, teamFilter]);
+
+  const teamPerformance = useMemo(() => {
+    const rows = new Map<string, { id: string; name: string; badge: string | null | undefined; played: number; wins: number; draws: number; losses: number; goalsFor: number; goalsAgainst: number; points: number; form: string[] }>();
+    const ensure = (team: typeof matches[number]['home']) => {
+      if (!rows.has(team.team_id)) rows.set(team.team_id, { id: team.team_id, name: team.name, badge: team.badge_url, played: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0, points: 0, form: [] });
+      return rows.get(team.team_id)!;
+    };
+    for (const match of [...filteredMatches].sort((a, b) => a.match_date.localeCompare(b.match_date))) {
+      if (match.home_goals == null || match.away_goals == null) continue;
+      const home = ensure(match.home);
+      const away = ensure(match.away);
+      home.played += 1; away.played += 1;
+      home.goalsFor += match.home_goals; home.goalsAgainst += match.away_goals;
+      away.goalsFor += match.away_goals; away.goalsAgainst += match.home_goals;
+      if (match.home_goals > match.away_goals) {
+        home.wins += 1; home.points += 3; home.form.push('W'); away.losses += 1; away.form.push('L');
+      } else if (match.home_goals < match.away_goals) {
+        away.wins += 1; away.points += 3; away.form.push('W'); home.losses += 1; home.form.push('L');
+      } else {
+        home.draws += 1; away.draws += 1; home.points += 1; away.points += 1; home.form.push('D'); away.form.push('D');
+      }
+    }
+    return Array.from(rows.values()).sort((a, b) => b.points - a.points || (b.goalsFor - b.goalsAgainst) - (a.goalsFor - a.goalsAgainst) || b.goalsFor - a.goalsFor);
+  }, [filteredMatches]);
 
   // CSV export handler
   const exportCsv = () => {
@@ -238,7 +266,7 @@ function TournamentsContent() {
             <span className="text-xs uppercase font-medium">Matches</span>
             <Calendar className="h-4 w-4 text-blue" />
           </div>
-          <p className="text-2xl font-bold text-text">{matches.length}</p>
+          <p className="text-2xl font-bold text-text">{filteredMatches.length}</p>
         </div>
 
         <div className="rounded-xl bg-surface0 border border-surface1 p-4">
@@ -246,7 +274,7 @@ function TournamentsContent() {
             <span className="text-xs uppercase font-medium">Teams</span>
             <Users className="h-4 w-4 text-teal" />
           </div>
-          <p className="text-2xl font-bold text-text">{availableTeams.length}</p>
+          <p className="text-2xl font-bold text-text">{filteredTeamCount}</p>
         </div>
 
         <div className="rounded-xl bg-surface0 border border-surface1 p-4">
@@ -312,6 +340,14 @@ function TournamentsContent() {
             </button>
           )}
           <button
+            onClick={() => setActiveTab('performance')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+              activeTab === 'performance' ? 'bg-surface1 text-text' : 'text-subtext0 hover:text-text'
+            }`}
+          >
+            Team performance ({teamPerformance.length})
+          </button>
+          <button
             onClick={() => setActiveTab('stages')}
             className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
               activeTab === 'stages' ? 'bg-surface1 text-text' : 'text-subtext0 hover:text-text'
@@ -323,8 +359,7 @@ function TournamentsContent() {
 
         {/* Local Search and Export */}
         <div className="flex min-w-0 flex-wrap items-center gap-2.5">
-          {activeTab === 'matches' && (
-            <>
+          <>
               {/* Stage filter */}
               <select
                 value={stageFilter}
@@ -372,8 +407,7 @@ function TournamentsContent() {
                 <Download className="h-3.5 w-3.5 text-blue" />
                 <span>Export</span>
               </button>
-            </>
-          )}
+          </>
         </div>
       </div>
 
@@ -476,6 +510,20 @@ function TournamentsContent() {
           <div className="p-3 bg-mantle border-t border-surface1">
             <ScorersPagination />
           </div>
+        </Card>
+      )}
+
+      {activeTab === 'performance' && (
+        <Card className="overflow-hidden rounded-2xl border border-surface1 bg-surface0 shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b border-surface1 bg-mantle uppercase text-subtext0"><tr><th className="px-4 py-3">Rank</th><th className="px-4 py-3">Team</th><th className="px-3 py-3 text-center">P</th><th className="px-3 py-3 text-center">W</th><th className="px-3 py-3 text-center">D</th><th className="px-3 py-3 text-center">L</th><th className="px-3 py-3 text-center">GF</th><th className="px-3 py-3 text-center">GA</th><th className="px-3 py-3 text-center">GD</th><th className="px-3 py-3 text-center">Form</th></tr></thead>
+              <tbody className="divide-y divide-surface1">
+                {teamPerformance.slice(0, 20).map((row, index) => <tr key={row.id}><td className="px-4 py-3 font-mono">{index + 1}</td><td className="px-4 py-3"><span className="flex items-center gap-2 font-semibold text-text"><FootballBadge name={row.name} url={row.badge} size={22} />{row.name}</span></td><td className="px-3 py-3 text-center">{row.played}</td><td className="px-3 py-3 text-center text-green">{row.wins}</td><td className="px-3 py-3 text-center text-yellow">{row.draws}</td><td className="px-3 py-3 text-center text-red">{row.losses}</td><td className="px-3 py-3 text-center">{row.goalsFor}</td><td className="px-3 py-3 text-center">{row.goalsAgainst}</td><td className="px-3 py-3 text-center font-mono">{row.goalsFor - row.goalsAgainst > 0 ? '+' : ''}{row.goalsFor - row.goalsAgainst}</td><td className="px-3 py-3 text-center font-mono">{row.form.slice(-5).join(' ')}</td></tr>)}
+              </tbody>
+            </table>
+          </div>
+          <p className="border-t border-surface1 p-3 text-xs text-subtext0">Performance ranking describes the selected tournament matches; it is not an official group table.</p>
         </Card>
       )}
 

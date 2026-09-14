@@ -13,9 +13,9 @@ DuckDB remains appropriate while one scheduled job writes and one API process re
 1. [x] Add Pydantic response models and JSON serialization tests for competitions, teams, matches, analysis reports, tournament results, players, predictions and quality metadata.
 2. [x] Version the first API as `/api/v1`; expose source, coverage and freshness fields with every analytical response.
 3. [x] Store canonical team IDs separately from user-facing names before URLs depend on club identity.
-4. [x] Capture the current Streamlit screens and 38-test baseline as the parity reference.
+4. [x] Capture the former dashboard screens and baseline tests as the parity reference.
 
-Exit gate: ✅ API schemas can represent every current dashboard view without importing Streamlit.
+Exit gate: ✅ API schemas represent every dashboard view without a UI-framework dependency.
 
 ## Phase 2 — create the FastAPI service ✅
 
@@ -29,6 +29,7 @@ Initial routes:
 - [x] `GET /api/v1/predictions` — model card, holdout metrics, calibration and current forecasts.
 - [x] `GET /api/v1/players` and `GET /api/v1/players/{player_id}` — paginated discovery and profiles.
 - [x] `GET /api/v1/quality` — source caps, null coverage, checksums and refresh timestamps.
+- [x] `GET /api/v1/standings` — results-derived rankings plus external reference deltas.
 
 Infrastructure:
 
@@ -46,7 +47,7 @@ Exit gate: ✅ Contract tests and a generated OpenAPI document pass; p95 local r
 
 1. [x] Create a TypeScript Next.js App Router project with Catppuccin Mocha design tokens, responsive navigation and accessible filter components.
 2. [x] Generate a typed API client from OpenAPI and centralize query keys, loading states, empty states and source/coverage labels.
-3. [x] Implement server components for initial page data and client components only for interactive Plotly charts and selectors.
+3. [x] Implement route-level suspense boundaries and client components for interactive Recharts visualizations and selectors.
 4. [x] Preserve shareable filter state in URLs: competition, season, team, stage, venue and metric.
 
 Exit gate: ✅ Keyboard navigation, mobile layout, dark-theme contrast and error states pass before feature migration begins.
@@ -82,7 +83,7 @@ Exit gate: ✅ API contract test, selector parity, empty-data behavior, download
 2. [x] Reusable `<Pagination />` component with page numbers and ellipsis truncation.
 3. [x] Applied across League Tables (`/tables`), Tournaments (`/tournaments`), Analysis Lab (`/analysis`), Club Lab (`/clubs`), Match Explorer (`/matches`), Player Profiles (`/players`), and Data Quality (`/quality`).
 
-## Phase 7 — Streamlit deep integrations ✅
+## Phase 7 — deep analytical integrations ✅
 
 1. [x] **Head-to-Head Club Comparison** (`/clubs`): Direct clashes history, goals distribution bar, side-by-side PPG / Win % / Goals scored / Clean sheet benchmarking, and paginated match encounters.
 
@@ -103,7 +104,7 @@ Exit gate: ✅ API contract test, selector parity, empty-data behavior, download
    - Live Pulse indicator and 12-competition horizontal switcher.
    - Club spotlight hero with 4 KPIs (Played, W-D-L, PPG, Goal Difference).
    - 3 Match Strip Cards: Latest completed match, Previous match, Next listed fixture with ML win/draw/loss probability progress bars.
-   - 4 Streamlit-replica analytical visualizations:
+   - 4 parity analytical visualizations:
      1. Performance Over Time (PPG trajectory line chart)
      2. Season Strength Map (interactive heatmap matrix)
      3. Attacking Output vs Defensive Control (reversed scatter plot with PPG bubble size)
@@ -111,12 +112,13 @@ Exit gate: ✅ API contract test, selector parity, empty-data behavior, download
    - World Star Players Spotlight with Transfermarkt portraits, club badges, and market values.
    - 13 Supported Competitions card showcase, including the 2025 FIFA Club World Cup.
 
-## Phase 9 — operations and cutover
+## Phase 9 — operations and cutover ✅
 
 1. Run ingestion, event-detail refresh and prediction training as separate scheduled jobs with an atomic database snapshot swap.
 2. Containerize FastAPI and Next.js separately; keep raw data and DuckDB outside the frontend image.
 3. Add health checks, structured logs, source failure alerts and model-data freshness monitoring.
-4. Route a preview URL to Next.js, run both clients for one full refresh cycle, then make Next.js primary.
-5. Retain the Streamlit deployment briefly as an internal analytical reference before removing it.
+4. [x] Reconcile every former dashboard workflow against FastAPI contracts and browser-visible Next.js behavior.
+5. [x] Add missing external standings, complete quality telemetry, tournament performance, filtered scorers, correlation rendering, player facets and listed-fixture fallback.
+6. [x] Remove the retired Python UI entry point, UI-only tests and unused UI/chart dependencies.
 
-Final cutover gate: all API tests, browser flows and metric reconciliation pass on the same production snapshot; rollback is a routing change rather than a data migration.
+Final cutover gate: ✅ API tests, production build, browser flows and metric reconciliation pass on the same data snapshot. The data model was unchanged; rollback remains a Git revert.

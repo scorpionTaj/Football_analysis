@@ -1,4 +1,4 @@
-"""DuckDB reads that power the versioned API without Streamlit."""
+"""DuckDB reads that power the versioned API."""
 
 from __future__ import annotations
 
@@ -47,12 +47,14 @@ from football_analysis.api.contracts import (
     QualityCell,
     QualityResponse,
     RankingRow,
+    ReferenceStandingRow,
     RefereeSummary,
     SeasonCoverage,
     ShotAnalysisResponse,
     ShotCoverageRow,
     ShotEfficiencyRow,
     SourceMeta,
+    StandingsResponse,
     Team,
     TeamListResponse,
     TeamRef,
@@ -432,13 +434,14 @@ def list_matches(
     elif venue:
         frame = frame[frame.venue == venue]
     frame = frame.sort_values(
-        ["match_date", "competition", "home_team", "away_team"]
+        ["match_date", "competition", "home_team", "away_team"],
+        ascending=[False, True, True, True],
     ).reset_index(drop=True)
     token = decode_cursor(cursor)
     if token:
         cursor_date = pd.Timestamp(token["d"])
         mask = (
-            (frame.match_date > cursor_date)
+            (frame.match_date < cursor_date)
             | ((frame.match_date == cursor_date) & (frame.competition > token["c"]))
             | (
                 (frame.match_date == cursor_date)
@@ -480,7 +483,7 @@ def shot_analysis(
     season: int | None = None,
     team: str | None = None,
 ) -> ShotAnalysisResponse:
-    """Expose the same nullable, 95%-gated shot analysis used by Streamlit."""
+    """Expose nullable shot analysis only after the 95% coverage gate."""
     frames = []
     for table in ("matches", "recent_matches"):
         if _has(store, table):
@@ -839,6 +842,62 @@ def build_analysis(store: ReadOnlyStore, body: AnalysisFilters) -> AnalysisRepor
     )
 
 
+def standings(
+    store: ReadOnlyStore,
+    competition: str,
+    season: int,
+    form_window: int = 5,
+    venue: str | None = None,
+) -> StandingsResponse:
+    """Return the results-derived table and the optional external validation table."""
+    report = build_analysis(store, AnalysisFilters(
+        competitions=[competition], seasons=[season], form_window=form_window, venue=venue,
+    ))
+    derived = {team_key(row.team.name): row for row in report.rankings}
+    reference_rows: list[ReferenceStandingRow] = []
+    freshness = None
+    if _has(store, "reference_standings"):
+        frame = store.query(
+            "SELECT * FROM reference_standings WHERE league = ? AND season = ? ORDER BY rank",
+            [competition, season],
+        )
+        if not frame.empty:
+            freshness = frame.fetched_at.max()
+        media = _team_media_map(store)
+        for row in frame.itertuples(index=False):
+            result = derived.get(team_key(row.team))
+            ref_points = None if pd.isna(row.points) else int(row.points)
+            result_points = result.points if result else None
+            ref_rank = int(row.rank)
+            result_rank = result.rank if result else None
+            reference_rows.append(ReferenceStandingRow(
+                competition=competition,
+                season=season,
+                source_name=row.source,
+                rank=ref_rank,
+                team=_build_team_ref(row.team, media),
+                played=None if pd.isna(row.played) else int(row.played),
+                points=ref_points,
+                goal_difference=None if pd.isna(row.goal_difference) else int(row.goal_difference),
+                form=None if pd.isna(row.form) else str(row.form),
+                description=None if pd.isna(row.description) else str(row.description),
+                source_updated_at=_as_datetime(row.source_updated_at),
+                fetched_at=_as_datetime(row.fetched_at),
+                results_rank=result_rank,
+                results_points=result_points,
+                results_goal_difference=result.goal_difference if result else None,
+                point_adjustment=(ref_points - result_points) if ref_points is not None and result_points is not None else None,
+                rank_difference=(ref_rank - result_rank) if result_rank is not None else None,
+            ))
+    return StandingsResponse(
+        competition=competition,
+        season=season,
+        rankings=report.rankings,
+        reference=reference_rows,
+        source=_source("analysis-system+reference", "results-derived and external validation", freshness),
+    )
+
+
 def tournament(store: ReadOnlyStore, competition: str, season: int) -> TournamentResponse:
     name = TOURNAMENTS.get(competition, COMPETITIONS.get(competition, competition))
     if not _has(store, "tournament_matches"):
@@ -896,6 +955,7 @@ def list_players(
     store: ReadOnlyStore,
     query: str | None = None,
     team: str | None = None,
+    position: str | None = None,
     sort_by: str | None = None,
     cursor: str | None = None,
     limit: int = 50,
@@ -906,22 +966,41 @@ def list_players(
             players=[], page=PageMeta(next_cursor=None, limit=limit, returned=0),
             source=_source("transfermarkt-open", "empty"),
         )
-    if sort_by == "market_value":
-        frame = store.query(
-            "SELECT source, player_id, team, player, position, nationality, image_url, market_value_eur "
-            "FROM open_players WHERE market_value_eur IS NOT NULL ORDER BY market_value_eur DESC, player"
-        )
-    else:
-        frame = store.query(
-            "SELECT source, player_id, team, player, position, nationality, image_url, market_value_eur "
-            "FROM open_players ORDER BY player, player_id"
-        )
+    frame = store.query(
+        "SELECT source, player_id, team, player, position, nationality, date_born, "
+        "data_as_of, image_url, market_value_eur FROM open_players"
+    )
+    media = _team_media_map(store)
+    facet_names = sorted(frame.team.dropna().unique(), key=lambda value: (display_team(value) or value).casefold())
+    team_facets = [_build_team_ref(name, media) for name in facet_names]
     if team:
         key = team_key(team) or team
         frame = frame[(frame.team.map(team_key) == key) | (frame.team == team)]
+    positions = sorted(value for value in frame.position.dropna().unique() if value)
+    if position:
+        frame = frame[frame.position == position]
     if query:
         needle = query.casefold()
-        frame = frame[frame.player.str.casefold().str.contains(needle, regex=False, na=False)]
+        search_columns = ("player", "team", "position", "nationality")
+        search_mask = pd.Series(False, index=frame.index)
+        for column in search_columns:
+            search_mask |= frame[column].fillna("").str.casefold().str.contains(needle, regex=False)
+        frame = frame[search_mask]
+    if sort_by == "market_value":
+        frame = frame[frame.market_value_eur.notna()].sort_values(
+            ["market_value_eur", "player"], ascending=[False, True]
+        )
+    else:
+        frame = frame.sort_values(["player", "player_id"])
+    total_count = len(frame)
+    average_age = None
+    valid_births = pd.to_datetime(frame.date_born, errors="coerce")
+    valid_snapshots = pd.to_datetime(frame.data_as_of, errors="coerce")
+    age_days = (valid_snapshots - valid_births).dt.days
+    if age_days.notna().any():
+        average_age = round(float((age_days / 365.2425).mean()), 1)
+    nationality_count = int(frame.nationality.replace("", pd.NA).nunique())
+    total_market_value = int(pd.to_numeric(frame.market_value_eur, errors="coerce").fillna(0).sum())
     token = decode_cursor(cursor)
     if token:
         frame = frame[
@@ -935,10 +1014,9 @@ def list_players(
     if has_more and not page.empty:
         last = page.iloc[-1]
         next_cursor = encode_cursor({"n": last.player, "id": last.player_id})
-    tm_map = _team_media_map(store)
     players = [
         PlayerSummary(
-            player_id=str(row.player_id), name=row.player, team=_build_team_ref(row.team, tm_map),
+            player_id=str(row.player_id), name=row.player, team=_build_team_ref(row.team, media),
             position=row.position, nationality=row.nationality,
             image_url=None if pd.isna(getattr(row, "image_url", None)) else row.image_url,
             market_value_eur=None if pd.isna(getattr(row, "market_value_eur", None)) else int(row.market_value_eur),
@@ -949,6 +1027,12 @@ def list_players(
     return PlayerListResponse(
         players=players,
         page=PageMeta(next_cursor=next_cursor, limit=limit, returned=len(players)),
+        total_count=total_count,
+        teams=team_facets,
+        positions=positions,
+        average_age=average_age,
+        nationality_count=nationality_count,
+        total_market_value_eur=total_market_value,
         source=_source("transfermarkt-open", "players"),
     )
 
@@ -1161,7 +1245,22 @@ def overview(
     latest_match = completed[0] if len(completed) > 0 else None
     previous_match = completed[1] if len(completed) > 1 else None
 
-    # Next fixture from predictions
+    # Next listed fixture from the current event feed, independent of model coverage.
+    next_match = None
+    if season == current_season() and _has(store, "recent_events"):
+        upcoming = store.query(
+            "SELECT * FROM recent_events WHERE season = ? AND event_kind = 'next' ORDER BY match_date, event_id",
+            [season],
+        )
+        if not upcoming.empty:
+            upcoming = upcoming[
+                (upcoming.home_team.map(team_key) == spotlight_key)
+                | (upcoming.away_team.map(team_key) == spotlight_key)
+            ]
+            if not upcoming.empty:
+                next_match = _match_from_row(upcoming.iloc[0], "league", tm_map)
+
+    # Probability forecast remains optional and never hides a listed fixture.
     preds = predictions(store)
     next_fixture = None
     for f in preds.forecasts:
@@ -1183,6 +1282,7 @@ def overview(
         goal_difference=spotlight_stats.goal_difference if spotlight_stats else 0,
         latest_match=latest_match,
         previous_match=previous_match,
+        next_match=next_match,
         next_fixture=next_fixture,
     )
 
@@ -1267,15 +1367,18 @@ def list_transfers(
 
 
 def quality(store: ReadOnlyStore) -> QualityResponse:
+    def row_count(table: str) -> int:
+        return int(store.scalar(f"SELECT count(*) FROM {table}") or 0) if _has(store, table) else 0
+
     completed = seasons()
     live = current_season()
-    match_count = int(store.scalar("SELECT count(*) FROM matches") or 0) if _has(store, "matches") else 0
-    recent_count = int(store.scalar("SELECT count(*) FROM recent_matches") or 0) if _has(store, "recent_matches") else 0
+    match_count = row_count("matches")
+    recent_count = row_count("recent_matches")
     fixtures = pd.DataFrame()
     if _has(store, "matches"):
-        fixtures = store.query("SELECT league, season, home_shots, away_shots, home_sot, away_sot FROM matches")
+        fixtures = store.query("SELECT league, season, home_shots, away_shots, home_sot, away_sot, home_corners FROM matches")
     if _has(store, "recent_matches"):
-        recent = store.query("SELECT league, season, home_shots, away_shots, home_sot, away_sot FROM recent_matches")
+        recent = store.query("SELECT league, season, home_shots, away_shots, home_sot, away_sot, home_corners FROM recent_matches")
         fixtures = pd.concat([fixtures, recent], ignore_index=True) if not recent.empty else fixtures
     impossible = 0
     null_coverage: dict[str, float] = {}
@@ -1292,6 +1395,7 @@ def quality(store: ReadOnlyStore) -> QualityResponse:
         live_leagues = set(fixtures.loc[fixtures.season == live, "league"])
     expected_completed = len(LEAGUES) * len(completed)
     complete_cells = len([1 for league in LEAGUES for year in completed if (league, year) in covered])
+    coverage_counts = fixtures.groupby(["league", "season"]).size().to_dict() if not fixtures.empty else {}
     grid = []
     for league in list(LEAGUES) + [code for code in RECENT_LEAGUES if code not in LEAGUES]:
         for year in completed + ([live] if live not in completed else []):
@@ -1299,7 +1403,12 @@ def quality(store: ReadOnlyStore) -> QualityResponse:
                 status = "live_partial" if year == live else "complete"
             else:
                 status = "missing"
-            grid.append(QualityCell(competition=league, season=year, status=status, match_count=0))
+            grid.append(QualityCell(
+                competition=league,
+                season=year,
+                status=status,
+                match_count=int(coverage_counts.get((league, year), 0)),
+            ))
     checksums = []
     if _has(store, "ingestion_runs"):
         runs = store.query(
@@ -1314,6 +1423,41 @@ def quality(store: ReadOnlyStore) -> QualityResponse:
         stamps["ingestion"] = _as_datetime(store.scalar("SELECT max(fetched_at) FROM ingestion_runs"))
     if _has(store, "open_players"):
         stamps["players"] = _as_datetime(store.scalar("SELECT max(fetched_at) FROM open_players"))
+    if _has(store, "reference_standings"):
+        stamps["reference"] = _as_datetime(store.scalar("SELECT max(fetched_at) FROM reference_standings"))
+    if _has(store, "recent_matches"):
+        stamps["recent"] = _as_datetime(store.scalar("SELECT max(fetched_at) FROM recent_matches"))
+    if _has(store, "team_media"):
+        stamps["media"] = _as_datetime(store.scalar("SELECT max(fetched_at) FROM team_media"))
+    if _has(store, "tournament_matches"):
+        stamps["tournaments"] = _as_datetime(store.scalar("SELECT max(fetched_at) FROM tournament_matches"))
+    if _has(store, "event_statistics"):
+        stamps["event_details"] = _as_datetime(store.scalar("SELECT max(fetched_at) FROM event_statistics"))
+    if _has(store, "prediction_models"):
+        stamps["predictions"] = _as_datetime(store.scalar("SELECT max(trained_at) FROM prediction_models"))
+
+    reference_rows = row_count("reference_standings")
+    tracked_players = row_count("open_players")
+    player_stat_rows = row_count("open_player_stats")
+    artwork_rows = row_count("team_media") + row_count("competition_media")
+    tournament_match_count = row_count("tournament_matches")
+    tournament_goal_count = row_count("tournament_goals")
+    event_stat_count = row_count("event_statistics")
+    timeline_count = row_count("event_timeline")
+    lineup_count = row_count("event_lineups")
+    prediction_count = row_count("match_predictions")
+    recent_competitions = int(fixtures.loc[fixtures.season == live, "league"].nunique()) if not fixtures.empty else 0
+    player_clubs = int(store.scalar("SELECT count(DISTINCT team) FROM open_players") or 0) if _has(store, "open_players") else 0
+    tournament_teams = 0
+    tournament_breakdown: dict[str, int] = {}
+    if _has(store, "tournament_matches"):
+        tournament_teams = int(store.scalar(
+            "SELECT count(DISTINCT team) FROM (SELECT home_team AS team FROM tournament_matches UNION SELECT away_team FROM tournament_matches)"
+        ) or 0)
+        breakdown = store.query("SELECT competition, count(*) AS matches FROM tournament_matches GROUP BY competition")
+        tournament_breakdown = {str(row.competition): int(row.matches) for row in breakdown.itertuples(index=False)}
+    context_rich = int(fixtures.home_corners.notna().sum()) if not fixtures.empty and "home_corners" in fixtures else 0
+    shots = shot_analysis(store)
     caps = [
         "TheSportsDB free standings and player feeds are explicitly capped.",
         "Transfermarkt Open Dataset is a 2025/26 snapshot with no 2026/27 squad rows.",
@@ -1324,10 +1468,27 @@ def quality(store: ReadOnlyStore) -> QualityResponse:
         live_competitions=f"{len(live_leagues)}/{len(RECENT_LEAGUES)}",
         match_records=match_count + recent_count,
         impossible_shot_rows=impossible,
+        reference_rows=reference_rows,
+        recent_competitions=recent_competitions,
+        completed_results=recent_count,
+        tracked_players=tracked_players,
+        player_clubs=player_clubs,
+        player_stat_rows=player_stat_rows,
+        artwork_rows=artwork_rows,
+        tournament_matches=tournament_match_count,
+        tournament_teams=tournament_teams,
+        tournament_breakdown=tournament_breakdown,
+        context_rich_matches=context_rich,
+        tournament_goals=tournament_goal_count,
+        detailed_event_stats=event_stat_count,
+        timeline_events=timeline_count,
+        lineup_rows=lineup_count,
+        model_predictions=prediction_count,
         source_caps=caps,
         null_coverage=null_coverage,
         checksums=checksums,
         refresh_timestamps=stamps,
         grid=grid,
+        shot_coverage=shots.coverage,
         source=_source("duckdb", "quality"),
     )

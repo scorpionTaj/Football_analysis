@@ -64,7 +64,7 @@
 - [x] FA-053 Promote the current season to a clearly named primary navigation tab.
 - [x] FA-054 Add selected-club latest match, previous match and next listed fixture cards.
 - [x] FA-055 Add current form, points progression and a partial results-derived league table.
-- [x] FA-056 Apply the Catppuccin Mocha palette to Streamlit controls, cards, tables and Plotly charts.
+- [x] FA-056 Apply the Catppuccin Mocha palette to dashboard controls, cards, tables and charts.
 - [x] FA-057 Add current-season feature discovery and freshness indicators.
 - [x] FA-058 Verify the current-season workflow, responsive visual hierarchy and browser console.
 - [ ] FA-059 Add full fixture calendars only when a free source provides complete, permitted coverage; keep one-next-event labels explicit meanwhile.
@@ -83,7 +83,7 @@
 - [x] FA-068 Expose all 182 clubs found in the ten current domestic leagues through club focus, comparison and platform search.
 - [x] FA-069 Add a reusable analysis system for filtering, rankings, recent form and metric correlations.
 - [x] FA-070 Add a custom Analysis lab with domestic/tournament datasets, venue slices, metric rankings and CSV exports.
-- [x] FA-071 Keep tournament and analysis logic independent of Streamlit and document the Next.js migration seam.
+- [x] FA-071 Keep tournament and analysis logic presentation-independent and document the Next.js API seam.
 - [x] FA-072 Add parser, transaction, analysis-engine and nine-page dashboard tests.
 
 ## Iteration 2.8 — source utilization and predictive analysis
@@ -107,6 +107,7 @@
 - [x] FA-085 Add the completed 2025 FIFA Club World Cup from OpenFootball's CC0 JSON feed.
 - [x] FA-086 Add all-loaded-team media sync, canonical provider aliases and resilient image fallbacks.
 - [x] FA-087 Add current-season league title outlooks and validate the 10-match calibrated result model chronologically.
+- [x] FA-088 Prove API/frontend parity for every legacy workflow, add missing reference/quality/tournament/correlation/player features, and remove the retired client and dependencies.
 - [ ] FA-084 Add a prediction retraining schedule only after the read-only API and ingestion job are deployed separately.
 
 Tasks are local backlog items; no external issue tracker or recurring automation was created.
