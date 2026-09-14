@@ -18,11 +18,13 @@ def canonical_team_id(name: str | None) -> str:
 class TeamRef(BaseModel):
     team_id: str
     name: str
+    badge_url: str | None = None
+    logo_url: str | None = None
 
     @classmethod
-    def from_name(cls, name: str | None) -> "TeamRef":
+    def from_name(cls, name: str | None, badge_url: str | None = None, logo_url: str | None = None) -> "TeamRef":
         raw = name or ""
-        return cls(team_id=canonical_team_id(raw), name=display_team(raw) or raw)
+        return cls(team_id=canonical_team_id(raw), name=display_team(raw) or raw, badge_url=badge_url, logo_url=logo_url)
 
 
 class SourceMeta(BaseModel):
@@ -45,6 +47,11 @@ class Competition(BaseModel):
     kind: Literal["domestic", "tournament"]
     seasons: list[SeasonCoverage] = Field(default_factory=list)
     source: SourceMeta | None = None
+    badge_url: str | None = None
+    logo_url: str | None = None
+    banner_url: str | None = None
+    trophy_url: str | None = None
+    fanart_url: str | None = None
 
 
 class CatalogResponse(BaseModel):
@@ -160,6 +167,13 @@ class AnalysisRequestBody(AnalysisFilters):
     pass
 
 
+class EloRatingRow(BaseModel):
+    team: TeamRef
+    season: int
+    league: str
+    post_elo: float
+
+
 class AnalysisReportResponse(BaseModel):
     filters: AnalysisFilters
     match_count: int
@@ -167,6 +181,7 @@ class AnalysisReportResponse(BaseModel):
     form: list[FormRow]
     correlations: list[CorrelationRow]
     match_factors: MatchFactorSummary
+    elo_ratings: list[EloRatingRow] = Field(default_factory=list)
     source: SourceMeta
 
 
@@ -220,6 +235,8 @@ class PlayerSummary(BaseModel):
     team: TeamRef
     position: str | None = None
     nationality: str | None = None
+    image_url: str | None = None
+    market_value_eur: int | None = None
     source: str
 
 
@@ -272,6 +289,30 @@ class PredictionsResponse(BaseModel):
     validation_cutoff: date | None = None
     metrics: dict[str, Any] = Field(default_factory=dict)
     calibration: list[CalibrationBin] = Field(default_factory=list)
+    forecasts: list[Forecast] = Field(default_factory=list)
+    source: SourceMeta
+
+
+class ClubSpotlight(BaseModel):
+    team: TeamRef
+    league: str
+    season: int
+    played: int = 0
+    wins: int = 0
+    draws: int = 0
+    losses: int = 0
+    points: int = 0
+    points_per_game: float = 0.0
+    goal_difference: int = 0
+    latest_match: Match | None = None
+    previous_match: Match | None = None
+    next_fixture: Forecast | None = None
+
+
+class OverviewResponse(BaseModel):
+    spotlight: ClubSpotlight | None = None
+    performance_over_time: list[RankingRow] = Field(default_factory=list)
+    elo_trajectory: list[EloRatingRow] = Field(default_factory=list)
     forecasts: list[Forecast] = Field(default_factory=list)
     source: SourceMeta
 

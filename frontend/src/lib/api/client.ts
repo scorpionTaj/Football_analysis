@@ -44,6 +44,7 @@ import type {
   CatalogResponse,
   HealthResponse,
   MatchListResponse,
+  OverviewResponse,
   PlayerListResponse,
   PlayerProfileResponse,
   PredictionsResponse,
@@ -86,11 +87,14 @@ export const api = {
 
   predictions: () => request<PredictionsResponse>('/api/v1/predictions'),
 
-  players: (opts?: { q?: string; team?: string; cursor?: string; limit?: number }) =>
+  players: (opts?: { q?: string; team?: string; sort_by?: string; cursor?: string; limit?: number }) =>
     request<PlayerListResponse>(`/api/v1/players${params(opts || {})}`),
 
   player: (playerId: string) =>
     request<PlayerProfileResponse>(`/api/v1/players/${playerId}`),
 
   quality: () => request<QualityResponse>('/api/v1/quality'),
+
+  overview: (opts?: { team?: string; competition?: string; season?: number }) =>
+    request<OverviewResponse>(`/api/v1/overview${params(opts || {})}`),
 };

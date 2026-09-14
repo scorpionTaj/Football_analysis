@@ -3,6 +3,8 @@
 export interface TeamRef {
   team_id: string;
   name: string;
+  badge_url?: string | null;
+  logo_url?: string | null;
 }
 
 export interface SourceMeta {
@@ -24,6 +26,11 @@ export interface Competition {
   name: string;
   kind: 'domestic' | 'tournament';
   seasons: SeasonCoverage[];
+  badge_url?: string | null;
+  logo_url?: string | null;
+  banner_url?: string | null;
+  trophy_url?: string | null;
+  fanart_url?: string | null;
   source: SourceMeta | null;
 }
 
@@ -136,6 +143,13 @@ export interface MatchFactorSummary {
   referees: RefereeSummary[];
 }
 
+export interface EloRatingRow {
+  team: TeamRef;
+  season: number;
+  league: string;
+  post_elo: number;
+}
+
 export interface AnalysisReportResponse {
   filters: AnalysisFilters;
   match_count: number;
@@ -143,6 +157,7 @@ export interface AnalysisReportResponse {
   form: FormRow[];
   correlations: CorrelationRow[];
   match_factors: MatchFactorSummary;
+  elo_ratings?: EloRatingRow[];
   source: SourceMeta;
 }
 
@@ -196,7 +211,33 @@ export interface PlayerSummary {
   team: TeamRef;
   position: string | null;
   nationality: string | null;
+  image_url?: string | null;
+  market_value_eur?: number | null;
   source: string;
+}
+
+export interface ClubSpotlight {
+  team: TeamRef;
+  league: string;
+  season: number;
+  played: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  points: number;
+  points_per_game: number;
+  goal_difference: number;
+  latest_match: Match | null;
+  previous_match: Match | null;
+  next_fixture: Forecast | null;
+}
+
+export interface OverviewResponse {
+  spotlight: ClubSpotlight | null;
+  performance_over_time: RankingRow[];
+  elo_trajectory: EloRatingRow[];
+  forecasts: Forecast[];
+  source: SourceMeta;
 }
 
 export interface PlayerListResponse {

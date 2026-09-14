@@ -118,11 +118,12 @@ def create_app(database_path: Path | None = None) -> FastAPI:
         request: Request,
         q: str | None = None,
         team: str | None = None,
+        sort_by: str | None = None,
         cursor: str | None = None,
         limit: int = Query(default=50, ge=1, le=200),
     ):
         try:
-            payload = queries.list_players(require_store(), q, team, cursor, limit)
+            payload = queries.list_players(require_store(), q, team, sort_by, cursor, limit)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return with_cache(payload, request)
@@ -137,6 +138,15 @@ def create_app(database_path: Path | None = None) -> FastAPI:
     @app.get("/api/v1/quality")
     def quality(request: Request):
         return with_cache(queries.quality(require_store()), request, CACHE_STABLE)
+
+    @app.get("/api/v1/overview")
+    def overview(
+        request: Request,
+        team: str | None = None,
+        competition: str | None = None,
+        season: int | None = None,
+    ):
+        return with_cache(queries.overview(require_store(), team, competition, season), request)
 
     return app
 

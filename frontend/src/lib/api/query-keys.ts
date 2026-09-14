@@ -16,4 +16,7 @@ export const queryKeys = {
     ['players', filters] as const,
   player: (id: string) => ['player', id] as const,
   quality: ['quality'] as const,
+  overview: (opts?: { team?: string; competition?: string; season?: number }) =>
+    ['overview', opts || {}] as const,
 } as const;
+

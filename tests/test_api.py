@@ -188,3 +188,15 @@ def test_cors_preflight_and_origin_headers(tmp_path):
         assert get_res.status_code == 200
         assert get_res.headers.get("access-control-allow-origin") == origin
 
+
+def test_overview_endpoint(tmp_path):
+    api = client(tmp_path)
+    res = api.get("/api/v1/overview", params={"team": "Arsenal", "competition": "E0", "season": 2024})
+    assert res.status_code == 200
+    data = res.json()
+    assert "spotlight" in data
+    assert data["spotlight"]["team"]["name"] == "Arsenal"
+    assert "performance_over_time" in data
+    assert "forecasts" in data
+
+

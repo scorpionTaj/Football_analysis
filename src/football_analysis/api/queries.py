@@ -20,14 +20,17 @@ from football_analysis.api.contracts import (
     AnalysisReportResponse,
     CalibrationBin,
     CatalogResponse,
+    ClubSpotlight,
     Competition,
     CorrelationRow,
+    EloRatingRow,
     Forecast,
     FormRow,
     HealthResponse,
     Match,
     MatchFactorSummary,
     MatchListResponse,
+    OverviewResponse,
     PageMeta,
     PlayerListResponse,
     PlayerProfileResponse,
@@ -133,9 +136,40 @@ def health(store: ReadOnlyStore | None) -> HealthResponse:
     return HealthResponse(status="ok", database=str(store.path), read_only=True)
 
 
+def _competition_media_map(store: ReadOnlyStore) -> dict[str, Any]:
+    if not _has(store, "competition_media"):
+        return {}
+    df = store.query("SELECT league_code, badge_url, logo_url, banner_url, trophy_url, fanart_url FROM competition_media")
+    return {row.league_code: row for row in df.itertuples(index=False)}
+
+
+def _team_media_map(store: ReadOnlyStore) -> dict[str, Any]:
+    if not _has(store, "team_media"):
+        return {}
+    df = store.query("SELECT team, badge_url, logo_url FROM team_media")
+    return {canonical_team_id(row.team): row for row in df.itertuples(index=False)}
+
+
+def _build_team_ref(name: str | None, media_map: dict[str, Any] | None = None) -> TeamRef:
+    raw = name or ""
+    tid = canonical_team_id(raw)
+    badge = None
+    logo = None
+    if media_map and tid in media_map:
+        badge = getattr(media_map[tid], "badge_url", None) or None
+        logo = getattr(media_map[tid], "logo_url", None) or None
+    return TeamRef(
+        team_id=tid,
+        name=display_team(raw) or raw,
+        badge_url=badge,
+        logo_url=logo,
+    )
+
+
 def catalog(store: ReadOnlyStore) -> CatalogResponse:
     live = current_season()
     completed = set(seasons())
+    media_map = _competition_media_map(store)
     rows = []
     if _has(store, "matches"):
         rows.append(store.query(
@@ -183,9 +217,15 @@ def catalog(store: ReadOnlyStore) -> CatalogResponse:
                 latest_match=_as_date(row.latest_match),
                 status=status,
             ))
+        media = media_map.get(code)
         competitions.append(Competition(
             code=code, name=name, kind=kind, seasons=season_rows,
             source=_source("football-data.co.uk" if kind == "domestic" else "openfootball", "loaded", freshness),
+            badge_url=getattr(media, "badge_url", None) or None,
+            logo_url=getattr(media, "logo_url", None) or None,
+            banner_url=getattr(media, "banner_url", None) or None,
+            trophy_url=getattr(media, "trophy_url", None) or None,
+            fanart_url=getattr(media, "fanart_url", None) or None,
         ))
     return CatalogResponse(
         competitions=competitions,
@@ -222,6 +262,7 @@ def list_teams(store: ReadOnlyStore, competition: str | None, season: int | None
             frame = pd.concat([frame, extra], ignore_index=True).drop_duplicates(
                 ["league", "season", "team"], keep="first",
             )
+    tm_map = _team_media_map(store)
     teams = [
         Team(
             team_id=canonical_team_id(row.team),
@@ -230,13 +271,15 @@ def list_teams(store: ReadOnlyStore, competition: str | None, season: int | None
             season=int(row.season),
             played=int(row.played or 0),
             points=int(row.points or 0),
+            badge_url=getattr(tm_map.get(canonical_team_id(row.team)), "badge_url", None) or None,
+            logo_url=getattr(tm_map.get(canonical_team_id(row.team)), "logo_url", None) or None,
         )
         for row in frame.itertuples(index=False)
     ]
     return TeamListResponse(teams=teams, source=_source("duckdb", "teams"))
 
 
-def _match_from_row(row, competition_field="league") -> Match:
+def _match_from_row(row, competition_field="league", media_map: dict[str, Any] | None = None) -> Match:
     _sentinel = object()
     competition = getattr(row, competition_field, _sentinel)
     if competition is _sentinel:
@@ -245,8 +288,8 @@ def _match_from_row(row, competition_field="league") -> Match:
         competition=competition,
         season=int(row.season),
         match_date=_as_date(row.match_date) or date.min,
-        home=TeamRef.from_name(row.home_team),
-        away=TeamRef.from_name(row.away_team),
+        home=_build_team_ref(row.home_team, media_map),
+        away=_build_team_ref(row.away_team, media_map),
         home_goals=None if pd.isna(getattr(row, "home_goals", None)) else int(row.home_goals),
         away_goals=None if pd.isna(getattr(row, "away_goals", None)) else int(row.away_goals),
         venue=getattr(row, "venue", None),
@@ -341,7 +384,8 @@ def list_matches(
             "h": last.home_team,
             "a": last.away_team,
         })
-    matches = [_match_from_row(row, "competition") for row in page.itertuples(index=False)]
+    tm_map = _team_media_map(store)
+    matches = [_match_from_row(row, "competition", tm_map) for row in page.itertuples(index=False)]
     return MatchListResponse(
         matches=matches,
         page=PageMeta(next_cursor=next_cursor, limit=limit, returned=len(matches)),
@@ -455,6 +499,7 @@ def _factor_summary(store: ReadOnlyStore, filters: AnalysisFilters) -> MatchFact
 
 
 def build_analysis(store: ReadOnlyStore, body: AnalysisFilters) -> AnalysisReportResponse:
+    tm_map = _team_media_map(store)
     matches = _load_analysis_matches(store)
     teams = _resolve_teams(matches, body.teams)
     request = AnalysisRequest(
@@ -472,7 +517,7 @@ def build_analysis(store: ReadOnlyStore, body: AnalysisFilters) -> AnalysisRepor
     rankings = []
     for row in report.rankings.itertuples(index=False):
         rankings.append(RankingRow(
-            competition=row.league, season=int(row.season), team=TeamRef.from_name(row.team),
+            competition=row.league, season=int(row.season), team=_build_team_ref(row.team, tm_map),
             rank=int(row.rank), played=int(row.played), wins=int(row.wins), draws=int(row.draws),
             losses=int(row.losses), points=int(row.points), goals_for=int(row.goals_for),
             goals_against=int(row.goals_against), goal_difference=int(row.goal_difference),
@@ -484,7 +529,7 @@ def build_analysis(store: ReadOnlyStore, body: AnalysisFilters) -> AnalysisRepor
         ))
     form = [
         FormRow(
-            competition=row.league, season=int(row.season), team=TeamRef.from_name(row.team),
+            competition=row.league, season=int(row.season), team=_build_team_ref(row.team, tm_map),
             form_matches=int(row.form_matches), form_points=int(row.form_points),
             form_goals_for=int(row.form_goals_for), form_goals_against=int(row.form_goals_against),
             form=str(row.form), form_ppg=float(row.form_ppg),
@@ -495,6 +540,40 @@ def build_analysis(store: ReadOnlyStore, body: AnalysisFilters) -> AnalysisRepor
     if not report.correlations.empty:
         for record in report.correlations.replace({np.nan: None}).to_dict("records"):
             correlations.append(CorrelationRow.model_validate(record))
+
+    elo_ratings = []
+    if _has(store, "elo_ratings"):
+        elo_sql = "SELECT league, season, team, post_elo FROM elo_ratings"
+        clauses = []
+        params = []
+        if body.competitions:
+            placeholders = ", ".join("?" for _ in body.competitions)
+            clauses.append(f"league IN ({placeholders})")
+            params.extend(body.competitions)
+        if body.seasons:
+            placeholders = ", ".join("?" for _ in body.seasons)
+            clauses.append(f"season IN ({placeholders})")
+            params.extend(body.seasons)
+        if body.teams:
+            resolved_teams = _resolve_teams(matches, body.teams) if not matches.empty else body.teams
+            placeholders = ", ".join("?" for _ in resolved_teams)
+            clauses.append(f"team IN ({placeholders})")
+            params.extend(resolved_teams)
+        if clauses:
+            elo_sql += " WHERE " + " AND ".join(clauses)
+        elo_sql += " ORDER BY match_date DESC"
+
+        elo_df = store.query(elo_sql, params)
+        if not elo_df.empty:
+            latest_elo = elo_df.drop_duplicates(subset=["league", "season", "team"], keep="first")
+            for erow in latest_elo.itertuples(index=False):
+                elo_ratings.append(EloRatingRow(
+                    team=_build_team_ref(erow.team, tm_map),
+                    season=int(erow.season),
+                    league=erow.league,
+                    post_elo=round(float(erow.post_elo), 1),
+                ))
+
     return AnalysisReportResponse(
         filters=body,
         match_count=int(len(report.matches)),
@@ -502,7 +581,8 @@ def build_analysis(store: ReadOnlyStore, body: AnalysisFilters) -> AnalysisRepor
         form=form,
         correlations=correlations,
         match_factors=_factor_summary(store, body),
-        source=_source("analysis-system", "rankings+form+correlations"),
+        elo_ratings=elo_ratings,
+        source=_source("analysis-system", "rankings+form+correlations+elo"),
     )
 
 
@@ -522,12 +602,13 @@ def tournament(store: ReadOnlyStore, competition: str, season: int) -> Tournamen
     if not matches.empty:
         grouped = matches.groupby("stage", as_index=False).size().rename(columns={"size": "match_count"})
         stages = [TournamentStage(stage=row.stage, match_count=int(row.match_count)) for row in grouped.itertuples(index=False)]
+    tm_map = _team_media_map(store)
     payload = []
     for row in matches.itertuples(index=False):
         payload.append(TournamentMatch(
             competition=row.competition, season=int(row.season),
             match_date=_as_date(row.match_date) or date.min,
-            home=TeamRef.from_name(row.home_team), away=TeamRef.from_name(row.away_team),
+            home=_build_team_ref(row.home_team, tm_map), away=_build_team_ref(row.away_team, tm_map),
             home_goals=int(row.home_goals), away_goals=int(row.away_goals),
             venue=row.venue, stage=row.stage, source=row.source,
             group_name=None if pd.isna(row.group_name) else row.group_name,
@@ -544,7 +625,7 @@ def tournament(store: ReadOnlyStore, competition: str, season: int) -> Tournamen
         scorers = [
             TournamentGoal(
                 match_date=_as_date(row.match_date) or date.min,
-                team=TeamRef.from_name(row.team), player=row.player,
+                team=_build_team_ref(row.team, tm_map), player=row.player,
                 minute=None if pd.isna(row.minute) else str(row.minute),
                 penalty=bool(row.penalty), own_goal=bool(row.own_goal),
             )
@@ -562,6 +643,7 @@ def list_players(
     store: ReadOnlyStore,
     query: str | None = None,
     team: str | None = None,
+    sort_by: str | None = None,
     cursor: str | None = None,
     limit: int = 50,
 ) -> PlayerListResponse:
@@ -571,9 +653,16 @@ def list_players(
             players=[], page=PageMeta(next_cursor=None, limit=limit, returned=0),
             source=_source("transfermarkt-open", "empty"),
         )
-    frame = store.query(
-        "SELECT source, player_id, team, player, position, nationality FROM open_players ORDER BY player, player_id"
-    )
+    if sort_by == "market_value":
+        frame = store.query(
+            "SELECT source, player_id, team, player, position, nationality, image_url, market_value_eur "
+            "FROM open_players WHERE market_value_eur IS NOT NULL ORDER BY market_value_eur DESC, player"
+        )
+    else:
+        frame = store.query(
+            "SELECT source, player_id, team, player, position, nationality, image_url, market_value_eur "
+            "FROM open_players ORDER BY player, player_id"
+        )
     if team:
         key = team_key(team) or team
         frame = frame[(frame.team.map(team_key) == key) | (frame.team == team)]
@@ -593,10 +682,14 @@ def list_players(
     if has_more and not page.empty:
         last = page.iloc[-1]
         next_cursor = encode_cursor({"n": last.player, "id": last.player_id})
+    tm_map = _team_media_map(store)
     players = [
         PlayerSummary(
-            player_id=str(row.player_id), name=row.player, team=TeamRef.from_name(row.team),
-            position=row.position, nationality=row.nationality, source=row.source,
+            player_id=str(row.player_id), name=row.player, team=_build_team_ref(row.team, tm_map),
+            position=row.position, nationality=row.nationality,
+            image_url=None if pd.isna(getattr(row, "image_url", None)) else row.image_url,
+            market_value_eur=None if pd.isna(getattr(row, "market_value_eur", None)) else int(row.market_value_eur),
+            source=row.source,
         )
         for row in page.itertuples(index=False)
     ]
@@ -627,9 +720,10 @@ def get_player(store: ReadOnlyStore, player_id: str) -> PlayerProfileResponse | 
                 minutes_played=int(item.minutes_played), yellow_cards=int(item.yellow_cards),
                 red_cards=int(item.red_cards),
             ))
+    tm_map = _team_media_map(store)
     image = None if pd.isna(row.image_url) else row.image_url
     return PlayerProfileResponse(
-        player_id=str(row.player_id), name=row.player, team=TeamRef.from_name(row.team),
+        player_id=str(row.player_id), name=row.player, team=_build_team_ref(row.team, tm_map),
         position=None if pd.isna(row.position) else row.position,
         sub_position=None if pd.isna(row.sub_position) else row.sub_position,
         nationality=None if pd.isna(row.nationality) else row.nationality,
@@ -672,6 +766,7 @@ def predictions(store: ReadOnlyStore) -> PredictionsResponse:
     metrics = json.loads(model.metrics) if isinstance(model.metrics, str) else (model.metrics or {})
     forecasts = []
     calibration: list[CalibrationBin] = []
+    tm_map = _team_media_map(store)
     if _has(store, "match_predictions"):
         rows = store.query(
             "SELECT * FROM match_predictions WHERE model_id = ?", [model.model_id]
@@ -681,7 +776,7 @@ def predictions(store: ReadOnlyStore) -> PredictionsResponse:
             forecasts.append(Forecast(
                 competition=row.league, season=int(row.season),
                 match_date=_as_date(row.match_date) or date.min,
-                home=TeamRef.from_name(row.home_team), away=TeamRef.from_name(row.away_team),
+                home=_build_team_ref(row.home_team, tm_map), away=_build_team_ref(row.away_team, tm_map),
                 predicted_result=row.predicted_result,
                 home_probability=float(row.home_probability),
                 draw_probability=float(row.draw_probability),
@@ -695,6 +790,100 @@ def predictions(store: ReadOnlyStore) -> PredictionsResponse:
         validation_cutoff=_as_date(model.validation_cutoff),
         metrics=metrics, calibration=calibration, forecasts=forecasts,
         source=_source("softmax-form-elo", "predictions", model.trained_at),
+    )
+
+
+def overview(
+    store: ReadOnlyStore,
+    team: str | None = None,
+    competition: str | None = None,
+    season: int | None = None,
+) -> OverviewResponse:
+    if season is None:
+        season = current_season()
+    if not competition:
+        competition = "E0"
+
+    tm_map = _team_media_map(store)
+    all_years = seasons() + ([current_season()] if current_season() not in seasons() else [])
+
+    # Fetch ranking rows for performance over time
+    analysis_filters = AnalysisFilters(
+        competitions=[competition],
+        seasons=all_years,
+        teams=[team] if team else [],
+    )
+    analysis_data = build_analysis(store, analysis_filters)
+
+    # Determine spotlight team
+    focus_team = team
+    if not focus_team:
+        for r in analysis_data.rankings:
+            if r.competition == competition and r.season == season:
+                focus_team = r.team.name
+                break
+        if not focus_team and analysis_data.rankings:
+            focus_team = analysis_data.rankings[0].team.name
+        if not focus_team:
+            focus_team = "Arsenal"
+
+    # Find ranking stats for the spotlight team in the selected season
+    spotlight_stats = None
+    for r in analysis_data.rankings:
+        if (team_key(r.team.name) == team_key(focus_team) or r.team.name == focus_team) and r.season == season:
+            spotlight_stats = r
+            break
+
+    # Find latest 2 completed matches for spotlight team
+    spotlight_key = team_key(focus_team) or focus_team
+    completed = []
+    q = """
+    SELECT league AS competition, season, match_date, home_team, away_team, home_goals, away_goals, referee, source
+    FROM (
+        SELECT league, season, match_date, home_team, away_team, home_goals, away_goals, referee, source FROM recent_matches WHERE home_goals IS NOT NULL
+        UNION ALL
+        SELECT league, season, match_date, home_team, away_team, home_goals, away_goals, referee, 'football-data.co.uk' AS source FROM matches WHERE home_goals IS NOT NULL
+    )
+    ORDER BY match_date DESC
+    """
+    df = store.query(q)
+    filtered = df[(df.home_team.map(team_key) == spotlight_key) | (df.away_team.map(team_key) == spotlight_key)]
+    for row in filtered.head(2).itertuples(index=False):
+        completed.append(_match_from_row(row, "competition", tm_map))
+    latest_match = completed[0] if len(completed) > 0 else None
+    previous_match = completed[1] if len(completed) > 1 else None
+
+    # Next fixture from predictions
+    preds = predictions(store)
+    next_fixture = None
+    for f in preds.forecasts:
+        if (team_key(f.home.name) == spotlight_key or team_key(f.away.name) == spotlight_key
+            or f.home.name == focus_team or f.away.name == focus_team):
+            next_fixture = f
+            break
+
+    spotlight = ClubSpotlight(
+        team=_build_team_ref(focus_team, tm_map),
+        league=competition,
+        season=season,
+        played=spotlight_stats.played if spotlight_stats else 0,
+        wins=spotlight_stats.wins if spotlight_stats else 0,
+        draws=spotlight_stats.draws if spotlight_stats else 0,
+        losses=spotlight_stats.losses if spotlight_stats else 0,
+        points=spotlight_stats.points if spotlight_stats else 0,
+        points_per_game=spotlight_stats.points_per_game if spotlight_stats else 0.0,
+        goal_difference=spotlight_stats.goal_difference if spotlight_stats else 0,
+        latest_match=latest_match,
+        previous_match=previous_match,
+        next_fixture=next_fixture,
+    )
+
+    return OverviewResponse(
+        spotlight=spotlight,
+        performance_over_time=analysis_data.rankings,
+        elo_trajectory=analysis_data.elo_ratings,
+        forecasts=preds.forecasts,
+        source=_source("duckdb", "overview"),
     )
 
 
