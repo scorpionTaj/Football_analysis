@@ -76,7 +76,7 @@ export default function SettingsPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-8">
-      <PageHeader icon={Sliders} eyebrow="Workspace preferences" title="Application Settings" description="Choose an accessible color theme, follow system appearance and verify the read-only backend connection." />
+      <PageHeader icon={Sliders} eyebrow="Workspace preferences" title="Application Settings" description="Choose an accessible theme, verify the API and guide a safe source-data refresh from one place." />
 
       {/* Section 1: Appearance Mode */}
       <div className="rounded-xl border border-surface1 bg-surface0 p-6 space-y-4">

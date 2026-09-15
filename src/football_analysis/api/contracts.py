@@ -475,6 +475,9 @@ class QualityResponse(BaseModel):
     tournament_teams: int = 0
     tournament_breakdown: dict[str, int] = Field(default_factory=dict)
     context_rich_matches: int = 0
+    match_context_rows: int = 0
+    formation_rows: int = 0
+    coach_rows: int = 0
     tournament_goals: int = 0
     detailed_event_stats: int = 0
     timeline_events: int = 0

@@ -471,6 +471,9 @@ export interface QualityResponse {
   tournament_teams: number;
   tournament_breakdown: Record<string, number>;
   context_rich_matches: number;
+  match_context_rows: number;
+  formation_rows: number;
+  coach_rows: number;
   tournament_goals: number;
   detailed_event_stats: number;
   timeline_events: number;

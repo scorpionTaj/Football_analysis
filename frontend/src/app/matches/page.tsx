@@ -86,6 +86,11 @@ function MatchesContent() {
     setCursorHistory([]);
   };
 
+  const openMatchCentre = (match: Match) => {
+    setSelectedMatch(match);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   // Quick stats computed on currently displayed matches
   const homeWins = filteredMatches.filter((m) => m.home_goals !== null && m.away_goals !== null && m.home_goals > m.away_goals).length;
   const awayWins = filteredMatches.filter((m) => m.home_goals !== null && m.away_goals !== null && m.away_goals > m.home_goals).length;
@@ -179,19 +184,19 @@ function MatchesContent() {
         <Card className="rounded-xl bg-surface0 border border-surface1 p-4 shadow-sm">
           <p className="text-xs text-subtext0 uppercase font-medium">Home Wins</p>
           <p className="text-2xl font-bold text-blue mt-1">
-            {homeWins} <span className="text-xs text-subtext0 font-normal">({matches.length > 0 ? ((homeWins / matches.length) * 100).toFixed(0) : 0}%)</span>
+            {homeWins} <span className="text-xs text-subtext0 font-normal">({filteredMatches.length > 0 ? ((homeWins / filteredMatches.length) * 100).toFixed(0) : 0}%)</span>
           </p>
         </Card>
         <Card className="rounded-xl bg-surface0 border border-surface1 p-4 shadow-sm">
           <p className="text-xs text-subtext0 uppercase font-medium">Draws</p>
           <p className="text-2xl font-bold text-yellow mt-1">
-            {draws} <span className="text-xs text-subtext0 font-normal">({matches.length > 0 ? ((draws / matches.length) * 100).toFixed(0) : 0}%)</span>
+            {draws} <span className="text-xs text-subtext0 font-normal">({filteredMatches.length > 0 ? ((draws / filteredMatches.length) * 100).toFixed(0) : 0}%)</span>
           </p>
         </Card>
         <Card className="rounded-xl bg-surface0 border border-surface1 p-4 shadow-sm">
           <p className="text-xs text-subtext0 uppercase font-medium">Away Wins</p>
           <p className="text-2xl font-bold text-peach mt-1">
-            {awayWins} <span className="text-xs text-subtext0 font-normal">({matches.length > 0 ? ((awayWins / matches.length) * 100).toFixed(0) : 0}%)</span>
+            {awayWins} <span className="text-xs text-subtext0 font-normal">({filteredMatches.length > 0 ? ((awayWins / filteredMatches.length) * 100).toFixed(0) : 0}%)</span>
           </p>
         </Card>
       </div>
@@ -205,7 +210,7 @@ function MatchesContent() {
             <button
               type="button"
               key={`${m.match_date}_${m.home.team_id}_${m.away.team_id}_${idx}`}
-              onClick={() => setSelectedMatch(m)}
+              onClick={() => openMatchCentre(m)}
               className="flex w-full cursor-pointer flex-col gap-3 rounded-xl border border-surface1 bg-surface0 p-4 text-left transition-colors hover:border-blue/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue sm:flex-row sm:items-center sm:justify-between"
               aria-label={`Open ${m.home.name} versus ${m.away.name} match centre`}
             >

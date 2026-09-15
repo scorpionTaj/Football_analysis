@@ -40,6 +40,7 @@ from football_analysis.config import DB, TOURNAMENTS, current_season
 CACHE_SHORT = "public, max-age=60, stale-while-revalidate=300"
 CACHE_STABLE = "public, max-age=300, stale-while-revalidate=3600"
 CACHE_HISTORICAL = "public, max-age=86400, stale-while-revalidate=604800"
+CACHE_DETAIL = "public, max-age=0, must-revalidate"
 
 
 def cache_for_season(season: int | None) -> str:
@@ -165,7 +166,7 @@ def create_app(
         )
         if payload is None:
             raise HTTPException(status_code=404, detail="Match not found")
-        return with_cache(payload, request, cache_for_season(season))
+        return with_cache(payload, request, CACHE_DETAIL)
 
     @app.post("/api/v1/analysis", response_model=AnalysisReportResponse)
     def analysis(body: AnalysisRequestBody, request: Request):

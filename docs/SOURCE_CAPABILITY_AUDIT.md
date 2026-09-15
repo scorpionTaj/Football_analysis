@@ -11,7 +11,7 @@ The application now uses substantially more than final scores, but it does not y
 - Football-Data.co.uk match files are the strongest current input for domestic modeling. The app now stores full-time and half-time goals, shots, shots on target, corners, fouls, cards and referee. It still discards kickoff time and all opening/closing market prices, and it does not ingest the separate upcoming-fixture file.
 - OpenFootball World Cup-family ingestion now includes the completed 64-match 2025 Club World Cup and stores final/extra-time scores, shootout scores, stages, groups, grounds and goal events. It still discards kickoff/timezone, half-time score and match number and does not use richer `worldcup-full.json` files.
 - OpenFootball Champions League ingestion reads only `cl.txt` for five seasons. It keeps dates, stages and scores, but discards kickoff, venue and scorer annotations; the repository's Europa League and Conference League files are unused.
-- The Transfermarkt Open Dataset importer downloads four of twelve published tables and restricts current profiles to 12 mapped clubs. The remaining tables contain the most valuable unused historical player, lineup, valuation, transfer and club context. The snapshot is CC0 but stale for 2026/27.
+- The Transfermarkt Open Dataset importer downloads four of twelve published tables and restricts current profiles to 12 mapped clubs. Its games table now contributes verified manager, formation, stadium, attendance and referee context to Match Centre lookups. The remaining tables contain unused historical lineup, valuation, transfer and club context. The snapshot is CC0 but stale for 2026/27.
 - TheSportsDB integration calls ten free v1 endpoints. Cached event statistics, timelines and lineup samples are exposed through versioned API routes and rendered in the Match Centre. Every TheSportsDB collection is capped on the free key and crowd-sourced, so it is enrichment rather than a completeness authority.
 - football-data.org is evaluated but not configured. Its free authenticated tier is useful for stable competition/team identities, delayed fixtures and tables, but deep player, lineup, scorer, card and match-statistic data are paid.
 
@@ -197,7 +197,7 @@ Primary sources: [free-tier pricing](https://www.football-data.org/pricing), [fr
 2. Preserve World Cup-family kickoff, timezone, half-time score and match number.
 3. Add OpenFootball full-detail World Cup lineups/events/officials with field coverage by edition.
 4. Expand the European tournament manifest to Europa League and Conference League, and improve UCL parsing for kickoff, venue, leg and scorer events.
-5. Replace the four-file Transfermarkt importer with a read-only snapshot module covering all 12 tables. Start with clubs, games, events, lineups, valuations and transfers.
+5. Extend the Transfermarkt snapshot module beyond its four current files. Match context from `games` is complete; add `game_events`, `game_lineups`, valuations and transfers when their lifecycle and storage costs are justified.
 6. Build time-safe feature views for rolling form, Elo, attempts, discipline, rest, home advantage, lineup continuity, manager tenure and valuation available before kickoff.
 7. Add football-data.org only as an optional token-based identity and delayed-fixture/table validator.
 

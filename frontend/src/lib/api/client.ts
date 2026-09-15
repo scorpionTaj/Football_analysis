@@ -93,7 +93,7 @@ export const api = {
     match_date: string;
     home: string;
     away: string;
-  }) => request<MatchCentreDetailResponse>(`/api/v1/match-detail${params(match)}`),
+  }) => request<MatchCentreDetailResponse>(`/api/v1/match-detail${params({ ...match, contract: 2 })}`),
 
   analysis: (body: Partial<AnalysisFilters>) =>
     request<AnalysisReportResponse>('/api/v1/analysis', {

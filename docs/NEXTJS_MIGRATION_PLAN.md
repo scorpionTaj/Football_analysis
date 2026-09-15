@@ -2,7 +2,7 @@
 
 ## Target architecture
 
-Keep ingestion, source adapters, validation, DuckDB and football calculations in Python. Put a small read-only FastAPI service in front of `AnalysisSystem`, tournament queries and the prediction tables. The Next.js application becomes the presentation client and never reimplements ranking or model logic.
+Keep ingestion, source adapters, validation, DuckDB and football calculations in Python. Put a small read-oriented FastAPI service in front of `AnalysisSystem`, tournament queries and the prediction tables. The Next.js application becomes the presentation client and never reimplements ranking or model logic; its explicit refresh action pauses reads while the selected Python pipeline runs.
 
 `Free sources → Python synchronizers → DuckDB → FastAPI v1 → Next.js App Router`
 
@@ -34,6 +34,7 @@ Initial routes:
 Infrastructure:
 
 - [x] One application-owned read-only DuckDB connection pool with threading lock.
+- [x] One guarded refresh coordinator closes and reopens that snapshot around the selected four-step write workflow.
 - [x] Cursor pagination for large tables (matches, players).
 - [x] ETags for stable snapshots derived from table checksums.
 - [x] ETag-backed cache tiers (60s live, 5m stable, 24h historical) plus explicit active-query refresh in desktop and mobile navigation.

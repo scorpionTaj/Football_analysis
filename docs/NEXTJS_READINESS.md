@@ -4,7 +4,7 @@ The responsive Next.js/HeroUI client is the only application frontend. Tournamen
 
 ## API service status ✅
 
-A read-only FastAPI service now owns the DuckDB connection and exposes all initial routes under `/api/v1`. The implementation lives in [`src/football_analysis/api/`](src/football_analysis/api/) with full test coverage in [`tests/test_api.py`](tests/test_api.py) and [`tests/test_api_contracts.py`](tests/test_api_contracts.py).
+A read-oriented FastAPI service owns the DuckDB connection and exposes all routes under `/api/v1`. One explicit refresh workflow temporarily closes the read snapshot, runs the selected synchronization depth and reopens it. The implementation lives in [`src/football_analysis/api/`](src/football_analysis/api/) with full test coverage in [`tests/test_api.py`](tests/test_api.py) and [`tests/test_api_contracts.py`](tests/test_api_contracts.py).
 
 ### Implemented routes
 
@@ -17,6 +17,8 @@ A read-only FastAPI service now owns the DuckDB connection and exposes all initi
 - [x] `GET /api/v1/predictions` — model card, holdout metrics, calibration and current forecasts.
 - [x] `GET /api/v1/shots` — shot coverage and efficiency behind a 95% quality gate.
 - [x] `GET /api/v1/event-details` and `GET /api/v1/event-details/{event_id}` — cached event summaries, statistics, timeline and lineup samples.
+- [x] `GET /api/v1/match-detail` — unified detail for any displayed match, combining stored statistics, event data and published manager/formation context.
+- [x] `GET/POST /api/v1/refresh` — single-job, four-depth source refresh status and trigger.
 - [x] `GET /api/v1/overview` and `GET /api/v1/transfers` — dashboard spotlight and transfer showcase data.
 - [x] `GET /api/v1/quality` — source caps, null coverage, checksums and refresh timestamps.
 - [x] `GET /api/v1/standings` — results table, reference table and reconciliation deltas.
@@ -39,7 +41,7 @@ Keep DuckDB for this read-heavy, single-writer deployment. Run all synchronizers
 The frontend shell has been built in [`frontend/`](frontend/) with Next.js App Router, Tailwind CSS (Catppuccin Mocha tokens), and TanStack Query:
 
 - [x] **Design Tokens**: Complete 26-color Catppuccin Mocha palette configured in [`frontend/src/app/globals.css`](frontend/src/app/globals.css).
-- [x] **Navigation**: Responsive modern sidebar/mobile dock, active-query refresh and cross-platform club/player/competition search in [`frontend/src/components/navigation.tsx`](frontend/src/components/navigation.tsx). Covers all 11 dashboard routes.
+- [x] **Navigation**: Responsive modern sidebar/mobile dock, active-query refresh and typo-tolerant club/player/competition search in [`frontend/src/components/navigation.tsx`](frontend/src/components/navigation.tsx). Covers all 11 dashboard routes.
 - [x] **Typed API Client**: TypeScript types mirroring backend Pydantic models in [`frontend/src/lib/api/types.ts`](frontend/src/lib/api/types.ts) and centralized client in [`frontend/src/lib/api/client.ts`](frontend/src/lib/api/client.ts).
 - [x] **State & Cache**: TanStack Query setup with SSR dehydration in [`frontend/src/lib/get-query-client.ts`](frontend/src/lib/get-query-client.ts) and query keys in [`frontend/src/lib/api/query-keys.ts`](frontend/src/lib/api/query-keys.ts).
 - [x] **URL Filters**: Search params synchronization (`competition`, `season`, `team`, `venue`, `stage`, `metric`) via [`frontend/src/lib/hooks/use-filter-params.ts`](frontend/src/lib/hooks/use-filter-params.ts) and [`frontend/src/components/filters.tsx`](frontend/src/components/filters.tsx).
@@ -56,7 +58,8 @@ All core analytical views have been migrated to the Next.js frontend with full s
 - [x] **Predictions** ([`frontend/src/app/predictions/page.tsx`](frontend/src/app/predictions/page.tsx)): calibrated match probabilities, holdout metrics, reliability evidence and title outlooks for every domestic league.
 - [x] **League Tables** ([`frontend/src/app/tables/page.tsx`](frontend/src/app/tables/page.tsx)): Full domestic tables, home/away splits, goal difference, recent form, external reference table and administrative/rank deltas.
 - [x] **Club Lab** ([`frontend/src/app/clubs/page.tsx`](frontend/src/app/clubs/page.tsx)): Club selector, configurable rolling form, percentile profile, historical trajectory/table, recent results and head-to-head comparison.
-- [x] **Match Explorer** ([`frontend/src/app/matches/page.tsx`](frontend/src/app/matches/page.tsx)): Cursor-paginated match list, referee metadata, scorelines, search filter, and CSV export.
+- [x] **Match Centre** ([`frontend/src/app/matches/page.tsx`](frontend/src/app/matches/page.tsx)): Cursor-paginated result list, fuzzy search, CSV export and a clickable responsive detail view with factual overview, statistics, timeline, coaches, formations and verified lineup roles on a pitch.
+- [x] **Settings refresh** ([`frontend/src/app/settings/page.tsx`](frontend/src/app/settings/page.tsx)): Four-step depth slider, season/competition scope, live progress and frontend cache invalidation after publication.
 - [x] **Players** ([`frontend/src/app/players/page.tsx`](frontend/src/app/players/page.tsx)): Name/team/position/nationality search, club and position facets, squad summaries, bio drawer, season aggregates and complete competition rows.
 - [x] **Data Quality** ([`frontend/src/app/quality/page.tsx`](frontend/src/app/quality/page.tsx)): Coverage matrix, all source counters, refresh timestamps, shot coverage, governance notes, null rates and SHA-256 ingestion history.
 

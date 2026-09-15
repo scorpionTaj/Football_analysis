@@ -115,7 +115,9 @@ def seed(path):
         """)
         con.execute("""
             INSERT INTO event_statistics (source, event_id, statistic, home_value, away_value, fetched_at)
-            VALUES ('TheSportsDB', 'event-1', 'Shots on Goal', 5, 3, current_timestamp)
+            VALUES
+                ('TheSportsDB', 'event-1', 'Shots on Goal', 5, 3, current_timestamp),
+                ('TheSportsDB', 'event-1', 'Blocked Shots', 4, 3, current_timestamp)
         """)
         con.execute("""
             INSERT INTO event_timeline (
@@ -254,7 +256,7 @@ def test_tournament_players_predictions_and_quality(tmp_path):
     assert quality["reference_rows"] == 1
     assert quality["tracked_players"] == 1
     assert quality["tournament_matches"] == 1
-    assert quality["detailed_event_stats"] == 1
+    assert quality["detailed_event_stats"] == 2
     assert quality["shot_coverage"]
     assert quality["source_caps"]
 
@@ -358,7 +360,9 @@ def test_match_centre_combines_stored_stats_context_and_events(tmp_path):
     assert payload["stadium"] == "Emirates Stadium"
     assert {row["statistic"] for row in payload["statistics"]} >= {"Corners", "Fouls"}
     assert payload["timeline"][0]["player"] == "Bukayo Saka"
-    assert payload["narrative"]
+    assert any("12 to 8" in sentence for sentence in payload["narrative"])
+    assert all("4 to 3" not in sentence for sentence in payload["narrative"])
+    assert any("1 goal." in sentence for sentence in payload["narrative"])
     assert payload["lineup_complete"] is False
 
 

@@ -78,8 +78,18 @@ CREATE TABLE IF NOT EXISTS recent_events (
  event_id VARCHAR PRIMARY KEY, league VARCHAR NOT NULL, season INTEGER NOT NULL,
  match_date DATE NOT NULL, home_team VARCHAR NOT NULL, away_team VARCHAR NOT NULL,
  home_goals INTEGER, away_goals INTEGER, status VARCHAR, event_kind VARCHAR NOT NULL,
- source VARCHAR NOT NULL, fetched_at TIMESTAMP NOT NULL
+ source VARCHAR NOT NULL, fetched_at TIMESTAMP NOT NULL,
+ kickoff_time VARCHAR, venue VARCHAR, home_coach VARCHAR, away_coach VARCHAR,
+ home_formation VARCHAR, away_formation VARCHAR, referee VARCHAR, attendance INTEGER
 );
+ALTER TABLE recent_events ADD COLUMN IF NOT EXISTS kickoff_time VARCHAR;
+ALTER TABLE recent_events ADD COLUMN IF NOT EXISTS venue VARCHAR;
+ALTER TABLE recent_events ADD COLUMN IF NOT EXISTS home_coach VARCHAR;
+ALTER TABLE recent_events ADD COLUMN IF NOT EXISTS away_coach VARCHAR;
+ALTER TABLE recent_events ADD COLUMN IF NOT EXISTS home_formation VARCHAR;
+ALTER TABLE recent_events ADD COLUMN IF NOT EXISTS away_formation VARCHAR;
+ALTER TABLE recent_events ADD COLUMN IF NOT EXISTS referee VARCHAR;
+ALTER TABLE recent_events ADD COLUMN IF NOT EXISTS attendance INTEGER;
 CREATE TABLE IF NOT EXISTS tournament_matches (
  competition VARCHAR NOT NULL, season INTEGER NOT NULL, stage VARCHAR NOT NULL,
  group_name VARCHAR, match_date DATE NOT NULL,

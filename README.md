@@ -25,7 +25,7 @@ npm run dev -- --port 3001
 
 Alternatively: create a Python 3.11+ virtual environment and run `pip install -e '.[dev]'`.
 
-Open http://localhost:3001 while FastAPI runs at http://127.0.0.1:8000. Network is needed for the first source refresh; latest-season responses are cached briefly, completed seasons are cached for a day, and the navbar refresh button invalidates active frontend queries. Use `uv run football-ingest --offline data/raw` for offline replay; `--refresh` redownloads archives. `--seasons 2024 --leagues E0` is useful for a small trial. Ingestion persists Elo and shot-efficiency analytics after committing source data; `uv run football-refresh-analytics` rebuilds only those caches. Failed partitions yield exit code 1 and appear in the source health panel; existing valid data remains intact. Stop the API before a database-writing refresh because DuckDB uses a single writer; refresh into a snapshot and replace the database atomically when continuous serving is required.
+Open http://localhost:3001 while FastAPI runs at http://127.0.0.1:8000. Network is needed for a source refresh; latest-season responses are cached briefly and completed seasons are cached for a day. Settings includes a four-step refresh depth control for results, competitions, match enrichment and models; API reads pause while DuckDB refreshes and resume against the updated snapshot. The navbar refresh button only invalidates frontend queries. Use `uv run football-ingest --offline data/raw` for offline replay; `--refresh` redownloads archives. `--seasons 2024 --leagues E0` is useful for a small trial. Failed partitions yield exit code 1 and appear in the source health panel; existing valid partitions remain intact.
 
 ## Scope
 
@@ -33,7 +33,7 @@ All clubs currently present across the Premier League, La Liga, Bundesliga, Seri
 
 The analytical range is 2021/22–2025/26 plus the live 2026/27 campaign. The July rollover selects five candidate completed seasons; each completed CSV must independently pass full double-round-robin coverage checks. Live rows are clearly labelled as partial and never presented as a completed season.
 
-Dashboard: one platform-wide search, three domestic analysis modes and nine focused pages: Overview, Champions & World Cup, Analysis lab, League tables, Club lab, Shot lab, Match explorer, Players and Data quality. The Analysis lab slices domestic and tournament data by competition, edition, team and venue; ranks teams by seven metrics; builds a correlation matrix; analyzes first-half scoring, corners, fouls, cards and referee trends; and exports both the rankings and exact match slice.
+Dashboard: one typo-tolerant platform search, three domestic analysis modes and nine focused pages: Overview, Champions & World Cup, Analysis lab, League tables, Club lab, Shot lab, Match Centre, Players and Data quality. Every Match Centre result opens a factual match story with stored statistics, real manager/formation context when published, provider timeline rows and verified lineup positions on a responsive pitch. The Analysis lab slices domestic and tournament data by competition, edition, team and venue; ranks teams by seven metrics; builds a correlation matrix; analyzes first-half scoring, corners, fouls, cards and referee trends; and exports both the rankings and exact match slice.
 
 The predictive section trains a regularized three-outcome softmax model on pre-match Elo, ten-match rolling points, scoring, conceding and rest-day features. Confidence temperature is learned from an earlier chronological calibration window; the latest 20% of match dates remain unseen during evaluation. The current model reaches 50.5% holdout accuracy versus a 42.9% majority-class baseline and improves log loss from 1.076 to 1.003. Ten next-listed fixtures are cached as home/draw/away probabilities, while conservative current-points projections provide title shares for all ten domestic leagues. This structured dataset is too small to justify a deep neural network; the compact model is faster, more auditable and easier to serve.
 
@@ -53,7 +53,7 @@ The 2026/27 campaign is integrated into every match-driven page and adds the Ere
 - `src/football_analysis/media.py`: cached club and competition artwork synchronization.
 - `src/football_analysis/tournaments.py`: no-key CC0 Champions League, Club World Cup and World Cup adapters, cache and transactional synchronization.
 - `src/football_analysis/analysis_system.py`: reusable filtering, ranking, form and correlation engine served through FastAPI.
-- `src/football_analysis/event_details.py`: explicitly capped match statistics, timelines and lineup samples from the free TheSportsDB endpoints.
+- `src/football_analysis/event_details.py`: explicitly capped match statistics, timelines and lineup samples from the free TheSportsDB endpoints; match manager/formation context is normalized from the cached Transfermarkt games snapshot.
 - `src/football_analysis/predictions.py`: leakage-aware feature engineering, softmax training, chronological evaluation and fixture forecasts.
 - `frontend/`: responsive Next.js and HeroUI application using the versioned FastAPI contracts.
 - `docs/NEXTJS_READINESS.md`: completed frontend cutover and API contract status.

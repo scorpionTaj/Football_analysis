@@ -21,8 +21,8 @@ type Side = 'home' | 'away';
 function roleBand(position: string | null): number {
   const role = (position || '').toLocaleLowerCase();
   if (role.includes('goal')) return 88;
-  if (role.includes('back') || role.includes('defen')) return 70;
   if (role.includes('defensive')) return 58;
+  if (role.includes('back') || role.includes('defen')) return 70;
   if (role.includes('mid')) return role.includes('attack') ? 34 : 48;
   if (role.includes('wing')) return 28;
   if (role.includes('forward') || role.includes('attack') || role.includes('striker')) return 17;

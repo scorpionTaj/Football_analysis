@@ -85,6 +85,9 @@ from football_analysis.config import (
 from football_analysis.teams import display_team, team_key
 
 
+API_SCHEMA_REVISION = "2026-09-15-match-centre-v1"
+
+
 def _now() -> datetime:
     return datetime.now().replace(microsecond=0)
 
@@ -148,7 +151,7 @@ def _source(name: str, coverage: str, freshness=None) -> SourceMeta:
 
 
 def snapshot_etag(store: ReadOnlyStore) -> str:
-    parts: list[str] = []
+    parts: list[str] = [API_SCHEMA_REVISION]
     tables = store.tables()
     for table, column in (
         ("ingestion_runs", "fetched_at"),
@@ -157,6 +160,7 @@ def snapshot_etag(store: ReadOnlyStore) -> str:
         ("analytics_metadata", "refreshed_at"),
         ("prediction_models", "trained_at"),
         ("open_players", "fetched_at"),
+        ("match_contexts", "fetched_at"),
     ):
         if table in tables:
             stamp = store.scalar(f"SELECT max({column}) FROM {table}")
@@ -714,11 +718,16 @@ def _match_narrative(
             winner = match.home.name if match.home_goals > match.away_goals else match.away.name
             story.append(f"{winner} won {match.home_goals}–{match.away_goals}.")
     if match.half_time_home_goals is not None and match.half_time_away_goals is not None:
+        second_half_goals = (
+            (match.home_goals or 0) + (match.away_goals or 0)
+            - match.half_time_home_goals - match.half_time_away_goals
+        )
         story.append(
             f"The half-time score was {match.half_time_home_goals}–{match.half_time_away_goals}; "
-            f"the second half added {(match.home_goals or 0) + (match.away_goals or 0) - match.half_time_home_goals - match.half_time_away_goals} goals."
+            f"the second half added {second_half_goals} {'goal' if second_half_goals == 1 else 'goals'}."
         )
-    shot = next((item for item in statistics if "shot" in item.statistic.casefold() and "target" not in item.statistic.casefold()), None)
+    total_attempt_labels = {"shots", "total shots", "total attempts"}
+    shot = next((item for item in statistics if item.statistic.casefold().strip() in total_attempt_labels), None)
     if shot and shot.home_value is not None and shot.away_value is not None:
         leader = match.home.name if shot.home_value > shot.away_value else match.away.name if shot.away_value > shot.home_value else None
         story.append(
@@ -830,14 +839,24 @@ def match_centre_detail(
     home_starters = sum(item.is_home is True and item.is_substitute is not True for item in lineups)
     away_starters = sum(item.is_home is False and item.is_substitute is not True for item in lineups)
     lineup_complete = home_starters >= 11 and away_starters >= 11
-    home_coach = _present(getattr(context, "home_coach", None))
-    away_coach = _present(getattr(context, "away_coach", None))
-    home_formation = _present(getattr(context, "home_formation", None))
-    away_formation = _present(getattr(context, "away_formation", None))
-    stadium = match.venue or _present(getattr(context, "stadium", None))
+    home_coach = _present(getattr(context, "home_coach", None)) or _present(getattr(event_row, "home_coach", None))
+    away_coach = _present(getattr(context, "away_coach", None)) or _present(getattr(event_row, "away_coach", None))
+    home_formation = _present(getattr(context, "home_formation", None)) or _present(getattr(event_row, "home_formation", None))
+    away_formation = _present(getattr(context, "away_formation", None)) or _present(getattr(event_row, "away_formation", None))
+    stadium = (
+        match.venue
+        or _present(getattr(context, "stadium", None))
+        or _present(getattr(event_row, "venue", None))
+    )
     attendance_value = getattr(context, "attendance", None)
+    if attendance_value is None or pd.isna(attendance_value):
+        attendance_value = getattr(event_row, "attendance", None)
     attendance = None if attendance_value is None or pd.isna(attendance_value) else int(attendance_value)
-    referee = match.referee or _present(getattr(context, "referee", None))
+    referee = (
+        match.referee
+        or _present(getattr(context, "referee", None))
+        or _present(getattr(event_row, "referee", None))
+    )
     if referee != match.referee or stadium != match.venue:
         match = match.model_copy(update={"referee": referee, "venue": stadium})
 
@@ -854,7 +873,7 @@ def match_centre_detail(
     source_names = [match.source or "match store"]
     if context is not None:
         source_names.append("Transfermarkt Open Dataset")
-    if provider_detail:
+    if provider_detail or event_row is not None:
         source_names.append("TheSportsDB")
     return MatchCentreDetailResponse(
         match=match,
@@ -1651,6 +1670,8 @@ def quality(store: ReadOnlyStore) -> QualityResponse:
         stamps["ingestion"] = _as_datetime(store.scalar("SELECT max(fetched_at) FROM ingestion_runs"))
     if _has(store, "open_players"):
         stamps["players"] = _as_datetime(store.scalar("SELECT max(fetched_at) FROM open_players"))
+    if _has(store, "match_contexts"):
+        stamps["match_contexts"] = _as_datetime(store.scalar("SELECT max(fetched_at) FROM match_contexts"))
     if _has(store, "reference_standings"):
         stamps["reference"] = _as_datetime(store.scalar("SELECT max(fetched_at) FROM reference_standings"))
     if _has(store, "recent_matches"):
@@ -1685,6 +1706,13 @@ def quality(store: ReadOnlyStore) -> QualityResponse:
         breakdown = store.query("SELECT competition, count(*) AS matches FROM tournament_matches GROUP BY competition")
         tournament_breakdown = {str(row.competition): int(row.matches) for row in breakdown.itertuples(index=False)}
     context_rich = int(fixtures.home_corners.notna().sum()) if not fixtures.empty and "home_corners" in fixtures else 0
+    match_context_rows = row_count("match_contexts")
+    formation_rows = int(store.scalar(
+        "SELECT count(*) FROM match_contexts WHERE home_formation <> '' OR away_formation <> ''"
+    ) or 0) if _has(store, "match_contexts") else 0
+    coach_rows = int(store.scalar(
+        "SELECT count(*) FROM match_contexts WHERE home_coach <> '' OR away_coach <> ''"
+    ) or 0) if _has(store, "match_contexts") else 0
     shots = shot_analysis(store)
     caps = [
         "TheSportsDB free standings and player feeds are explicitly capped.",
@@ -1707,6 +1735,9 @@ def quality(store: ReadOnlyStore) -> QualityResponse:
         tournament_teams=tournament_teams,
         tournament_breakdown=tournament_breakdown,
         context_rich_matches=context_rich,
+        match_context_rows=match_context_rows,
+        formation_rows=formation_rows,
+        coach_rows=coach_rows,
         tournament_goals=tournament_goal_count,
         detailed_event_stats=event_stat_count,
         timeline_events=timeline_count,

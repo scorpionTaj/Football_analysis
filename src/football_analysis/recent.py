@@ -16,6 +16,16 @@ from .ingest import connect, refresh_analytics
 
 SOURCE_CSV = "Football-Data.co.uk"
 SOURCE_EVENTS = "TheSportsDB"
+EVENT_COLUMNS = [
+    "event_id", "league", "season", "match_date", "home_team", "away_team",
+    "home_goals", "away_goals", "status", "event_kind", "source", "fetched_at",
+    "kickoff_time", "venue", "home_coach", "away_coach", "home_formation",
+    "away_formation", "referee", "attendance",
+]
+
+
+def _first_present(item, *keys):
+    return next((item.get(key) for key in keys if item.get(key)), None)
 
 
 class TheSportsDBRecentEvents:
@@ -54,6 +64,14 @@ class TheSportsDBRecentEvents:
                 "status": item.get("strStatus") or "",
                 "event_kind": event_kind, "source": SOURCE_EVENTS,
                 "fetched_at": datetime.now(),
+                "kickoff_time": item.get("strTime") or None,
+                "venue": item.get("strVenue") or None,
+                "home_coach": _first_present(item, "strHomeTeamManager", "strHomeManager", "strHomeCoach"),
+                "away_coach": _first_present(item, "strAwayTeamManager", "strAwayManager", "strAwayCoach"),
+                "home_formation": item.get("strHomeFormation") or None,
+                "away_formation": item.get("strAwayFormation") or None,
+                "referee": item.get("strReferee") or None,
+                "attendance": pd.to_numeric(item.get("intSpectators"), errors="coerce"),
             })
         time.sleep(2.1)
         return pd.DataFrame(rows)
@@ -102,6 +120,10 @@ def sync_recent(db=DB, year=None, leagues=None, refresh=True, event_adapter=None
                 try:
                     frame = event_adapter.fetch(league, event_kind)
                     if not frame.empty:
+                        for column in EVENT_COLUMNS:
+                            if column not in frame:
+                                frame[column] = None
+                        frame = frame[EVENT_COLUMNS]
                         con.register("incoming_events", frame)
                         con.execute("BEGIN")
                         try:
@@ -115,7 +137,10 @@ def sync_recent(db=DB, year=None, leagues=None, refresh=True, event_adapter=None
                                 "DELETE FROM recent_events WHERE league=? AND event_kind=?",
                                 [league, event_kind],
                             )
-                            con.execute("INSERT INTO recent_events SELECT * FROM incoming_events")
+                            con.execute(
+                                f"INSERT INTO recent_events ({', '.join(EVENT_COLUMNS)}) "
+                                f"SELECT {', '.join(EVENT_COLUMNS)} FROM incoming_events"
+                            )
                             con.execute("COMMIT")
                         except Exception:
                             con.execute("ROLLBACK")

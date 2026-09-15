@@ -4,6 +4,9 @@
 
 - FastAPI is the only presentation data boundary; the Next.js/HeroUI application is the only frontend.
 - The former nine-view workflow is covered by Overview, Tournaments, Analysis, League Tables, Club Lab, Shot Intelligence, Match Centre, Players and Data Quality. Predictions and Settings remain dedicated additional routes.
+- Every listed Match Centre result now opens the unified detail contract. Stored match statistics are always used when present; published managers/formations and provider events/lineups are added without synthesizing missing facts.
+- Search inputs in navigation, matches, tournaments and players tolerate accents and small spelling mistakes.
+- Settings exposes a four-step data-gathering depth control with one guarded backend refresh job and live status polling.
 - Parity gaps closed before removal: external reference standings and deltas, complete quality counters and shot coverage, filtered tournament scorers and team performance, correlation rendering, player club/position facets and aggregates, actual listed fixtures without model coverage, rolling club form, percentile profile and newest-first match pagination.
 - Backend verification: 57 tests passed before removal, including route contracts, external standings reconciliation, player facets, quality telemetry, event details and listed-fixture fallback.
 - Browser verification: Overview, League Tables, Analysis, Players, Tournaments, Club Lab and Data Quality rendered against the real database. New parity controls and sections were visible; player club/position filtering returned Arsenal attackers; tournament performance rendered 20 rows.

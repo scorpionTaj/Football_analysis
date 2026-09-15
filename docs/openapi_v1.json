@@ -404,6 +404,81 @@
         }
       }
     },
+    "/api/v1/match-detail": {
+      "get": {
+        "summary": "Match Detail",
+        "operationId": "match_detail_api_v1_match_detail_get",
+        "parameters": [
+          {
+            "name": "competition",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Competition"
+            }
+          },
+          {
+            "name": "season",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Season"
+            }
+          },
+          {
+            "name": "match_date",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Match Date"
+            }
+          },
+          {
+            "name": "home",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Home"
+            }
+          },
+          {
+            "name": "away",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Away"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchCentreDetailResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/analysis": {
       "post": {
         "summary": "Analysis",
@@ -946,6 +1021,60 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TransferListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/refresh": {
+      "get": {
+        "summary": "Refresh Status",
+        "operationId": "refresh_status_api_v1_refresh_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefreshStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Start Refresh",
+        "operationId": "start_refresh_api_v1_refresh_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefreshStatusResponse"
                 }
               }
             }
@@ -2081,6 +2210,116 @@
             ],
             "title": "Away Shots On Target"
           },
+          "half_time_home_goals": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Half Time Home Goals"
+          },
+          "half_time_away_goals": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Half Time Away Goals"
+          },
+          "home_corners": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Corners"
+          },
+          "away_corners": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Away Corners"
+          },
+          "home_fouls": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Fouls"
+          },
+          "away_fouls": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Away Fouls"
+          },
+          "home_yellows": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Yellows"
+          },
+          "away_yellows": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Away Yellows"
+          },
+          "home_reds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Reds"
+          },
+          "away_reds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Away Reds"
+          },
           "source": {
             "anyOf": [
               {
@@ -2102,6 +2341,150 @@
           "away"
         ],
         "title": "Match"
+      },
+      "MatchCentreDetailResponse": {
+        "properties": {
+          "match": {
+            "$ref": "#/components/schemas/Match"
+          },
+          "event_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Id"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "home_coach": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Coach"
+          },
+          "away_coach": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Away Coach"
+          },
+          "home_formation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Formation"
+          },
+          "away_formation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Away Formation"
+          },
+          "stadium": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stadium"
+          },
+          "attendance": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attendance"
+          },
+          "statistics": {
+            "items": {
+              "$ref": "#/components/schemas/EventStatistic"
+            },
+            "type": "array",
+            "title": "Statistics"
+          },
+          "timeline": {
+            "items": {
+              "$ref": "#/components/schemas/EventTimelineItem"
+            },
+            "type": "array",
+            "title": "Timeline"
+          },
+          "lineups": {
+            "items": {
+              "$ref": "#/components/schemas/EventLineupItem"
+            },
+            "type": "array",
+            "title": "Lineups"
+          },
+          "narrative": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Narrative"
+          },
+          "lineup_complete": {
+            "type": "boolean",
+            "title": "Lineup Complete",
+            "default": false
+          },
+          "coverage_notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Coverage Notes"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceMeta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "match",
+          "source"
+        ],
+        "title": "MatchCentreDetailResponse"
       },
       "MatchFactorSummary": {
         "properties": {
@@ -2842,6 +3225,21 @@
             "title": "Context Rich Matches",
             "default": 0
           },
+          "match_context_rows": {
+            "type": "integer",
+            "title": "Match Context Rows",
+            "default": 0
+          },
+          "formation_rows": {
+            "type": "integer",
+            "title": "Formation Rows",
+            "default": 0
+          },
+          "coach_rows": {
+            "type": "integer",
+            "title": "Coach Rows",
+            "default": 0
+          },
           "tournament_goals": {
             "type": "integer",
             "title": "Tournament Goals",
@@ -3254,6 +3652,132 @@
           "team"
         ],
         "title": "ReferenceStandingRow"
+      },
+      "RefreshRequest": {
+        "properties": {
+          "target_step": {
+            "type": "integer",
+            "maximum": 4.0,
+            "minimum": 1.0,
+            "title": "Target Step",
+            "default": 4
+          },
+          "season": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Season"
+          },
+          "competitions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Competitions"
+          },
+          "force_download": {
+            "type": "boolean",
+            "title": "Force Download",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "RefreshRequest"
+      },
+      "RefreshStatusResponse": {
+        "properties": {
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "idle",
+              "running",
+              "success",
+              "failed"
+            ],
+            "title": "Status",
+            "default": "idle"
+          },
+          "current_step": {
+            "type": "integer",
+            "title": "Current Step",
+            "default": 0
+          },
+          "target_step": {
+            "type": "integer",
+            "title": "Target Step",
+            "default": 4
+          },
+          "completed_steps": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Completed Steps"
+          },
+          "step_name": {
+            "type": "string",
+            "title": "Step Name",
+            "default": "Ready"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": "Choose a refresh depth to begin."
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "title": "RefreshStatusResponse"
       },
       "SeasonCoverage": {
         "properties": {
@@ -3791,6 +4315,116 @@
               }
             ],
             "title": "Away Shots On Target"
+          },
+          "half_time_home_goals": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Half Time Home Goals"
+          },
+          "half_time_away_goals": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Half Time Away Goals"
+          },
+          "home_corners": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Corners"
+          },
+          "away_corners": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Away Corners"
+          },
+          "home_fouls": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Fouls"
+          },
+          "away_fouls": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Away Fouls"
+          },
+          "home_yellows": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Yellows"
+          },
+          "away_yellows": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Away Yellows"
+          },
+          "home_reds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Reds"
+          },
+          "away_reds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Away Reds"
           },
           "source": {
             "anyOf": [

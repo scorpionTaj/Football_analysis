@@ -143,6 +143,9 @@ function QualityContent() {
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {[
               ['Context-rich matches', data.context_rich_matches],
+              ['Match context rows', data.match_context_rows],
+              ['Published formations', data.formation_rows],
+              ['Published coaches', data.coach_rows],
               ['Tournament goals', data.tournament_goals],
               ['Detailed statistics', data.detailed_event_stats],
               ['Timeline events', data.timeline_events],
