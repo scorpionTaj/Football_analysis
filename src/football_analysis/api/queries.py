@@ -88,7 +88,7 @@ from football_analysis.config import (
 from football_analysis.teams import display_team, team_key
 
 
-API_SCHEMA_REVISION = "2026-09-23-match-centre-v2"
+API_SCHEMA_REVISION = "2026-09-23-fixtures-search-forecast-journal-v1"
 
 
 def _now() -> datetime:
@@ -470,7 +470,7 @@ def list_matches(
             "FROM tournament_matches"
         ))
     if _has(store, "recent_events"):
-        frames.append(store.query(
+        events = store.query(
             "SELECT league AS competition, season, match_date, home_team, away_team, "
             "CAST(NULL AS INTEGER) AS home_goals, CAST(NULL AS INTEGER) AS away_goals, "
             "CAST(NULL AS INTEGER) AS home_shots, CAST(NULL AS INTEGER) AS away_shots, "
@@ -480,9 +480,19 @@ def list_matches(
             "CAST(NULL AS INTEGER) AS home_fouls, CAST(NULL AS INTEGER) AS away_fouls, "
             "CAST(NULL AS INTEGER) AS home_yellows, CAST(NULL AS INTEGER) AS away_yellows, "
             "CAST(NULL AS INTEGER) AS home_reds, CAST(NULL AS INTEGER) AS away_reds, "
-            "referee, kickoff_time, CAST(NULL AS VARCHAR) AS stage, venue, source "
+            "referee, kickoff_time, CAST(NULL AS VARCHAR) AS stage, venue, source, event_kind "
             "FROM recent_events WHERE event_kind IN ('fixture', 'next') AND match_date >= current_date"
-        ))
+        )
+        if not events.empty:
+            events["home_key"] = events.home_team.map(team_key)
+            events["away_key"] = events.away_team.map(team_key)
+            events["fixture_priority"] = (events.event_kind == "fixture").astype(int)
+            events = events.sort_values("fixture_priority", ascending=False).drop_duplicates(
+                ["competition", "season", "home_key", "away_key"], keep="first",
+            ).drop(columns=["event_kind", "home_key", "away_key", "fixture_priority"])
+        else:
+            events = events.drop(columns=["event_kind"])
+        frames.append(events)
     if not frames:
         return MatchListResponse(
             matches=[], page=PageMeta(next_cursor=None, limit=limit, returned=0),
@@ -492,6 +502,17 @@ def list_matches(
     frame["home_key"] = frame.home_team.map(team_key)
     frame["away_key"] = frame.away_team.map(team_key)
     frame["has_result"] = frame.home_goals.notna().astype(int)
+    completed_pairs = set(zip(
+        frame.loc[frame.has_result == 1, "competition"],
+        frame.loc[frame.has_result == 1, "season"],
+        frame.loc[frame.has_result == 1, "home_key"],
+        frame.loc[frame.has_result == 1, "away_key"],
+    ))
+    visible = pd.Series([
+        bool(row.has_result) or (row.competition, row.season, row.home_key, row.away_key) not in completed_pairs
+        for row in frame.itertuples(index=False)
+    ], index=frame.index, dtype=bool)
+    frame = frame[visible]
     frame = frame.sort_values("has_result", ascending=False).drop_duplicates(
         ["competition", "season", "home_key", "away_key", "match_date"], keep="first",
     ).drop(columns=["home_key", "away_key", "has_result"])
@@ -1529,10 +1550,11 @@ def predictions(store: ReadOnlyStore) -> PredictionsResponse:
             "FROM forecast_history"
         ).iloc[0]
         resolved = int(record.resolved or 0)
+        correct = int(record.correct) if pd.notna(record.correct) else 0
         forecast_record = {
             "issued": int(record.issued or 0), "resolved": resolved,
-            "correct": int(record.correct or 0),
-            "accuracy": int(record.correct or 0) / resolved if resolved else None,
+            "correct": correct,
+            "accuracy": correct / resolved if resolved else None,
         }
         history = store.query(
             "SELECT * FROM forecast_history ORDER BY issued_at DESC, match_date DESC LIMIT 30"

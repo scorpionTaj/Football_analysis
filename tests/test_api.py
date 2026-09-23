@@ -340,7 +340,7 @@ def test_shots_and_event_details_contract(tmp_path):
 
     events = api.get("/api/v1/event-details", params={"competition": "E0"})
     assert events.status_code == 200
-    assert events.json()["events"][0]["statistics_count"] == 1
+    assert events.json()["events"][0]["statistics_count"] == 2
     detail = api.get("/api/v1/event-details/event-1")
     assert detail.status_code == 200
     assert any(row["statistic"] == "Shots on Goal" for row in detail.json()["statistics"])

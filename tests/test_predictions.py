@@ -1,10 +1,14 @@
 import numpy as np
 import pandas as pd
+import duckdb
 
 from football_analysis.predictions import (
     FEATURES, _confidence_backtest, _outcome_backtest, build_match_features, fit_softmax,
-    future_features, train_time_split,
+    future_features, sync_predictions, train_time_split, walk_forward_backtest,
 )
+from football_analysis.ingest import connect
+from football_analysis.config import current_season
+from datetime import date, timedelta
 
 
 def sample_matches(count=150):
@@ -104,3 +108,66 @@ def test_outcome_backtest_exposes_missed_draws():
     assert draw["predicted"] == 0
     assert draw["recall"] == 0
     assert draw["precision"] is None
+
+
+def test_walk_forward_uses_only_earlier_seasons():
+    features = build_match_features(sample_matches())
+    rows = walk_forward_backtest(features)
+    assert len(rows) == 1
+    assert rows[0]["season"] == 2025
+    assert rows[0]["matches"] == 50
+
+
+def test_published_forecast_survives_retraining_and_is_resolved(tmp_path):
+    db = tmp_path / "predictions.duckdb"
+    matches = sample_matches()
+    matches["match_date"] = matches.match_date.dt.date
+    matches["home_team"] = [f"Home {index}" for index in range(len(matches))]
+    matches["away_team"] = [f"Away {index}" for index in range(len(matches))]
+    fixture_date = date.today() + timedelta(days=7)
+    season = current_season()
+    with connect(db) as con:
+        con.register("sample_matches", matches)
+        con.execute(
+            "INSERT INTO matches (league, season, match_date, home_team, away_team, home_goals, away_goals) "
+            "SELECT league, season, match_date, home_team, away_team, home_goals, away_goals FROM sample_matches"
+        )
+        con.execute(
+            "INSERT INTO recent_events (event_id, league, season, match_date, home_team, away_team, "
+            "event_kind, source, fetched_at) VALUES "
+            "('fixture-1', 'E0', ?, ?, 'Arsenal', 'Liverpool', 'fixture', 'test', current_timestamp)",
+            [season, fixture_date],
+        )
+    sync_predictions(db)
+    with connect(db) as con:
+        assert con.execute("SELECT count(*) FROM forecast_history").fetchone()[0] == 1
+        con.execute(
+            "INSERT INTO recent_matches (league, season, match_date, home_team, away_team, "
+            "home_goals, away_goals, source, fetched_at) VALUES "
+            "('E0', ?, ?, 'Arsenal', 'Liverpool', 2, 0, 'test', current_timestamp)",
+            [season, fixture_date],
+        )
+    sync_predictions(db)
+    with connect(db) as con:
+        issued, actual = con.execute(
+            "SELECT count(*), max(actual_result) FROM forecast_history"
+        ).fetchone()
+        assert issued == 1
+        assert actual == "Home"
+
+
+def test_forecast_history_schema_expands_without_erasing_existing_models(tmp_path):
+    db = tmp_path / "legacy.duckdb"
+    with duckdb.connect(str(db)) as con:
+        con.execute(
+            "CREATE TABLE prediction_models (model_id VARCHAR PRIMARY KEY, model_name VARCHAR, "
+            "trained_at TIMESTAMP, validation_cutoff DATE, train_matches INTEGER, validation_matches INTEGER, "
+            "feature_names VARCHAR, parameters VARCHAR, metrics VARCHAR)"
+        )
+        con.execute(
+            "INSERT INTO prediction_models VALUES ('legacy', 'old model', current_timestamp, "
+            "'2025-01-01', 100, 20, '[]', '{}', '{}')"
+        )
+    with connect(db) as con:
+        assert con.execute("SELECT model_id FROM prediction_models").fetchone()[0] == "legacy"
+        assert con.execute("SELECT count(*) FROM forecast_history").fetchone()[0] == 0

@@ -287,7 +287,7 @@ def sync_predictions(db=DB, force=False):
             "feature_count": len(FEATURES),
             "walk_forward": walk_forward_backtest(feature_frame),
         })
-        model_id = f"{MODEL_VERSION}-{datetime.now():%Y%m%d%H%M%S}"
+        model_id = f"{MODEL_VERSION}-{datetime.now():%Y%m%d%H%M%S%f}"
         validation_rows = validation[["league", "season", "match_date", "home_team", "away_team", "actual_result"]].copy()
         validation_rows["predicted_result"] = CLASS_NAMES[probabilities.argmax(axis=1)]
         validation_rows[["home_probability", "draw_probability", "away_probability"]] = probabilities

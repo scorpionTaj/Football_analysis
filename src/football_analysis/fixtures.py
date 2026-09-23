@@ -20,7 +20,7 @@ from .sync_state import is_fresh, mark_fresh
 from .teams import team_key
 
 
-FIXTURES_URL = "https://www.football-data.co.uk/matches/resources/fixtures.csv"
+FIXTURES_URL = "https://www.football-data.co.uk/fixtures.csv"
 SOURCE = "Football-Data.co.uk fixtures"
 
 
@@ -69,7 +69,9 @@ class FootballDataFixtures:
         if not {"Div", "Date", "HomeTeam", "AwayTeam"}.issubset(columns):
             raise ValueError("Downloaded fixture response is not the expected CSV")
         self.cache.parent.mkdir(parents=True, exist_ok=True)
-        self.cache.write_bytes(raw)
+        temporary = self.cache.with_suffix(f"{self.cache.suffix}.tmp")
+        temporary.write_bytes(raw)
+        temporary.replace(self.cache)
         return raw
 
 
@@ -87,6 +89,8 @@ def sync_fixtures(db: Path = DB, season: int | None = None, leagues: list[str] |
         try:
             raw = adapter.fetch()
             frame = normalize_fixtures(raw, season, leagues, today)
+            if frame.empty:
+                return {"status": "unavailable", "detail": "The published weekly CSV has no future fixtures in scope."}
             digest = sha256(raw).hexdigest()
             # Reconcile to clubs already observed in this season. An uncertain
             # provider name is omitted rather than creating a duplicate club.
@@ -115,6 +119,8 @@ def sync_fixtures(db: Path = DB, season: int | None = None, leagues: list[str] |
                     "referee": None, "attendance": None,
                 })
             incoming = pd.DataFrame(rows, columns=EVENT_COLUMNS)
+            if not rows:
+                return {"status": "unavailable", "detail": "Future fixtures could not be reconciled to current clubs."}
             con.register("incoming_fixtures", incoming)
             con.execute("BEGIN")
             try:
@@ -136,5 +142,5 @@ def sync_fixtures(db: Path = DB, season: int | None = None, leagues: list[str] |
             finally:
                 con.unregister("incoming_fixtures")
             return {"status": "success", "rows": len(rows), "unmapped": len(frame) - len(rows)}
-        except (requests.RequestException, ValueError, pd.errors.ParserError) as exc:
+        except (requests.RequestException, ValueError, UnicodeError, OSError, pd.errors.ParserError) as exc:
             return {"status": "unavailable", "detail": str(exc)}

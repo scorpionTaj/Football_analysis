@@ -157,7 +157,7 @@ export function MatchDetailCentre({ detail, onBack }: { detail: MatchCentreDetai
       <Card className="overflow-hidden rounded-[1.8rem] border border-surface1 bg-surface0">
         <div className="border-b border-surface1 bg-mantle/75 p-5 sm:p-8">
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3 text-xs text-subtext0">
-            <span className="flex items-center gap-2"><CalendarDays className="size-4" />{match.match_date}{match.kickoff_time ? ` · ${match.kickoff_time}` : ''} · {match.competition}</span>
+            <span className="flex items-center gap-2"><CalendarDays className="size-4" />{match.match_date}{match.kickoff_time ? ` · ${match.kickoff_time} source time` : ''} · {match.competition}</span>
             <span>{detail.status || match.stage || 'Match record'}</span>
           </div>
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 sm:gap-8">

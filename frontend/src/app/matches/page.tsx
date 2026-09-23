@@ -223,7 +223,7 @@ function MatchesContent() {
             >
               {/* Date & Competition */}
               <div className="flex items-center gap-2.5 text-xs text-subtext0 min-w-[140px]">
-                <span className="font-mono text-overlay1">{m.match_date}{m.kickoff_time ? ` · ${m.kickoff_time}` : ''}</span>
+                <span className="font-mono text-overlay1">{m.match_date}{m.kickoff_time ? ` · ${m.kickoff_time} source time` : ''}</span>
                 <span className="rounded bg-surface1 px-2 py-0.5 text-subtext1 font-medium text-[11px]">
                   {m.competition}
                 </span>

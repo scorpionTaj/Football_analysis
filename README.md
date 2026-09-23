@@ -25,7 +25,7 @@ cd /home/scorpiontaj/Projects/Football_analysis
 uv run football-sync --bootstrap
 ```
 
-For later updates, use `uv run football-sync`. This incremental command refreshes the current season, match details and predictions; unchanged source partitions and model inputs are skipped. `--step 1` through `--step 4` chooses a shallower refresh, `--competitions E0 SP1` narrows its scope, and `--force` bypasses freshness checks. Run the command while the API is stopped because DuckDB has one writer; while the API is running, use the equivalent four-step refresh in Settings instead.
+For later updates, use `uv run football-sync`. This incremental command refreshes the current season, match details and predictions; unchanged source partitions and model inputs are skipped. `--step 1` through `--step 4` chooses a shallower refresh, `--competitions E0 SP1` narrows its scope, and `--force` bypasses freshness checks. Run the command while the API is stopped because DuckDB has one writer; while the API is running, use the equivalent four-step refresh in Settings instead. Refresh progress persists across application restarts. Stages commit independently: after a failure, completed stages remain applied and the failed stage may have partial source updates; rerunning the incremental command resumes safely.
 
 Alternatively: create a Python 3.11+ virtual environment and run `pip install -e '.[dev]'`.
 
@@ -39,9 +39,11 @@ All clubs currently present across the Premier League, La Liga, Bundesliga, Seri
 
 The analytical range is 2021/22–2025/26 plus the live 2026/27 campaign. The July rollover selects five candidate completed seasons; each completed CSV must independently pass full double-round-robin coverage checks. Live rows are clearly labelled as partial and never presented as a completed season.
 
-Dashboard: one typo-tolerant platform search, three domestic analysis modes and nine focused pages: Overview, Tournaments, Analysis lab, League tables, Club lab, Shot lab, Match Centre, Players and Data quality. Every Match Centre result opens a factual match story with stored statistics, real manager/formation context when published, named goals/cards/substitutions/missed penalties and verified lineup positions and portraits on a responsive pitch. Club head-to-head reads the unified league-and-cup store. The Analysis lab slices domestic and tournament data by competition, edition, team and venue; ranks teams by seven metrics; builds a correlation matrix; analyzes first-half scoring, corners, fouls, cards and referee trends; and exports both the rankings and exact match slice.
+Dashboard: one typo-tolerant platform search, three domestic analysis modes and nine focused pages: Overview, Tournaments, Analysis lab, League tables, Club lab, Shot lab, Match Centre, Players and Data quality. Match Centre search runs across the filtered data before pagination, and its detail URLs survive reloads. Every listed match opens a factual story with stored statistics, real manager/formation context when published, named goals/cards/substitutions/missed penalties and verified lineup positions and portraits on a responsive pitch. Club head-to-head reads the unified league-and-cup store. The Analysis lab slices domestic and tournament data by competition, edition, team and venue; ranks teams by seven metrics; builds a correlation matrix; analyzes first-half scoring, corners, fouls, cards and referee trends; and exports both the rankings and exact match slice.
 
-The predictive section trains a regularized three-outcome softmax model on leakage-safe pre-match Elo, ten-match rolling points, scoring, conceding, shots on target and rest-day features. Confidence temperature is learned from an earlier chronological calibration window; the latest 20% of match dates remain outside fitting and calibration. On the current 2,023-match holdout it reaches 51.4% accuracy versus a 43.2% training-prevalence baseline and improves log loss from 1.075 to 0.997. At a 75% predicted-probability threshold, 65 holdout matches qualified and 81.5% were called correctly—but that is only 3.2% of matches, with a wide 70.4–89.1% confidence interval. The Predictions page shows this coverage and each league's backtest, rather than claiming 80% accuracy for every fixture. Ten next-listed fixtures are cached as home/draw/away probabilities, while conservative current-points projections provide title shares for all ten domestic leagues. Unchanged inputs skip retraining.
+The predictive section trains a regularized three-outcome softmax model on leakage-safe pre-match Elo, ten-match rolling points, scoring, conceding, shots on target and rest-day features. Confidence temperature is learned from an earlier chronological calibration window; the latest 20% of match dates remain outside fitting and calibration. On the current 2,023-match holdout it reaches 51.4% accuracy versus a 43.2% training-prevalence baseline and improves log loss from 1.075 to 0.997. At a 75% predicted-probability threshold, 65 holdout matches qualified and 81.5% were called correctly—but that is only 3.2% of matches, with a wide 70.4–89.1% confidence interval. The Predictions page shows coverage, per-league and per-outcome diagnostics, season-by-season walk-forward results, and a forecast journal that preserves issued probabilities while later filling in actual results. Available future fixtures are cached as home/draw/away probabilities, while conservative current-points projections provide title shares for all ten domestic leagues. Unchanged inputs skip retraining.
+
+The optional Football-Data.co.uk weekly fixture CSV is validated, reconciled to known current-season clubs and cached for six hours. Its kickoff times are displayed as source times because the file does not provide a verified timezone. It is a short published window, not a full-season schedule; if the publisher serves an outdated file or no future rows, the existing data is kept and the app continues with its explicitly limited next-event fallback.
 
 The tournament adapter loads five completed Champions League seasons (753 matches), the 2025 Club World Cup (64 matches), and the 2018, 2022 and 2026 World Cups (232 matches) from OpenFootball's CC0 repositories without an API key. All three competition families have stage, team, performance, scoring and match-result views. The World Cup view also uses 649 published goal events for scorer, penalty and own-goal analysis.
 
@@ -55,6 +57,7 @@ The 2026/27 campaign is integrated into every match-driven page and adds the Ere
 - `src/football_analysis/pipeline.py` and `sync_state.py`: one incremental/bootstrap command and persisted freshness gates for rate-limited sources.
 - `src/football_analysis/teams.py`: canonical provider-independent club labels and reconciliation keys.
 - `src/football_analysis/recent.py`: current-season result and fixture synchronization for ten leagues.
+- `src/football_analysis/fixtures.py`: guarded weekly fixture import and current-club reconciliation.
 - `src/football_analysis/open_players.py`: featured-player aggregation plus normalized historical match context, event timelines, lineup roles and cup results from published CC0 CSVs.
 - `src/football_analysis/players.py`: capped TheSportsDB profile and artwork fallback synchronization.
 - `src/football_analysis/media.py`: cached club and competition artwork synchronization.
@@ -77,6 +80,11 @@ Data lives in `data/`; override with `FOOTBALL_DATA_DIR`. Raw archives and the d
 
 ```bash
 uv run pytest -q
+cd frontend
+npm run lint
+npm run build
+npx playwright install chromium
+npm run test:e2e
 ```
 
 See `docs/VALIDATION.md` for actual validation results and current coverage. Free access does not imply an unrestricted redistribution licence; retain attribution and review the source terms before distributing raw files or commercial deployment.

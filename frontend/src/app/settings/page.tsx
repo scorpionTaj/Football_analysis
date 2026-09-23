@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 
 const REFRESH_STEPS = [
-  { title: 'Results and fixtures', detail: 'Current scorelines and next listed matches' },
+  { title: 'Results and fixtures', detail: 'Current scorelines and available weekly fixtures' },
   { title: 'Tables and competitions', detail: 'Reference standings and selected tournaments' },
   { title: 'Teams, players and match detail', detail: 'Artwork, squads, formations and event data' },
   { title: 'Models and validation', detail: 'Analytics caches and calibrated predictions' },
@@ -248,7 +248,7 @@ export default function SettingsPage() {
                 <CloudDownload className="size-5 text-teal" />
                 <h2 className="text-base font-semibold text-text">Gather fresh data</h2>
               </div>
-              <p className="mt-2 max-w-2xl text-xs leading-5 text-subtext0">Choose how deep the refresh should run. Each level includes the steps before it, and the app publishes the new snapshot only after the selected work finishes.</p>
+              <p className="mt-2 max-w-2xl text-xs leading-5 text-subtext0">Choose how deep the refresh should run. Each level includes the steps before it. Completed stages are saved as they finish, so an interrupted run can be resumed.</p>
             </div>
             <span className={`rounded-full px-3 py-1 text-xs font-bold ${refreshStatus?.status === 'running' ? 'bg-yellow/15 text-yellow' : refreshStatus?.status === 'success' ? 'bg-green/15 text-green' : refreshStatus?.status === 'failed' ? 'bg-red/15 text-red' : 'bg-surface1 text-subtext1'}`}>
               {refreshStatus?.status || 'idle'}
@@ -316,7 +316,7 @@ export default function SettingsPage() {
           ) : null}
 
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="max-w-xl text-[11px] leading-4 text-subtext0">API reads pause briefly while DuckDB switches snapshots. Existing valid partitions stay intact if a source fails.</p>
+            <p className="max-w-xl text-[11px] leading-4 text-subtext0">API reads pause during refresh. Completed stages remain applied if a later stage fails; source partitions are individually protected.</p>
             <Button
               variant="primary"
               isDisabled={!(refreshSeason ?? catalog?.current_season) || refreshStatus?.status === 'running'}

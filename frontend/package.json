@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "tsc --noEmit && NEXT_SKIP_TYPECHECK=1 next build --webpack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@heroui/react": "^3.2.5",

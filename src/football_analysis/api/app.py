@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response
@@ -62,11 +63,24 @@ def create_app(
         except FileNotFoundError:
             store = None
 
+    @asynccontextmanager
+    async def lifespan(application: FastAPI):
+        if defer_database_open and application.state.store is None and path.exists():
+            application.state.store = ReadOnlyStore(path)
+        try:
+            yield
+        finally:
+            current = application.state.store
+            if current is not None:
+                current.close()
+                application.state.store = None
+
     app = FastAPI(
         title="Football Analysis API",
         version="1.0.0",
         openapi_url="/openapi.json",
         docs_url="/docs",
+        lifespan=lifespan,
     )
     app.add_middleware(
         CORSMiddleware,
@@ -84,11 +98,6 @@ def create_app(
     app.state.store = store
     app.state.database_path = path
     app.state.refresh = RefreshCoordinator(path.with_suffix(".refresh.json"))
-
-    @app.on_event("startup")
-    def open_deferred_database() -> None:
-        if defer_database_open and app.state.store is None and path.exists():
-            app.state.store = ReadOnlyStore(path)
 
     def require_store() -> ReadOnlyStore:
         current = app.state.store

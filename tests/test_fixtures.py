@@ -63,3 +63,41 @@ def test_weekly_fixtures_are_reconciled_and_searchable_before_pagination(tmp_pat
         assert result.matches[0].kickoff_time == "19:45"
     finally:
         store.close()
+
+
+def test_weekly_fixture_supersedes_a_rescheduled_next_event(tmp_path):
+    today = date.today()
+    season = today.year if today.month >= 7 else today.year - 1
+    fixture_day = today + timedelta(days=1)
+    if fixture_day > date(season + 1, 6, 30):
+        return
+    db = tmp_path / "rescheduled.duckdb"
+    with connect(db) as con:
+        con.execute(
+            "INSERT INTO recent_events (event_id, league, season, match_date, home_team, away_team, "
+            "event_kind, source, fetched_at) VALUES "
+            "('old-next', 'E0', ?, ?, 'Arsenal', 'Liverpool', 'next', 'test', current_timestamp), "
+            "('new-fixture', 'E0', ?, ?, 'Arsenal', 'Liverpool', 'fixture', 'test', current_timestamp)",
+            [season, fixture_day + timedelta(days=7), season, fixture_day],
+        )
+    store = ReadOnlyStore(db)
+    try:
+        result = list_matches(store, competition="E0", season=season)
+        assert len(result.matches) == 1
+        assert result.matches[0].match_date == fixture_day
+    finally:
+        store.close()
+    with connect(db) as con:
+        con.execute(
+            "INSERT INTO recent_matches (league, season, match_date, home_team, away_team, "
+            "home_goals, away_goals, source, fetched_at) VALUES "
+            "('E0', ?, ?, 'Arsenal', 'Liverpool', 2, 1, 'test', current_timestamp)",
+            [season, today],
+        )
+    store = ReadOnlyStore(db)
+    try:
+        result = list_matches(store, competition="E0", season=season)
+        assert len(result.matches) == 1
+        assert result.matches[0].home_goals == 2
+    finally:
+        store.close()
