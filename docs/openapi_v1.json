@@ -157,6 +157,22 @@
             }
           },
           {
+            "name": "opponent",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Opponent"
+            }
+          },
+          {
             "name": "venue",
             "in": "query",
             "required": false,
@@ -1410,6 +1426,22 @@
               "tournament"
             ],
             "title": "Kind"
+          },
+          "group": {
+            "type": "string",
+            "title": "Group",
+            "default": "Other competitions"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
           },
           "seasons": {
             "items": {

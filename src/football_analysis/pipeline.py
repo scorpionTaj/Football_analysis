@@ -1,0 +1,93 @@
+"""One operator entry point for incremental refreshes and first-time backfills."""
+
+from __future__ import annotations
+
+import argparse
+import json
+
+import duckdb
+
+from .api.contracts import RefreshRequest
+from .api.refresh import run_refresh_pipeline
+from .config import CLUBS, DATA, DB, seasons
+
+
+def run_pipeline(*, bootstrap=False, step=4, season=None, competitions=None,
+                 force=False, all_media=False, max_teams=100, db=DB):
+    """Refresh published data; bootstrap adds the historical source backfill once."""
+    if bootstrap:
+        from .adapters import FootballDataCSV
+        from .ingest import ingest
+        from .open_players import sync_open_players
+        from .players import sync_players
+        from .reference_standings import sync as sync_standings
+        from .tournaments import OpenFootballTournaments, default_partitions, sync_tournaments
+
+        tasks = (
+            ("Historical league results", lambda: ingest(
+                FootballDataCSV(DATA / "raw", refresh=force), db=db,
+                years=seasons(),
+            )),
+            ("Historical standings", lambda: sync_standings(
+                db=db, years=seasons(), refresh=force,
+            )),
+            ("Historical tournaments", lambda: sync_tournaments(
+                db=db, partitions=default_partitions(),
+                adapter=OpenFootballTournaments(refresh=force),
+            )),
+            ("Historical players and match context", lambda: sync_open_players(
+                db=db, refresh=force,
+            )),
+            ("Featured player profiles and stats", lambda: sync_players(
+                db=db, clubs=list(CLUBS.values()), include_stats=True, refresh=force,
+            )),
+        )
+        for name, task in tasks:
+            print(json.dumps({"stage": name, "status": "running"}), flush=True)
+            result = task()
+            if isinstance(result, list) and result and all(row.get("status") == "failed" for row in result):
+                raise RuntimeError(f"{name}: every source partition failed")
+
+    request = RefreshRequest(
+        target_step=step, season=season, competitions=competitions or [],
+        force_download=force,
+    )
+
+    def progress(number, name, message):
+        print(json.dumps({"step": number, "stage": name, "message": message}), flush=True)
+
+    run_refresh_pipeline(db, request, progress)
+    if all_media:
+        from .media import discover_missing_clubs, sync_media
+        clubs = discover_missing_clubs(db, retry_missing=force)[:max_teams]
+        sync_media(db=db, clubs=clubs, leagues=[], refresh=force, retry_missing=force)
+    print(json.dumps({"status": "complete", "bootstrap": bootstrap, "step": step}), flush=True)
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Refresh football data with one resumable command")
+    parser.add_argument("--bootstrap", action="store_true", help="Include historical leagues, cups and player snapshots")
+    parser.add_argument("--step", type=int, choices=range(1, 5), default=4, help="Refresh depth, 1-4 (default: 4)")
+    parser.add_argument("--season", type=int, help="Current season start year")
+    parser.add_argument("--competitions", nargs="+", help="Limit current refresh to competition codes")
+    parser.add_argument("--force", action="store_true", help="Bypass source freshness checks and redownload")
+    parser.add_argument("--all-media", action="store_true", help="Also backfill a bounded batch of missing badges")
+    parser.add_argument("--max-teams", type=int, default=100, help="Maximum badge lookups with --all-media")
+    args = parser.parse_args()
+    if args.max_teams < 1:
+        parser.error("--max-teams must be positive")
+    try:
+        run_pipeline(
+            bootstrap=args.bootstrap, step=args.step, season=args.season,
+            competitions=args.competitions, force=args.force,
+            all_media=args.all_media, max_teams=args.max_teams,
+        )
+    except duckdb.ConnectionException as exc:
+        if "different configuration" not in str(exc) and "being used" not in str(exc):
+            raise
+        parser.exit(2, "Database is already open for API reads. Stop football-api, "
+                       "or refresh through Settings instead.\n")
+
+
+if __name__ == "__main__":
+    main()

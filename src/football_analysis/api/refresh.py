@@ -11,15 +11,47 @@ from uuid import uuid4
 from football_analysis.api.contracts import RefreshRequest, RefreshStatusResponse
 from football_analysis.config import (
     CLUBS,
+    OPENFOOTBALL_TOURNAMENTS,
     RECENT_LEAGUES,
     THESPORTSDB_LEAGUE_IDS,
     TOURNAMENTS,
     current_season,
 )
+from football_analysis.teams import team_key
 
 
 Progress = Callable[[int, str, str], None]
 RefreshRunner = Callable[[RefreshRequest, Progress], None]
+
+
+def _featured_clubs_in_scope(database: Path, competitions: set[str], season: int) -> list[str]:
+    """Only enrich featured clubs taking part in a selected refresh scope."""
+    if not competitions:
+        return list(CLUBS.values())
+    from football_analysis.ingest import connect
+
+    codes = sorted(competitions)
+    placeholders = ",".join("?" for _ in codes)
+    with connect(database) as con:
+        rows = con.execute(f"""
+            SELECT home_team AS team FROM recent_matches
+            WHERE league IN ({placeholders}) AND season=?
+            UNION SELECT away_team FROM recent_matches
+            WHERE league IN ({placeholders}) AND season=?
+            UNION SELECT home_team FROM recent_events
+            WHERE league IN ({placeholders}) AND season=?
+            UNION SELECT away_team FROM recent_events
+            WHERE league IN ({placeholders}) AND season=?
+            UNION SELECT home_team FROM tournament_matches
+            WHERE competition IN ({placeholders}) AND season=?
+            UNION SELECT away_team FROM tournament_matches
+            WHERE competition IN ({placeholders}) AND season=?
+        """, [value for _ in range(6) for value in (*codes, season)]).fetchall()
+    participants = {team_key(row[0]) for row in rows}
+    return [
+        value for label, value in CLUBS.items()
+        if team_key(label) in participants or team_key(value) in participants
+    ]
 
 
 class RefreshCoordinator:
@@ -82,6 +114,10 @@ def run_refresh_pipeline(database: Path, request: RefreshRequest, progress: Prog
     requested = set(request.competitions)
     domestic = [code for code in RECENT_LEAGUES if not requested or code in requested]
     tournaments = [code for code in TOURNAMENTS if code in requested]
+    provider_tournaments = [
+        code for code in TOURNAMENTS
+        if code in THESPORTSDB_LEAGUE_IDS and (not requested or code in requested)
+    ]
 
     if request.target_step >= 1:
         progress(1, "Results and fixtures", "Downloading current results and the next listed fixtures.")
@@ -93,18 +129,28 @@ def run_refresh_pipeline(database: Path, request: RefreshRequest, progress: Prog
             )
             if report and all(row.get("status") == "failed" for row in report):
                 raise RuntimeError("No result partition could be refreshed")
+        if provider_tournaments:
+            from football_analysis.recent import sync_cup_events
+            sync_cup_events(
+                db=database, season=season, competitions=provider_tournaments,
+                refresh=request.force_download,
+            )
 
     if request.target_step >= 2:
         progress(2, "Tables and competitions", "Refreshing reference tables and selected tournaments.")
         supported = [code for code in domestic if code in {"E0", "D1", "I1", "F1", "SP1"}]
         if supported:
             from football_analysis.reference_standings import sync as sync_standings
-            sync_standings(db=database, years=[season], leagues=supported)
-        if tournaments:
+            sync_standings(
+                db=database, years=[season], leagues=supported,
+                refresh=request.force_download,
+            )
+        openfootball_tournaments = [code for code in tournaments if code in OPENFOOTBALL_TOURNAMENTS]
+        if openfootball_tournaments:
             from football_analysis.tournaments import OpenFootballTournaments, sync_tournaments
             sync_tournaments(
                 db=database,
-                partitions=[(code, season) for code in tournaments],
+                partitions=[(code, season) for code in openfootball_tournaments],
                 adapter=OpenFootballTournaments(refresh=request.force_download),
             )
 
@@ -116,10 +162,21 @@ def run_refresh_pipeline(database: Path, request: RefreshRequest, progress: Prog
         from football_analysis.players import sync_players
 
         sync_open_players(db=database, refresh=request.force_download)
-        sync_players(db=database, clubs=list(CLUBS.values()), include_stats=False)
+        featured = _featured_clubs_in_scope(database, requested, season)
+        if featured:
+            sync_players(
+                db=database, clubs=featured, include_stats=False,
+                refresh=request.force_download,
+            )
         media_leagues = [code for code in (*domestic, *tournaments) if code in THESPORTSDB_LEAGUE_IDS]
-        sync_media(db=database, clubs=list(CLUBS.values()), leagues=media_leagues)
-        sync_event_details(db=database)
+        sync_media(
+            db=database, clubs=featured, leagues=media_leagues,
+            refresh=request.force_download,
+        )
+        sync_event_details(
+            db=database, refresh=request.force_download,
+            leagues=[*domestic, *provider_tournaments] if requested else None,
+        )
 
     if request.target_step >= 4:
         progress(4, "Models and validation", "Rebuilding analytical caches and calibrated forecasts.")
@@ -127,4 +184,4 @@ def run_refresh_pipeline(database: Path, request: RefreshRequest, progress: Prog
         from football_analysis.predictions import sync_predictions
 
         refresh_analytics_cache(db=database)
-        sync_predictions(db=database)
+        sync_predictions(db=database, force=request.force_download)

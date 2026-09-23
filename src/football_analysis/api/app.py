@@ -116,13 +116,14 @@ def create_app(
         competition: str | None = None,
         season: int | None = None,
         team: str | None = None,
+        opponent: str | None = None,
         venue: str | None = None,
         cursor: str | None = None,
         limit: int = Query(default=50, ge=1, le=200),
     ):
         try:
             payload = queries.list_matches(
-                require_store(), competition, season, team, venue, cursor, limit,
+                require_store(), competition, season, team, opponent, venue, cursor, limit,
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc

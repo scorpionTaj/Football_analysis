@@ -106,6 +106,9 @@
 - [x] FA-074 Add cursor pagination and response-cache headers for match and player API routes.
 - [x] FA-085 Add the completed 2025 FIFA Club World Cup from OpenFootball's CC0 JSON feed.
 - [x] FA-086 Add all-loaded-team media sync, canonical provider aliases and resilient image fallbacks.
+- [x] FA-089 Make artwork backfills bounded and resumable, cache unavailable lookups, and skip unchanged open-player imports.
+- [x] FA-090 Add one incremental/bootstrap sync command, persisted source freshness and unchanged-partition/model skips; preserve player stats on profile refresh.
+- [x] FA-091 Separate prediction input engineering from training, add leakage-safe rolling shots on target, and validate its holdout improvement against a training-only baseline.
 - [x] FA-087 Add current-season league title outlooks and validate the 10-match calibrated result model chronologically.
 - [x] FA-088 Prove API/frontend parity for every legacy workflow, add missing reference/quality/tournament/correlation/player features, and remove the retired client and dependencies.
 - [ ] FA-084 Add a prediction retraining schedule only after the read-only API and ingestion job are deployed separately.

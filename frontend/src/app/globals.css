@@ -212,6 +212,7 @@
 
 html {
   color-scheme: dark;
+  overflow-x: clip;
   scroll-behavior: smooth;
 }
 
@@ -221,6 +222,7 @@ html.light {
 
 body {
   min-width: 320px;
+  overflow-x: clip;
   background:
     radial-gradient(circle at 78% -10%, color-mix(in srgb, var(--blue) 13%, transparent) 0, transparent 28rem),
     radial-gradient(circle at 15% 12%, color-mix(in srgb, var(--teal) 7%, transparent) 0, transparent 24rem),

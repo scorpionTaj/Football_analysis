@@ -16,15 +16,59 @@ RECENT_LEAGUES = {
 }
 TOURNAMENTS = {
     "UCL": "UEFA Champions League",
+    "UEL": "UEFA Europa League",
+    "UECL": "UEFA Conference League",
+    "USC": "UEFA Super Cup",
+    "FAC": "FA Cup",
+    "EFL": "Carabao Cup",
+    "GBCS": "FA Community Shield",
+    "CDR": "Copa del Rey",
+    "SUC": "Supercopa de España",
+    "DFB": "DFB-Pokal",
+    "CIT": "Coppa Italia",
+    "NLP": "KNVB Cup",
+    "EURO": "UEFA European Championship",
+    "COPA": "Copa América",
+    "AFCON": "Africa Cup of Nations",
+    "ASIAN": "AFC Asian Cup",
     "CWC": "FIFA Club World Cup",
     "WC": "FIFA World Cup",
 }
-CALENDAR_YEAR_TOURNAMENTS = {"CWC", "WC"}
+OPENFOOTBALL_TOURNAMENTS = {"UCL", "CWC", "WC"}
+CALENDAR_YEAR_TOURNAMENTS = {"CWC", "WC", "EURO", "COPA", "AFCON", "ASIAN"}
 COMPETITIONS = {**RECENT_LEAGUES, **TOURNAMENTS}
+COMPETITION_GROUPS = {
+    **{code: "Domestic leagues" for code in RECENT_LEAGUES},
+    **{code: "Domestic cups" for code in ("FAC", "EFL", "GBCS", "CDR", "SUC", "DFB", "CIT", "NLP")},
+    **{code: "Continental clubs" for code in ("UCL", "UEL", "UECL", "USC")},
+    **{code: "International teams" for code in ("WC", "EURO", "COPA", "AFCON", "ASIAN")},
+    "CWC": "World club competitions",
+}
+COMPETITION_REGIONS = {
+    **{code: "England" for code in ("E0", "FAC", "EFL", "GBCS")},
+    **{code: "Spain" for code in ("SP1", "CDR", "SUC")},
+    **{code: "Germany" for code in ("D1", "DFB")},
+    **{code: "Italy" for code in ("I1", "CIT")},
+    **{code: "Netherlands" for code in ("N1", "NLP")},
+    **{code: "Europe" for code in ("UCL", "UEL", "UECL", "USC", "EURO")},
+    **{code: "International" for code in ("WC", "CWC", "COPA", "AFCON", "ASIAN")},
+}
+# Published Transfermarkt competition ids mapped to the app's stable codes.
+TRANSFERMARKT_COMPETITIONS = {
+    "GB1": "E0", "ES1": "SP1", "L1": "D1", "IT1": "I1", "FR1": "F1",
+    "NL1": "N1", "PO1": "P1", "BE1": "B1", "TR1": "T1", "GR1": "G1",
+    "CL": "UCL", "EL": "UEL", "UCOL": "UECL", "USC": "USC",
+    "FAC": "FAC", "GBCS": "GBCS", "CDR": "CDR", "SUC": "SUC",
+    "DFB": "DFB", "CIT": "CIT", "NLP": "NLP",
+    "EURO": "EURO", "COPA": "COPA", "AFCN": "AFCON", "AFAC": "ASIAN",
+    "FIWC": "WC",
+}
+TRANSFERMARKT_TOURNAMENT_CODES = set(TOURNAMENTS) - {"CWC"}
 THESPORTSDB_LEAGUE_IDS = {
     "E0": 4328, "D1": 4331, "I1": 4332, "F1": 4334, "SP1": 4335,
     "G1": 4336, "N1": 4337, "B1": 4338, "T1": 4339, "P1": 4344,
-    "UCL": 4480, "WC": 4429,
+    "UCL": 4480, "UEL": 4481, "UECL": 5071, "WC": 4429,
+    "FAC": 4482, "EFL": 4570, "CDR": 4483, "SUC": 4511,
 }
 CLUBS = {"Real Madrid": "Real Madrid", "Barcelona": "FC Barcelona", "Ath Madrid": "Atlético Madrid", "Man City": "Manchester City", "Liverpool": "Liverpool", "Arsenal": "Arsenal", "Bayern Munich": "Bayern Munich", "Dortmund": "Borussia Dortmund", "Paris SG": "Paris Saint-Germain", "Inter": "Inter Milan", "Milan": "AC Milan", "Juventus": "Juventus"}
 

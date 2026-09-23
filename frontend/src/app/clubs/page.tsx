@@ -11,6 +11,7 @@ import { LoadingSkeleton, ErrorMessage, EmptyState } from '@/components/ui/loadi
 import { PageHeader } from '@/components/ui/page-header';
 import { Shield, TrendingUp, Calendar, Trophy, Download, Swords, BarChart2 } from 'lucide-react';
 import { usePagination } from '@/components/ui/pagination';
+import { FootballBadge } from '@/lib/media-utils';
 import {
   LineChart,
   Line,
@@ -36,12 +37,23 @@ function ClubLabContent() {
   });
 
   const allTeams = useMemo(() => {
-    const map = new Map<string, string>();
+    const map = new Map<string, NonNullable<typeof teamData>['teams'][number]>();
     for (const t of teamData?.teams || []) {
-      map.set(t.name, t.team_id);
+      const key = t.team_id || t.name;
+      const existing = map.get(key);
+      if (
+        !existing
+        || t.played > existing.played
+        || (t.played === existing.played && !existing.badge_url && !!t.badge_url)
+      ) {
+        map.set(key, t);
+      }
     }
-    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [teamData]);
+  const selectedTeam = allTeams.find((team) => team.name === selectedClub);
+  const opponentTeam = allTeams.find((team) => team.name === opponentClub);
+  const selectedTeamId = selectedTeam?.team_id;
 
   // Request analysis for the selected club across all seasons
   const requestBody = useMemo(() => ({
@@ -80,11 +92,12 @@ function ClubLabContent() {
     enabled: !!selectedClub,
   });
 
-  // Fetch fixtures for opponent club if in H2H mode
-  const { data: opponentMatchData } = useQuery({
-    queryKey: queryKeys.matches({ team: opponentClub, limit: 100 }),
-    queryFn: () => api.matches({ team: opponentClub, limit: 100 }),
-    enabled: activeTab === 'h2h' && !!opponentClub,
+  // Direct filtering spans leagues and cups without losing older meetings to
+  // either club's general recent-match pagination.
+  const { data: h2hData } = useQuery({
+    queryKey: queryKeys.matches({ team: selectedClub, opponent: opponentClub, limit: 200 }),
+    queryFn: () => api.matches({ team: selectedClub, opponent: opponentClub, limit: 200 }),
+    enabled: activeTab === 'h2h' && !!selectedClub && !!opponentClub,
   });
 
   const seasonsList = useMemo(() => {
@@ -176,7 +189,7 @@ function ClubLabContent() {
   const rollingForm = useMemo(() => {
     const ordered = [...matches].filter((match) => match.home_goals != null && match.away_goals != null).sort((a, b) => a.match_date.localeCompare(b.match_date));
     const points: number[] = ordered.map((match) => {
-      const isHome = match.home.name === selectedClub;
+      const isHome = match.home.team_id === selectedTeamId;
       const goalsFor = isHome ? match.home_goals! : match.away_goals!;
       const goalsAgainst = isHome ? match.away_goals! : match.home_goals!;
       return goalsFor > goalsAgainst ? 3 : goalsFor === goalsAgainst ? 1 : 0;
@@ -185,7 +198,7 @@ function ClubLabContent() {
       const window = points.slice(Math.max(0, index - formWindow + 1), index + 1);
       return { date: match.match_date, PPG: Number((window.reduce((sum, value) => sum + value, 0) / window.length).toFixed(2)) };
     });
-  }, [matches, selectedClub, formWindow]);
+  }, [matches, selectedTeamId, formWindow]);
 
   const percentileProfile = useMemo(() => {
     const rows = benchmark?.rankings || [];
@@ -206,10 +219,10 @@ function ClubLabContent() {
 
   // Head-to-Head matches calculation
   const h2hMatches = useMemo(() => {
-    const combined = [...(matchData?.matches || []), ...(opponentMatchData?.matches || [])].filter((m) =>
-      (m.home.name === selectedClub && m.away.name === opponentClub) ||
-      (m.home.name === opponentClub && m.away.name === selectedClub)
-    );
+    // The API has already resolved provider aliases (for example Arsenal and
+    // Arsenal FC), so keep every direct result instead of re-filtering on the
+    // presentation label.
+    const combined = h2hData?.matches || [];
     const seen = new Set<string>();
     const unique: typeof combined = [];
     for (const m of combined) {
@@ -220,7 +233,7 @@ function ClubLabContent() {
       }
     }
     return unique.sort((a, b) => b.match_date.localeCompare(a.match_date));
-  }, [matchData?.matches, opponentMatchData?.matches, selectedClub, opponentClub]);
+  }, [h2hData?.matches]);
 
   // Paginated Head-to-Head encounters (10 per page)
   const { paginatedItems: paginatedH2HMatches, PaginationComponent: H2HPagination } = usePagination(h2hMatches, 10);
@@ -234,7 +247,7 @@ function ClubLabContent() {
 
     for (const m of h2hMatches) {
       if (m.home_goals === null || m.away_goals === null) continue;
-      const isHomeA = m.home.name === selectedClub;
+      const isHomeA = m.home.team_id === selectedTeamId;
       const aGoals = isHomeA ? m.home_goals : m.away_goals;
       const bGoals = isHomeA ? m.away_goals : m.home_goals;
 
@@ -253,7 +266,7 @@ function ClubLabContent() {
       clubAGoals,
       clubBGoals,
     };
-  }, [h2hMatches, selectedClub]);
+  }, [h2hMatches, selectedTeamId]);
 
   // Export CSV
   const exportCsv = () => {
@@ -295,17 +308,18 @@ function ClubLabContent() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-3">
             <div className="p-2.5 rounded-lg bg-blue/10 text-blue">
-              <Shield className="h-5 w-5" />
+              <FootballBadge name={selectedClub} url={selectedTeam?.badge_url} size={28} />
             </div>
             <div>
               <label className="text-xs font-medium text-subtext0 block">Primary Club</label>
               <select
+                aria-label="Primary club"
                 value={selectedClub}
                 onChange={(e) => filters.set({ team: e.target.value })}
                 className="mt-0.5 rounded-lg border border-surface1 bg-mantle px-3 py-1.5 text-sm font-semibold text-text outline-none cursor-pointer hover:border-surface2 focus:border-blue"
               >
-                {allTeams.map(([name]) => (
-                  <option key={name} value={name}>{name}</option>
+                {allTeams.map((team) => (
+                  <option key={`${team.team_id || 'team'}-${team.name}`} value={team.name}>{team.name}</option>
                 ))}
               </select>
             </div>
@@ -316,12 +330,13 @@ function ClubLabContent() {
                 <div>
                   <label className="text-xs font-medium text-subtext0 block">Opponent Club</label>
                   <select
+                    aria-label="Opponent club"
                     value={opponentClub}
                     onChange={(e) => setOpponentClub(e.target.value)}
                     className="mt-0.5 rounded-lg border border-surface1 bg-mantle px-3 py-1.5 text-sm font-semibold text-text outline-none cursor-pointer hover:border-surface2 focus:border-blue"
                   >
-                    {allTeams.map(([name]) => (
-                      <option key={name} value={name}>{name}</option>
+                    {allTeams.map((team) => (
+                      <option key={`${team.team_id || 'team'}-${team.name}`} value={team.name}>{team.name}</option>
                     ))}
                   </select>
                 </div>
@@ -329,7 +344,7 @@ function ClubLabContent() {
             )}
             <div>
               <label className="text-xs font-medium text-subtext0 block">Recent form</label>
-              <select value={formWindow} onChange={(event) => setFormWindow(Number(event.target.value))} className="mt-0.5 rounded-lg border border-surface1 bg-mantle px-3 py-1.5 text-sm font-semibold text-text outline-none">
+              <select aria-label="Recent form window" value={formWindow} onChange={(event) => setFormWindow(Number(event.target.value))} className="mt-0.5 rounded-lg border border-surface1 bg-mantle px-3 py-1.5 text-sm font-semibold text-text outline-none">
                 {[3, 5, 8, 10].map((value) => <option key={value} value={value}>Last {value}</option>)}
               </select>
             </div>
@@ -581,8 +596,8 @@ function ClubLabContent() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
               {/* Club A */}
               <div className="flex items-center gap-4 text-left">
-                <div className="h-14 w-14 rounded-2xl bg-blue/15 text-blue flex items-center justify-center font-bold text-xl border border-blue/20">
-                  {selectedClub.slice(0, 2).toUpperCase()}
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-blue/20 bg-blue/10">
+                  <FootballBadge name={selectedClub} url={selectedTeam?.badge_url} size={48} />
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-text">{selectedClub}</h3>
@@ -600,8 +615,8 @@ function ClubLabContent() {
 
               {/* Club B */}
               <div className="flex items-center gap-4 text-right sm:flex-row-reverse">
-                <div className="h-14 w-14 rounded-2xl bg-peach/15 text-peach flex items-center justify-center font-bold text-xl border border-peach/20">
-                  {opponentClub.slice(0, 2).toUpperCase()}
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-peach/20 bg-peach/10">
+                  <FootballBadge name={opponentClub} url={opponentTeam?.badge_url} size={48} />
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-text">{opponentClub}</h3>
@@ -698,13 +713,13 @@ function ClubLabContent() {
               <EmptyState
                 icon="⚽"
                 message={`No direct matches found between ${selectedClub} and ${opponentClub} in covered fixtures.`}
-                suggestion="Select two clubs from the same domestic league to view historical clashes."
+                suggestion="Select any two covered clubs to search direct meetings across leagues and cups."
               />
             ) : (
               <div className="space-y-3">
                 <div className="space-y-2">
                   {paginatedH2HMatches.map((m, idx) => {
-                    const isHomeA = m.home.name === selectedClub;
+                    const isHomeA = m.home.team_id === selectedTeamId;
                     const clubAGoals = isHomeA ? m.home_goals : m.away_goals;
                     const clubBGoals = isHomeA ? m.away_goals : m.home_goals;
                     const winner =
@@ -726,8 +741,10 @@ function ClubLabContent() {
                           <span className="rounded bg-surface0 px-2 py-0.5 text-subtext1 font-medium">
                             {m.competition}
                           </span>
-                          <span className="text-subtext0">
+                          <span className="flex items-center gap-1.5 text-subtext0">
+                            <FootballBadge name={m.home.name} url={m.home.badge_url} size={20} />
                             {m.home.name} (H) vs {m.away.name} (A)
+                            <FootballBadge name={m.away.name} url={m.away.badge_url} size={20} />
                           </span>
                         </div>
 
@@ -769,7 +786,7 @@ function ClubLabContent() {
 export default function ClubsPage() {
   return (
     <div className="space-y-6">
-      <PageHeader icon={Shield} eyebrow="Club intelligence" title="Club Lab & Head-to-Head" description="Profile long-term performance, inspect recent results and compare two clubs across the same evidence." />
+      <PageHeader icon={Shield} eyebrow="Club intelligence" title="Club Lab & Head-to-Head" description="Profile long-term performance, inspect recent results and compare two clubs across leagues and cups." />
 
       <Suspense fallback={<LoadingSkeleton lines={10} />}>
         <ClubLabContent />

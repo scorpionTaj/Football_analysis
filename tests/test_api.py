@@ -231,6 +231,8 @@ def test_matches_use_cursor_pagination_and_etags(tmp_path):
     assert payload["page"]["next_cursor"]
     second = api.get("/api/v1/matches", params={"limit": 1, "cursor": payload["page"]["next_cursor"]})
     assert second.json()["matches"][0]["match_date"] != payload["matches"][0]["match_date"]
+    h2h = api.get("/api/v1/matches", params={"team": "Arsenal", "opponent": "Liverpool", "limit": 200})
+    assert len(h2h.json()["matches"]) == 1
     etag = first.headers["ETag"]
     cached = api.get("/api/v1/matches", params={"limit": 1}, headers={"If-None-Match": etag})
     assert cached.status_code == 304
@@ -341,7 +343,7 @@ def test_shots_and_event_details_contract(tmp_path):
     assert events.json()["events"][0]["statistics_count"] == 1
     detail = api.get("/api/v1/event-details/event-1")
     assert detail.status_code == 200
-    assert detail.json()["statistics"][0]["statistic"] == "Shots on Goal"
+    assert any(row["statistic"] == "Shots on Goal" for row in detail.json()["statistics"])
     assert detail.json()["timeline"][0]["player"] == "Bukayo Saka"
     assert detail.json()["lineups"][0]["shirt_number"] == "7"
     assert api.get("/api/v1/event-details/missing").status_code == 404
@@ -362,7 +364,7 @@ def test_match_centre_combines_stored_stats_context_and_events(tmp_path):
     assert payload["timeline"][0]["player"] == "Bukayo Saka"
     assert any("12 to 8" in sentence for sentence in payload["narrative"])
     assert all("4 to 3" not in sentence for sentence in payload["narrative"])
-    assert any("1 goal." in sentence for sentence in payload["narrative"])
+    assert any("2 goals." in sentence for sentence in payload["narrative"])
     assert payload["lineup_complete"] is False
 
 

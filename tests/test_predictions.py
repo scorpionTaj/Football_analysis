@@ -53,3 +53,29 @@ def test_future_features_do_not_require_or_invent_an_outcome():
     future = future_features(matches, fixtures)
     assert len(future) == 1
     assert future[list(FEATURES)].notna().all(axis=None)
+
+
+def test_shot_form_uses_only_prior_match_days():
+    matches = pd.DataFrame([
+        {"league": "E0", "season": 2024, "match_date": "2024-08-01",
+         "home_team": "Arsenal", "away_team": "Liverpool", "home_goals": 2,
+         "away_goals": 0, "home_sot": 10, "away_sot": 1},
+        {"league": "E0", "season": 2024, "match_date": "2024-08-01",
+         "home_team": "Arsenal", "away_team": "Chelsea", "home_goals": 1,
+         "away_goals": 1, "home_sot": 9, "away_sot": 2},
+        {"league": "E0", "season": 2024, "match_date": "2024-08-08",
+         "home_team": "Arsenal", "away_team": "Man City", "home_goals": 0,
+         "away_goals": 1, "home_sot": 3, "away_sot": 5},
+    ])
+    features = build_match_features(matches)
+    assert features.iloc[0].home_sot_for == 4.4
+    assert features.iloc[1].home_sot_for == 4.4
+    assert features.iloc[2].home_sot_for == 9.5
+
+
+def test_holdout_baseline_uses_training_prevalence():
+    features = build_match_features(sample_matches())
+    _, _, train, validation, _, metrics = train_time_split(features)
+    training_rates = train.actual_result.value_counts(normalize=True)
+    expected = -np.log(validation.actual_result.map(training_rates)).mean()
+    assert np.isclose(metrics["baseline_log_loss"], expected)

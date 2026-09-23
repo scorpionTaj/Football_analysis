@@ -48,6 +48,7 @@ def test_replay_idempotency_and_failed_refresh_preserves_data(tmp_path):
         assert ingest(adapter, db, [2024], ['E0'])[0]['status'] == 'success'
     with connect(db) as con:
         assert con.sql('SELECT count(*) FROM matches').fetchone()[0] == 380
+        assert con.sql("SELECT count(*) FROM ingestion_runs WHERE status='success'").fetchone()[0] == 1
         record = con.sql("SELECT played,wins,draws,losses,goals_for,goals_against,points,clean_sheets FROM team_seasons WHERE team='Arsenal'").fetchone()
         assert record == (38,19,0,19,38,38,57,19)
         assert con.sql('SELECT count(*) FROM matches WHERE home_shots IS NULL').fetchone()[0] == 380

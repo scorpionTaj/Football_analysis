@@ -18,6 +18,16 @@ import { SourceBadge } from '@/components/ui/source-badge';
 
 type Side = 'home' | 'away';
 
+function timelineMark(eventType: string | null) {
+  const event = (eventType || '').toLowerCase();
+  if (event.includes('missed')) return { mark: '✕', tone: 'border-red/35 bg-red/10 text-red' };
+  if (event.includes('red') || event.includes('second yellow')) return { mark: '■', tone: 'border-red/35 bg-red/10 text-red' };
+  if (event.includes('yellow')) return { mark: '■', tone: 'border-yellow/35 bg-yellow/10 text-yellow' };
+  if (event.includes('substitution')) return { mark: '↔', tone: 'border-teal/35 bg-teal/10 text-teal' };
+  if (event.includes('goal')) return { mark: '⚽', tone: 'border-green/35 bg-green/10 text-green' };
+  return { mark: '•', tone: 'border-surface2 bg-mantle text-subtext1' };
+}
+
 function roleBand(position: string | null): number {
   const role = (position || '').toLocaleLowerCase();
   if (role.includes('goal')) return 88;
@@ -225,8 +235,12 @@ export function MatchDetailCentre({ detail, onBack }: { detail: MatchCentreDetai
                 <div key={`${item.minute}-${item.player_id}-${index}`} className="relative grid grid-cols-[4.5rem_1fr] gap-3 py-2">
                   <span className="z-10 flex size-9 items-center justify-center rounded-full border border-surface2 bg-mantle font-mono text-xs font-black text-yellow">{item.minute ? `${item.minute}′` : '•'}</span>
                   <div className="rounded-xl border border-surface1 bg-mantle/60 p-3">
-                    <div className="flex items-center gap-2"><FootballBadge name={item.team.name} url={item.team.badge_url} size={20} /><p className="font-bold text-text">{item.player || item.event_type || 'Match event'}</p></div>
-                    <p className="mt-1 text-xs text-subtext0">{item.event_type}{item.detail ? ` · ${item.detail}` : ''}{item.assist ? ` · Assist: ${item.assist}` : ''}</p>
+                    <div className="flex items-center gap-2">
+                      <span className={`flex size-7 shrink-0 items-center justify-center rounded-lg border text-xs font-black ${timelineMark(item.event_type).tone}`}>{timelineMark(item.event_type).mark}</span>
+                      <FootballBadge name={item.team.name} url={item.team.badge_url} size={20} />
+                      <div className="min-w-0"><p className="truncate font-bold text-text">{item.player || item.event_type || 'Match event'}</p><p className="text-[10px] text-subtext0">{item.team.name}</p></div>
+                    </div>
+                    <p className="mt-2 text-xs text-subtext0">{item.event_type}{item.detail ? ` · ${item.detail}` : ''}{item.assist ? ` · ${item.event_type?.toLowerCase().includes('substitution') ? 'Player in' : 'Assist'}: ${item.assist}` : ''}</p>
                     {item.comment ? <p className="mt-1 text-xs text-subtext1">{item.comment}</p> : null}
                   </div>
                 </div>

@@ -184,11 +184,18 @@ CREATE TABLE IF NOT EXISTS external_source_metadata (
  licence VARCHAR, snapshot_season INTEGER, data_as_of DATE,
  player_rows INTEGER, statistic_rows INTEGER, fetched_at TIMESTAMP NOT NULL
 );
+CREATE TABLE IF NOT EXISTS source_sync_cache (
+ source VARCHAR PRIMARY KEY, fingerprint VARCHAR NOT NULL, synced_at TIMESTAMP NOT NULL
+);
 CREATE TABLE IF NOT EXISTS team_media (
  source VARCHAR NOT NULL, team_id VARCHAR NOT NULL, team VARCHAR NOT NULL,
  badge_url VARCHAR, logo_url VARCHAR, banner_url VARCHAR, fanart_url VARCHAR,
  stadium_url VARCHAR, fetched_at TIMESTAMP NOT NULL,
  PRIMARY KEY(source, team)
+);
+CREATE TABLE IF NOT EXISTS media_lookup_cache (
+ team_key VARCHAR PRIMARY KEY, team VARCHAR NOT NULL,
+ status VARCHAR NOT NULL, checked_at TIMESTAMP NOT NULL
 );
 CREATE TABLE IF NOT EXISTS competition_media (
  source VARCHAR NOT NULL, league_code VARCHAR NOT NULL, league_id VARCHAR NOT NULL,

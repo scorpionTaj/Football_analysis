@@ -1,6 +1,11 @@
 import pandas as pd
 
-from football_analysis.open_players import build_frames, build_match_context_frame
+from football_analysis.open_players import (
+    build_frames,
+    build_match_context_frame,
+    build_match_detail_frames,
+    build_transfermarkt_tournament_frames,
+)
 
 
 def _write(frame, path):
@@ -61,3 +66,43 @@ def test_match_context_normalizes_real_formation_and_coach_data(tmp_path):
     assert context.loc[0, "home_formation"] == "4-3-3"
     assert context.loc[0, "away_coach"] == "Arne Slot"
     assert context.loc[0, "attendance"] == 60200
+
+
+def test_match_detail_and_cup_frames_keep_players_cards_misses_and_images(tmp_path):
+    paths = {
+        "games": _write(pd.DataFrame([{
+            "game_id": 42, "competition_id": "FAC", "season": 2025,
+            "round": "Final", "date": "2026-05-16", "home_club_id": 11,
+            "away_club_id": 31, "home_club_name": "Arsenal FC",
+            "away_club_name": "Liverpool FC", "home_club_goals": 2,
+            "away_club_goals": 1, "stadium": "Wembley", "url": "memory",
+        }]), tmp_path / "games.csv.gz"),
+        "players": _write(pd.DataFrame([
+            {"player_id": 7, "name": "Home Player", "image_url": "https://example.test/home.jpg"},
+            {"player_id": 8, "name": "Away Player", "image_url": "https://example.test/away.jpg"},
+        ]), tmp_path / "players.csv.gz"),
+        "game_events": _write(pd.DataFrame([
+            {"game_event_id": "goal", "game_id": 42, "minute": 12, "type": "Goals", "club_id": 11, "club_name": "Arsenal FC", "player_id": 7, "description": "Right-footed shot", "player_in_id": None, "player_assist_id": None},
+            {"game_event_id": "red", "game_id": 42, "minute": 72, "type": "Cards", "club_id": 31, "club_name": "Liverpool FC", "player_id": 8, "description": "Red card, Serious foul", "player_in_id": None, "player_assist_id": None},
+            {"game_event_id": "miss", "game_id": 42, "minute": 120, "type": "Shootout", "club_id": 31, "club_name": "Liverpool FC", "player_id": 8, "description": ", Missed", "player_in_id": None, "player_assist_id": None},
+            {"game_event_id": "fallback", "game_id": 42, "minute": 88, "type": "Goals", "club_id": 11, "club_name": "Arsenal FC", "player_id": 9, "description": "Header", "player_in_id": None, "player_assist_id": None},
+        ]), tmp_path / "game_events.csv.gz"),
+        "game_lineups": _write(pd.DataFrame([
+            {"game_lineups_id": "lineup", "game_id": 42, "player_id": 7,
+             "club_id": 11, "player_name": "Home Player", "type": "starting_lineup",
+             "position": "Centre-Forward", "number": 9},
+            {"game_lineups_id": "fallback-lineup", "game_id": 42, "player_id": 9,
+             "club_id": 11, "player_name": "Lineup-only Scorer", "type": "substitutes",
+             "position": "Centre-Forward", "number": 19},
+        ]), tmp_path / "game_lineups.csv.gz"),
+    }
+
+    timeline, lineups = build_match_detail_frames(paths)
+    matches, goals = build_transfermarkt_tournament_frames(paths)
+
+    assert set(timeline.event_type) == {"Goal", "Red card", "Missed penalty"}
+    assert lineups.loc[0, "cutout_url"] == "https://example.test/home.jpg"
+    assert lineups.loc[0, "position"] == "Centre-Forward"
+    assert matches.loc[0, "competition"] == "FAC"
+    assert set(goals.player) == {"Home Player", "Lineup-only Scorer"}
+    assert timeline.loc[timeline.player_id == "9", "player"].iloc[0] == "Lineup-only Scorer"

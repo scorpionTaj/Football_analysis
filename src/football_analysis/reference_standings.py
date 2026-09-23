@@ -2,15 +2,16 @@
 
 import argparse
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pandas as pd
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-from .config import LEAGUES, seasons
+from .config import current_season, seasons
 from .ingest import connect
+from .sync_state import is_fresh, mark_fresh
 
 
 LEAGUE_IDS = {"E0": 4328, "D1": 4331, "I1": 4332, "F1": 4334, "SP1": 4335}
@@ -36,6 +37,7 @@ class TheSportsDBStandings:
         )
         response.raise_for_status()
         payload = response.json().get("table") or []
+        time.sleep(2.1)
         rows = []
         for item in payload:
             rows.append({
@@ -50,12 +52,25 @@ class TheSportsDBStandings:
         return pd.DataFrame(rows)
 
 
-def sync(adapter=None, db=None, years=None, leagues=None):
+def sync(adapter=None, db=None, years=None, leagues=None, refresh=False):
     adapter = adapter or TheSportsDBStandings()
     report = []
     with connect(db) if db is not None else connect() as con:
         for year in years if years is not None else seasons():
-            for league in leagues if leagues is not None else LEAGUES:
+            for league in leagues if leagues is not None else LEAGUE_IDS:
+                key = f"standings:{league}:{year}"
+                has_rows = con.execute(
+                    "SELECT count(*) FROM reference_standings WHERE source=? AND league=? AND season=?",
+                    [SOURCE, league, year],
+                ).fetchone()[0] > 0
+                max_age = (
+                    timedelta(hours=6) if year >= current_season()
+                    else None if has_rows else timedelta(days=1)
+                )
+                if not refresh and is_fresh(con, key, max_age):
+                    report.append({"league": league, "season": year, "status": "cached"})
+                    print(report[-1], flush=True)
+                    continue
                 try:
                     frame = adapter.fetch(league, year)
                     if not frame.empty:
@@ -65,6 +80,7 @@ def sync(adapter=None, db=None, years=None, leagues=None):
                         con.execute("DELETE FROM reference_standings WHERE source=? AND league=? AND season=?", [SOURCE, league, year])
                         if not frame.empty:
                             con.execute("INSERT INTO reference_standings SELECT * FROM incoming_reference")
+                        mark_fresh(con, key)
                         con.execute("COMMIT")
                     except Exception:
                         con.execute("ROLLBACK")
@@ -76,16 +92,16 @@ def sync(adapter=None, db=None, years=None, leagues=None):
                 except Exception as exc:
                     report.append({"league": league, "season": year, "status": "failed", "detail": str(exc)})
                 print(report[-1], flush=True)
-                time.sleep(2.1)
     return report
 
 
 def main():
     parser = argparse.ArgumentParser(description="Sync free top-five reference standings")
     parser.add_argument("--seasons", nargs="+", type=int)
-    parser.add_argument("--leagues", nargs="+", choices=LEAGUES)
+    parser.add_argument("--leagues", nargs="+", choices=LEAGUE_IDS)
+    parser.add_argument("--refresh", action="store_true", help="Bypass persisted freshness checks")
     args = parser.parse_args()
-    result = sync(years=args.seasons, leagues=args.leagues)
+    result = sync(years=args.seasons, leagues=args.leagues, refresh=args.refresh)
     raise SystemExit(1 if any(row["status"] == "failed" for row in result) else 0)
 
 

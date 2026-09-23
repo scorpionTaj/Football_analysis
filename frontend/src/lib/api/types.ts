@@ -25,6 +25,8 @@ export interface Competition {
   code: string;
   name: string;
   kind: 'domestic' | 'tournament';
+  group: string;
+  region: string | null;
   seasons: SeasonCoverage[];
   badge_url?: string | null;
   logo_url?: string | null;

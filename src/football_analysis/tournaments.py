@@ -14,8 +14,9 @@ from typing import Iterable
 import pandas as pd
 import requests
 
-from .config import DATA, DB, TOURNAMENTS
+from .config import DATA, DB, OPENFOOTBALL_TOURNAMENTS
 from .ingest import connect
+from .sync_state import cached_fingerprint, mark_fresh
 
 SOURCE = "OpenFootball (CC0)"
 UCL_SEASONS = tuple(range(2021, 2026))
@@ -223,6 +224,23 @@ def sync_tournaments(
         for competition, season in partitions or default_partitions():
             try:
                 batch = adapter.fetch(competition, season)
+                key = f"tournament:{competition}:{season}"
+                content = batch.frame.drop(columns="fetched_at", errors="ignore")
+                fingerprint = hashlib.sha256(
+                    batch.digest.encode()
+                    + pd.util.hash_pandas_object(content, index=False).values.tobytes()
+                ).hexdigest()
+                existing_count = con.execute(
+                    "SELECT count(*) FROM tournament_matches WHERE competition=? AND season=?",
+                    [competition, season],
+                ).fetchone()[0]
+                if cached_fingerprint(con, key) == fingerprint and existing_count == len(batch.frame):
+                    report.append({
+                        "competition": competition, "season": season,
+                        "status": "cached", "rows": len(batch.frame),
+                    })
+                    print(report[-1], flush=True)
+                    continue
                 con.register("incoming_tournament", batch.frame)
                 if not batch.goals.empty:
                     con.register("incoming_tournament_goals", batch.goals)
@@ -239,6 +257,7 @@ def sync_tournaments(
                     )
                     if not batch.goals.empty:
                         con.execute("INSERT INTO tournament_goals SELECT * FROM incoming_tournament_goals")
+                    mark_fresh(con, key, fingerprint)
                     con.execute("COMMIT")
                 except Exception:
                     con.execute("ROLLBACK")
@@ -263,7 +282,7 @@ def sync_tournaments(
 def main():
     parser = argparse.ArgumentParser(description="Sync free continental and world tournament results")
     parser.add_argument("--refresh", action="store_true")
-    parser.add_argument("--competition", choices=TOURNAMENTS)
+    parser.add_argument("--competition", choices=sorted(OPENFOOTBALL_TOURNAMENTS))
     parser.add_argument("--seasons", nargs="+", type=int)
     args = parser.parse_args()
     if args.competition:

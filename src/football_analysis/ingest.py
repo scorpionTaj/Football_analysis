@@ -7,6 +7,7 @@ import pandas as pd
 from .adapters import FootballDataCSV, LocalCSV
 from .analytics import elo_history, team_match_rows, team_shot_efficiency
 from .config import DATA, DB, LEAGUES, seasons
+from .sync_state import cached_fingerprint, mark_fresh
 
 def connect(db=DB):
     db.parent.mkdir(parents=True, exist_ok=True)
@@ -59,6 +60,7 @@ def refresh_analytics_cache(db=DB):
 
 def ingest(adapter, db=DB, years=None, leagues=None):
     report = []
+    changed = False
     with connect(db) as con:
         for year in years if years is not None else seasons():
             for league in leagues if leagues is not None else LEAGUES:
@@ -67,12 +69,23 @@ def ingest(adapter, db=DB, years=None, leagues=None):
                 try:
                     batch = adapter.fetch(league, year)
                     url, digest, count = batch.url, batch.digest, len(batch.frame)
+                    key = f"historical-matches:{league}:{year}"
+                    existing_count = con.execute(
+                        "SELECT count(*) FROM matches WHERE league=? AND season=?", [league, year]
+                    ).fetchone()[0]
+                    if cached_fingerprint(con, key) == digest and existing_count == count:
+                        report.append(dict(
+                            league=league, season=year, status="success", rows=count, unchanged=True,
+                        ))
+                        print(json.dumps(report[-1]), flush=True)
+                        continue
                     con.register("incoming", batch.frame)
                     con.execute("BEGIN")
                     try:
                         con.execute("DELETE FROM matches WHERE league=? AND season=?", [league, year])
                         con.execute("INSERT INTO matches SELECT * FROM incoming")
                         con.execute("INSERT INTO ingestion_runs VALUES (?, ?, ?, ?, ?, ?, 'success', '', current_timestamp)", [run_id, league, year, url, digest, count])
+                        mark_fresh(con, key, digest)
                         con.execute("COMMIT")
                     except Exception:
                         con.execute("ROLLBACK")
@@ -80,11 +93,12 @@ def ingest(adapter, db=DB, years=None, leagues=None):
                     finally:
                         con.unregister("incoming")
                     report.append(dict(league=league, season=year, status="success", rows=count))
+                    changed = True
                 except Exception as exc:
                     con.execute("INSERT INTO ingestion_runs VALUES (?, ?, ?, ?, ?, ?, 'failed', ?, current_timestamp)", [run_id, league, year, url, digest, count, str(exc)])
                     report.append(dict(league=league, season=year, status="failed", detail=str(exc)))
                 print(json.dumps(report[-1]), flush=True)
-        if any(row["status"] == "success" for row in report):
+        if changed:
             refresh_analytics(con)
     return report
 

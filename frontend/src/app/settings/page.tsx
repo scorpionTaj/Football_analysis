@@ -36,7 +36,7 @@ export default function SettingsPage() {
   const [refreshDepth, setRefreshDepth] = useState(4);
   const [refreshSeason, setRefreshSeason] = useState<number | null>(null);
   const [refreshCompetitions, setRefreshCompetitions] = useState<string[]>([]);
-  const [forceDownload, setForceDownload] = useState(true);
+  const [forceDownload, setForceDownload] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: health, refetch: refetchHealth } = useQuery({
@@ -304,7 +304,7 @@ export default function SettingsPage() {
 
           <label className="flex items-center gap-3 text-xs text-subtext1">
             <input type="checkbox" checked={forceDownload} onChange={(event) => setForceDownload(event.target.checked)} className="size-4 accent-[var(--blue)]" />
-            Download new source files instead of using the local cache
+            Force all sources to download again (slower; normal refresh checks freshness automatically)
           </label>
 
           {refreshStatus && refreshStatus.status !== 'idle' ? (

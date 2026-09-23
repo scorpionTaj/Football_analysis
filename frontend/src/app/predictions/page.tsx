@@ -34,6 +34,8 @@ function PredictionsContent() {
   const baseline = typeof metrics.baseline_accuracy === 'number' ? (metrics.baseline_accuracy * 100).toFixed(1) : null;
   const logLoss = typeof metrics.log_loss === 'number' ? metrics.log_loss.toFixed(3) : null;
   const temperature = typeof metrics.temperature === 'number' ? metrics.temperature.toFixed(2) : null;
+  const validationMatches = typeof metrics.validation_matches === 'number' ? metrics.validation_matches.toLocaleString() : null;
+  const shotCoverage = typeof metrics.shot_coverage === 'number' ? (metrics.shot_coverage * 100).toFixed(1) : null;
 
   const titleRaces = useMemo(() => {
     const names: Record<string, string> = {
@@ -116,7 +118,7 @@ function PredictionsContent() {
         </div>
 
         {/* Model Metrics */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-1">
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 pt-1">
           <div className="rounded-lg bg-mantle p-3 border border-surface1">
             <p className="text-xs uppercase text-subtext0 font-medium">Model Accuracy</p>
             <p className="text-xl font-bold text-green mt-1">{accuracy ? `${accuracy}%` : 'N/A'}</p>
@@ -137,9 +139,13 @@ function PredictionsContent() {
             <p className="text-xs uppercase text-subtext0 font-medium">Calibration</p>
             <p className="text-xl font-bold text-mauve mt-1">{temperature ? `${temperature}×` : 'N/A'}</p>
           </div>
+          <div className="rounded-lg bg-mantle p-3 border border-surface1">
+            <p className="text-xs uppercase text-subtext0 font-medium">Holdout Matches</p>
+            <p className="text-xl font-bold text-text mt-1">{validationMatches ?? 'N/A'}</p>
+          </div>
         </div>
         <p className="text-xs text-subtext0">
-          Probabilities are temperature-calibrated on a chronological calibration set, then scored on a later holdout set.
+          Uses only prior-match Elo, form, rest and shots on target. {shotCoverage ? `${shotCoverage}% of training results have shot data. ` : ''}Probabilities are calibrated on earlier matches, then scored on a later holdout set; the baseline is learned only from training matches.
         </p>
       </Card>
 

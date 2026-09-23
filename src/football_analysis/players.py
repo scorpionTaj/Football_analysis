@@ -3,7 +3,7 @@
 import argparse
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pandas as pd
 import requests
@@ -12,6 +12,8 @@ from urllib3.util.retry import Retry
 
 from .config import CLUBS, DB
 from .ingest import connect
+from .sync_state import is_fresh, mark_fresh
+from .teams import team_key
 
 
 SOURCE = "TheSportsDB"
@@ -139,18 +141,26 @@ def _stats_frame(rows, player_id):
     return frame
 
 
-def sync_players(db=DB, clubs=None, include_stats=True, adapter=None):
+def sync_players(db=DB, clubs=None, include_stats=True, adapter=None, refresh=False):
     clubs = clubs if clubs is not None else list(CLUBS.values())
     adapter = adapter or TheSportsDBPlayers()
     report = []
     with connect(db) as con:
         for club in clubs:
+            key = f"players:{'full' if include_stats else 'profiles'}:{team_key(club)}"
+            age = timedelta(days=30 if include_stats else 7)
+            if not refresh and is_fresh(con, key, age):
+                report.append({"club": club, "status": "cached"})
+                print(report[-1], flush=True)
+                continue
             try:
                 team = adapter.find_team(club)
                 if not team:
                     raise ValueError("Team was not found")
                 team_id = team["idTeam"]
                 profiles = _profile_frame(adapter.players(team_id), team_id, team.get("strTeam") or club)
+                if profiles.empty:
+                    raise ValueError("No player profiles were returned; existing rows were kept")
                 stat_frames = []
                 if include_stats:
                     for player_id in profiles.player_id if not profiles.empty else []:
@@ -164,8 +174,8 @@ def sync_players(db=DB, clubs=None, include_stats=True, adapter=None):
                     if not profiles.empty:
                         con.register("incoming_players", profiles)
                         con.execute("INSERT INTO players SELECT * FROM incoming_players")
-                    if not profiles.empty:
-                        player_ids = profiles.player_id.tolist()
+                    if include_stats and not stats.empty:
+                        player_ids = stats.player_id.unique().tolist()
                         con.execute(
                             f"DELETE FROM player_stats WHERE source=? AND player_id IN ({','.join('?' for _ in player_ids)})",
                             [SOURCE, *player_ids],
@@ -173,6 +183,9 @@ def sync_players(db=DB, clubs=None, include_stats=True, adapter=None):
                     if not stats.empty:
                         con.register("incoming_player_stats", stats)
                         con.execute("INSERT INTO player_stats SELECT * FROM incoming_player_stats")
+                    mark_fresh(con, key)
+                    if include_stats:
+                        mark_fresh(con, f"players:profiles:{team_key(club)}")
                     con.execute("COMMIT")
                 except Exception:
                     con.execute("ROLLBACK")
@@ -193,8 +206,9 @@ def main():
     parser = argparse.ArgumentParser(description="Sync capped free player profiles and statistics")
     parser.add_argument("--clubs", nargs="+")
     parser.add_argument("--profiles-only", action="store_true")
+    parser.add_argument("--refresh", action="store_true", help="Bypass persisted freshness checks")
     args = parser.parse_args()
-    result = sync_players(clubs=args.clubs, include_stats=not args.profiles_only)
+    result = sync_players(clubs=args.clubs, include_stats=not args.profiles_only, refresh=args.refresh)
     raise SystemExit(1 if any(row["status"] == "failed" for row in result) else 0)
 
 

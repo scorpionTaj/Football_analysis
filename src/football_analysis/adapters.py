@@ -95,8 +95,9 @@ def normalize(raw, league, year, url, require_complete=True):
     return Batch(df[cols], url, sha256(raw).hexdigest())
 
 class FootballDataCSV:
-    def __init__(self, cache: Path, refresh=False, require_complete=True):
+    def __init__(self, cache: Path, refresh=False, require_complete=True, max_age=None):
         self.cache, self.refresh, self.require_complete = cache, refresh, require_complete
+        self.max_age = max_age
         self.session = requests.Session()
         self.session.headers["User-Agent"] = "football-analysis/0.4 (personal research; cached CSV)"
         retry = Retry(total=3, backoff_factor=1, status_forcelist=[429,500,502,503,504], respect_retry_after_header=True)
@@ -106,7 +107,10 @@ class FootballDataCSV:
         code = f"{year%100:02d}{(year+1)%100:02d}"
         url = f"https://www.football-data.co.uk/mmz4281/{code}/{league}.csv"
         path = self.cache / code / f"{league}.csv"
-        if path.exists() and not self.refresh:
+        cached = path.exists() and not self.refresh and (
+            self.max_age is None or time.time() - path.stat().st_mtime < self.max_age.total_seconds()
+        )
+        if cached:
             raw = path.read_bytes()
         else:
             response = self.session.get(url, timeout=(10, 60))
@@ -114,10 +118,11 @@ class FootballDataCSV:
             raw = response.content
             time.sleep(1)  # Conservative courtesy interval, not a claimed provider quota.
         batch = normalize(raw, league, year, url, require_complete=self.require_complete)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = path.with_suffix(".tmp")
-        tmp.write_bytes(raw)
-        tmp.replace(path)
+        if not cached:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = path.with_suffix(".tmp")
+            tmp.write_bytes(raw)
+            tmp.replace(path)
         return batch
 
 class LocalCSV:

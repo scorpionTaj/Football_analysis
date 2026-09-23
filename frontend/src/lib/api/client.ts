@@ -73,6 +73,7 @@ export const api = {
     competition?: string;
     season?: number;
     team?: string;
+    opponent?: string;
     venue?: string;
     cursor?: string;
     limit?: number;
@@ -93,7 +94,7 @@ export const api = {
     match_date: string;
     home: string;
     away: string;
-  }) => request<MatchCentreDetailResponse>(`/api/v1/match-detail${params({ ...match, contract: 2 })}`),
+  }) => request<MatchCentreDetailResponse>(`/api/v1/match-detail${params({ ...match, contract: 3 })}`),
 
   analysis: (body: Partial<AnalysisFilters>) =>
     request<AnalysisReportResponse>('/api/v1/analysis', {

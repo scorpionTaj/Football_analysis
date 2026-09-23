@@ -45,6 +45,8 @@ class Competition(BaseModel):
     code: str
     name: str
     kind: Literal["domestic", "tournament"]
+    group: str = "Other competitions"
+    region: str | None = None
     seasons: list[SeasonCoverage] = Field(default_factory=list)
     source: SourceMeta | None = None
     badge_url: str | None = None

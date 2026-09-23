@@ -1,4 +1,5 @@
 import football_analysis.recent as recent
+import pandas as pd
 
 
 class _Response:
@@ -40,3 +41,22 @@ def test_recent_event_adapter_preserves_available_match_metadata(monkeypatch):
     assert row.home_formation == "4-3-3"
     assert row.venue == "Emirates Stadium"
     assert row.attendance == 60200
+
+
+def test_empty_cup_window_is_cached_without_repeated_requests(tmp_path):
+    class Adapter:
+        calls = 0
+
+        def fetch_season(self, competition, season):
+            self.calls += 1
+            return pd.DataFrame()
+
+    adapter = Adapter()
+    db = tmp_path / "cups.duckdb"
+    assert recent.sync_cup_events(
+        db=db, season=2026, competitions=["FAC"], adapter=adapter,
+    )[0]["status"] == "unavailable"
+    assert recent.sync_cup_events(
+        db=db, season=2026, competitions=["FAC"], adapter=adapter,
+    )[0]["status"] == "cached"
+    assert adapter.calls == 1

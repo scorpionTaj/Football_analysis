@@ -123,3 +123,12 @@ Exit gate: ✅ API contract test, selector parity, empty-data behavior, download
 6. [x] Remove the retired Python UI entry point, UI-only tests and unused UI/chart dependencies.
 
 Final cutover gate: ✅ API tests, production build, browser flows and metric reconciliation pass on the same data snapshot. The data model was unchanged; rollback remains a Git revert.
+
+## Phase 10 — match intelligence and competition expansion ✅
+
+1. [x] Import the published `game_events` and `game_lineups` snapshots into normalized timeline and lineup contracts, with lineup-name fallback for publisher player-ID gaps.
+2. [x] Render named goals, yellow/red/second-yellow cards, missed penalties and substitutions with minutes, club badges and assists.
+3. [x] Render verified formations, coaches, player positions and portraits; preserve an explicit unavailable state where no source supplied the field.
+4. [x] Group domestic cups, continental club competitions, world club competitions and international teams in every competition selector.
+5. [x] Expand Club Lab head-to-head to the unified league-and-cup store using canonical team IDs and image-backed comparison cards.
+6. [x] Verify Premier League and FA Cup match detail, selector stability, zero broken loaded images and a 390 px layout without horizontal overflow.

@@ -74,6 +74,8 @@ from football_analysis.api.db import ReadOnlyStore
 from football_analysis.api.pagination import decode_cursor, encode_cursor
 from football_analysis.config import (
     CALENDAR_YEAR_TOURNAMENTS,
+    COMPETITION_GROUPS,
+    COMPETITION_REGIONS,
     COMPETITIONS,
     LEAGUES,
     RECENT_LEAGUES,
@@ -85,7 +87,7 @@ from football_analysis.config import (
 from football_analysis.teams import display_team, team_key
 
 
-API_SCHEMA_REVISION = "2026-09-15-match-centre-v1"
+API_SCHEMA_REVISION = "2026-09-23-match-centre-v2"
 
 
 def _now() -> datetime:
@@ -261,8 +263,13 @@ def catalog(store: ReadOnlyStore) -> CatalogResponse:
             ))
         media = media_map.get(code)
         competitions.append(Competition(
-            code=code, name=name, kind=kind, seasons=season_rows,
-            source=_source("football-data.co.uk" if kind == "domestic" else "openfootball", "loaded", freshness),
+            code=code, name=name, kind=kind,
+            group=COMPETITION_GROUPS.get(code, "Other competitions"),
+            region=COMPETITION_REGIONS.get(code), seasons=season_rows,
+            source=_source(
+                "football-data.co.uk" if kind == "domestic" else "OpenFootball + Transfermarkt Open Dataset",
+                "loaded partitions only", freshness,
+            ),
             badge_url=getattr(media, "badge_url", None) or None,
             logo_url=getattr(media, "logo_url", None) or None,
             banner_url=getattr(media, "banner_url", None) or None,
@@ -420,6 +427,7 @@ def list_matches(
     competition: str | None = None,
     season: int | None = None,
     team: str | None = None,
+    opponent: str | None = None,
     venue: str | None = None,
     cursor: str | None = None,
     limit: int = 50,
@@ -472,7 +480,15 @@ def list_matches(
         key = team_key(team) or team
         home_keys = frame.home_team.map(team_key)
         away_keys = frame.away_team.map(team_key)
-        frame = frame[(home_keys == key) | (away_keys == key) | (frame.home_team == team) | (frame.away_team == team)]
+        team_mask = (home_keys == key) | (away_keys == key) | (frame.home_team == team) | (frame.away_team == team)
+        if opponent:
+            opponent_key = team_key(opponent) or opponent
+            opponent_mask = (
+                (home_keys == opponent_key) | (away_keys == opponent_key)
+                | (frame.home_team == opponent) | (frame.away_team == opponent)
+            )
+            team_mask &= opponent_mask
+        frame = frame[team_mask]
         if venue == "Home":
             frame = frame[home_keys == key]
         elif venue == "Away":
@@ -702,6 +718,43 @@ def _present(value) -> str | None:
     return text or None
 
 
+def _stored_timeline(store: ReadOnlyStore, event_id: str, source: str) -> list[EventTimelineItem]:
+    if not _has(store, "event_timeline"):
+        return []
+    rows = store.query(
+        "SELECT * FROM event_timeline WHERE source = ? AND event_id = ? "
+        "ORDER BY try_cast(minute AS INTEGER) NULLS LAST, timeline_id",
+        [source, str(event_id)],
+    )
+    media = _team_media_map(store)
+    return [EventTimelineItem(
+        minute=_present(row.minute), event_type=_present(row.event_type),
+        detail=_present(row.detail), team=_build_team_ref(row.team, media),
+        player_id=_present(row.player_id), player=_present(row.player),
+        assist=_present(row.assist),
+        is_home=None if pd.isna(row.is_home) else bool(row.is_home),
+        comment=_present(row.comment),
+    ) for row in rows.itertuples(index=False)]
+
+
+def _stored_lineups(store: ReadOnlyStore, event_id: str, source: str) -> list[EventLineupItem]:
+    if not _has(store, "event_lineups"):
+        return []
+    rows = store.query(
+        "SELECT * FROM event_lineups WHERE source = ? AND event_id = ? "
+        "ORDER BY is_home DESC, is_substitute, team, position, player",
+        [source, str(event_id)],
+    )
+    media = _team_media_map(store)
+    return [EventLineupItem(
+        team=_build_team_ref(row.team, media), player_id=_present(row.player_id),
+        player=_present(row.player), position=_present(row.position),
+        is_home=None if pd.isna(row.is_home) else bool(row.is_home),
+        is_substitute=None if pd.isna(row.is_substitute) else bool(row.is_substitute),
+        shirt_number=_present(row.shirt_number), cutout_url=_present(row.cutout_url),
+    ) for row in rows.itertuples(index=False)]
+
+
 def _match_narrative(
     match: Match,
     statistics: list[EventStatistic],
@@ -762,7 +815,10 @@ def match_centre_detail(
         wanted_date = pd.Timestamp(match_date).date()
     except (TypeError, ValueError):
         return None
-    listing = list_matches(store, competition, season, home, None, None, 200)
+    listing = list_matches(
+        store, competition=competition, season=season, team=home,
+        opponent=away, limit=200,
+    )
     wanted_home, wanted_away = team_key(home), team_key(away)
     match = next((
         item for item in listing.matches
@@ -796,6 +852,7 @@ def match_centre_detail(
                 break
 
     event_id = str(event_row.event_id) if event_row is not None else None
+    context_event_id = _present(getattr(context, "match_id", None))
     provider_detail = event_detail(store, event_id) if event_id else None
     statistics = list(provider_detail.statistics) if provider_detail else []
     known_stats = {item.statistic.casefold() for item in statistics}
@@ -816,7 +873,11 @@ def match_centre_detail(
                 away_value=None if away_value is None else float(away_value),
             ))
 
-    timeline = list(provider_detail.timeline) if provider_detail else []
+    transfermarkt_timeline = (
+        _stored_timeline(store, context_event_id, "Transfermarkt Open Dataset")
+        if context_event_id else []
+    )
+    timeline = transfermarkt_timeline or (list(provider_detail.timeline) if provider_detail else [])
     if not timeline and competition in TOURNAMENTS and _has(store, "tournament_goals"):
         goals = store.query(
             "SELECT * FROM tournament_goals WHERE competition = ? AND season = ? AND match_date = ?",
@@ -835,7 +896,29 @@ def match_centre_detail(
             ))
         timeline = sorted(goal_rows, key=lambda item: int("".join(filter(str.isdigit, item.minute or "999")) or 999))
 
-    lineups = list(provider_detail.lineups) if provider_detail else []
+    transfermarkt_lineups = (
+        _stored_lineups(store, context_event_id, "Transfermarkt Open Dataset")
+        if context_event_id else []
+    )
+    lineups = transfermarkt_lineups or (list(provider_detail.lineups) if provider_detail else [])
+
+    # Prefer verified event counts over a missing/incorrect aggregate without erasing
+    # a larger provider total. A second yellow is a sending-off as well as a card event.
+    for label, matcher in (
+        ("Yellow cards", lambda value: "yellow" in value),
+        ("Red cards", lambda value: "red card" in value or "second yellow" in value),
+    ):
+        home_count = sum(item.is_home is True and matcher((item.event_type or "").casefold()) for item in timeline)
+        away_count = sum(item.is_home is False and matcher((item.event_type or "").casefold()) for item in timeline)
+        if home_count or away_count:
+            existing = next((item for item in statistics if item.statistic.casefold() == label.casefold()), None)
+            if existing:
+                existing.home_value = float(max(home_count, int(existing.home_value or 0)))
+                existing.away_value = float(max(away_count, int(existing.away_value or 0)))
+            else:
+                statistics.append(EventStatistic(
+                    statistic=label, home_value=float(home_count), away_value=float(away_count),
+                ))
     home_starters = sum(item.is_home is True and item.is_substitute is not True for item in lineups)
     away_starters = sum(item.is_home is False and item.is_substitute is not True for item in lineups)
     lineup_complete = home_starters >= 11 and away_starters >= 11
@@ -877,7 +960,7 @@ def match_centre_detail(
         source_names.append("TheSportsDB")
     return MatchCentreDetailResponse(
         match=match,
-        event_id=event_id,
+        event_id=event_id or context_event_id,
         status=_present(getattr(event_row, "status", None)),
         home_coach=home_coach,
         away_coach=away_coach,
@@ -1190,10 +1273,11 @@ def tournament(store: ReadOnlyStore, competition: str, season: int) -> Tournamen
             for row in goals.itertuples(index=False)
         ]
     freshness = None if matches.empty else matches.fetched_at.max()
+    source_names = sorted({str(value) for value in matches.source.dropna() if str(value).strip()}) if not matches.empty else []
     return TournamentResponse(
         competition=competition, name=name, season=season,
         stages=stages, matches=payload, scorers=scorers,
-        source=_source("openfootball", "tournament", freshness),
+        source=_source(" + ".join(source_names) or "configured tournament sources", "tournament", freshness),
     )
 
 
@@ -1377,7 +1461,7 @@ def _league_title_outlooks(store: ReadOnlyStore, tm_map: dict[str, Any]) -> list
 
 
 def predictions(store: ReadOnlyStore) -> PredictionsResponse:
-    empty = PredictionsResponse(source=_source("softmax-form-elo", "empty"))
+    empty = PredictionsResponse(source=_source("softmax-form-shots", "empty"))
     if not _has(store, "prediction_models"):
         return empty
     models = store.query("SELECT * FROM prediction_models ORDER BY trained_at DESC LIMIT 1")
@@ -1411,7 +1495,7 @@ def predictions(store: ReadOnlyStore) -> PredictionsResponse:
         validation_cutoff=_as_date(model.validation_cutoff),
         metrics=metrics, calibration=calibration, forecasts=forecasts,
         league_outlooks=_league_title_outlooks(store, tm_map),
-        source=_source("softmax-form-elo", "predictions", model.trained_at),
+        source=_source("softmax-form-shots", "predictions", model.trained_at),
     )
 
 

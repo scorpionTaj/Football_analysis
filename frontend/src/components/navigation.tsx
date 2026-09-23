@@ -153,7 +153,7 @@ export function Sidebar({ isOpen = false, onClose }: { isOpen?: boolean; onClose
               <span className="absolute inline-flex size-full animate-ping rounded-full bg-green opacity-50 motion-reduce:animate-none" />
               <span className="relative inline-flex size-2 rounded-full bg-green" />
             </span>
-            Read-only API workspace
+            Versioned API + guided refresh
           </div>
           <div className="grid grid-cols-2 gap-2">
             <RefreshDataButton />

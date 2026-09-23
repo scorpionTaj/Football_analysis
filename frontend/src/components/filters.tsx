@@ -44,6 +44,7 @@ export function FilterBar({ showVenue = true }: { showVenue?: boolean }) {
         options={competitions.map((c) => ({
           value: c.code,
           label: c.name,
+          group: c.group,
           badge: c.kind === 'tournament' ? '🏆' : undefined,
         }))}
         placeholder="All competitions"
@@ -101,6 +102,7 @@ export function FilterBar({ showVenue = true }: { showVenue?: boolean }) {
 interface SelectOption {
   value: string;
   label: string;
+  group?: string;
   badge?: string;
 }
 
@@ -121,6 +123,13 @@ function Select({
   const uniqueOptions = Array.from(
     new Map(options.map((opt) => [opt.value, opt])).values(),
   );
+  const groupedOptions = Array.from(
+    uniqueOptions.reduce((groups, option) => {
+      const group = option.group || '';
+      groups.set(group, [...(groups.get(group) || []), option]);
+      return groups;
+    }, new Map<string, SelectOption[]>()).entries(),
+  );
 
   return (
     <div className="flex flex-col gap-1">
@@ -132,11 +141,11 @@ function Select({
         aria-label={label}
       >
         <option value="">{placeholder}</option>
-        {uniqueOptions.map((opt) => (
-          <option key={opt.value} value={opt.value}>
-            {opt.badge ? `${opt.badge} ${opt.label}` : opt.label}
-          </option>
-        ))}
+        {groupedOptions.map(([group, entries]) => group ? (
+          <optgroup key={group} label={group}>
+            {entries.map((opt) => <option key={opt.value} value={opt.value}>{opt.badge ? `${opt.badge} ${opt.label}` : opt.label}</option>)}
+          </optgroup>
+        ) : entries.map((opt) => <option key={opt.value} value={opt.value}>{opt.badge ? `${opt.badge} ${opt.label}` : opt.label}</option>))}
       </select>
     </div>
   );

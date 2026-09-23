@@ -10,7 +10,7 @@ A read-oriented FastAPI service owns the DuckDB connection and exposes all route
 
 - [x] `GET /api/v1/catalog` — competitions, seasons, coverage and source freshness.
 - [x] `GET /api/v1/teams?competition=&season=` — complete selectable team lists.
-- [x] `GET /api/v1/matches?competition=&season=&team=&venue=&cursor=` — paginated normalized matches.
+- [x] `GET /api/v1/matches?competition=&season=&team=&opponent=&venue=&cursor=` — paginated normalized league-and-cup matches with direct head-to-head filtering.
 - [x] `POST /api/v1/analysis` — an `AnalysisRequest` body returning rankings, form, correlations and the applied filters.
 - [x] `GET /api/v1/tournaments/{competition}/{season}` — stage summary and tournament results.
 - [x] `GET /api/v1/players` and `GET /api/v1/players/{player_id}` — paginated player discovery and existing profile/stat rows.
@@ -34,7 +34,7 @@ A read-oriented FastAPI service owns the DuckDB connection and exposes all route
 - [x] Pydantic v2 response models attached to every route and included in the generated OpenAPI document.
 - [x] Canonical team IDs separate from display names (`teams.py`).
 
-Keep DuckDB for this read-heavy, single-writer deployment. Run all synchronizers as separate jobs and open the app database read-only in the API process. Move to PostgreSQL only when concurrent writes or multiple API replicas require it.
+Keep DuckDB for this read-heavy, single-writer deployment. `football-sync` runs the synchronizers behind one incremental CLI command (or a historical `--bootstrap`), while the in-app refresh uses the same current-season workflow after safely closing the API read connection. Stop the API before running the CLI against the same database. Move to PostgreSQL only when concurrent writes or multiple API replicas require it.
 
 ## Next.js frontend shell status ✅
 
@@ -53,12 +53,12 @@ The frontend shell has been built in [`frontend/`](frontend/) with Next.js App R
 All core analytical views have been migrated to the Next.js frontend with full selector parity, interactive Recharts visualizations, and CSV export capabilities:
 
 - [x] **Overview** ([`frontend/src/app/page.tsx`](frontend/src/app/page.tsx)): Real-time health indicator, KPI statistics, domestic league & tournament catalog cards.
-- [x] **Champions League, Club World Cup & World Cup** ([`frontend/src/app/tournaments/page.tsx`](frontend/src/app/tournaments/page.tsx)): Edition/stage/team selectors, selected-slice scoring rates, match scorelines with shootouts, filtered scorer table, team performance ranking and CSV export.
+- [x] **Grouped tournaments** ([`frontend/src/app/tournaments/page.tsx`](frontend/src/app/tournaments/page.tsx)): Domestic cups, continental clubs, world clubs and international teams with edition/stage/team selectors, scoring rates, scorelines, filtered scorers, team performance and CSV export.
 - [x] **Analysis Lab** ([`frontend/src/app/analysis/page.tsx`](frontend/src/app/analysis/page.tsx)): Multi-metric rankings, horizontal bar chart, form streak badges, correlation matrix, match factors, referee disciplinary table and CSV export.
 - [x] **Predictions** ([`frontend/src/app/predictions/page.tsx`](frontend/src/app/predictions/page.tsx)): calibrated match probabilities, holdout metrics, reliability evidence and title outlooks for every domestic league.
 - [x] **League Tables** ([`frontend/src/app/tables/page.tsx`](frontend/src/app/tables/page.tsx)): Full domestic tables, home/away splits, goal difference, recent form, external reference table and administrative/rank deltas.
-- [x] **Club Lab** ([`frontend/src/app/clubs/page.tsx`](frontend/src/app/clubs/page.tsx)): Club selector, configurable rolling form, percentile profile, historical trajectory/table, recent results and head-to-head comparison.
-- [x] **Match Centre** ([`frontend/src/app/matches/page.tsx`](frontend/src/app/matches/page.tsx)): Cursor-paginated result list, fuzzy search, CSV export and a clickable responsive detail view with factual overview, statistics, timeline, coaches, formations and verified lineup roles on a pitch.
+- [x] **Club Lab** ([`frontend/src/app/clubs/page.tsx`](frontend/src/app/clubs/page.tsx)): Image-backed canonical club selectors, configurable rolling form, percentile profile, historical trajectory/table, recent results and league-and-cup head-to-head comparison.
+- [x] **Match Centre** ([`frontend/src/app/matches/page.tsx`](frontend/src/app/matches/page.tsx)): Cursor-paginated result list, fuzzy search, CSV export and a clickable responsive detail view with factual overview, statistics, named goals/cards/misses/substitutions, coaches, formations and verified photographed lineup roles on a pitch.
 - [x] **Settings refresh** ([`frontend/src/app/settings/page.tsx`](frontend/src/app/settings/page.tsx)): Four-step depth slider, season/competition scope, live progress and frontend cache invalidation after publication.
 - [x] **Players** ([`frontend/src/app/players/page.tsx`](frontend/src/app/players/page.tsx)): Name/team/position/nationality search, club and position facets, squad summaries, bio drawer, season aggregates and complete competition rows.
 - [x] **Data Quality** ([`frontend/src/app/quality/page.tsx`](frontend/src/app/quality/page.tsx)): Coverage matrix, all source counters, refresh timestamps, shot coverage, governance notes, null rates and SHA-256 ingestion history.

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pandas as pd
 import requests
@@ -13,6 +13,7 @@ from urllib3.util.retry import Retry
 
 from .config import DB
 from .ingest import connect
+from .sync_state import is_fresh, mark_fresh
 
 SOURCE = "TheSportsDB"
 
@@ -81,20 +82,34 @@ def detail_frames(event_id, payload):
     return statistics, timeline, lineups
 
 
-def sync_event_details(db=DB, event_ids=None, adapter=None):
+def sync_event_details(db=DB, event_ids=None, adapter=None, refresh=False, leagues=None):
     adapter = adapter or TheSportsDBEventDetails()
     report = []
     with connect(db) as con:
         if event_ids is None:
-            event_ids = [row[0] for row in con.sql("""
+            condition = ""
+            params = []
+            if leagues is not None:
+                if not leagues:
+                    event_ids = []
+                else:
+                    condition = f"AND league IN ({','.join('?' for _ in leagues)})"
+                    params = list(leagues)
+            if event_ids is None:
+                event_ids = [row[0] for row in con.execute(f"""
                 SELECT event_id FROM (
                     SELECT event_id, row_number() OVER (
                         PARTITION BY league ORDER BY match_date DESC, fetched_at DESC
                     ) AS priority
-                    FROM recent_events WHERE event_kind='past'
+                    FROM recent_events WHERE event_kind IN ('past', 'season') {condition}
                 ) WHERE priority=1
-            """).fetchall()]
+                """, params).fetchall()]
         for event_id in event_ids:
+            key = f"event-details:{event_id}"
+            if not refresh and is_fresh(con, key, timedelta(days=1)):
+                report.append({"event_id": str(event_id), "status": "cached"})
+                print(report[-1], flush=True)
+                continue
             try:
                 frames = detail_frames(event_id, adapter.fetch(event_id))
                 names = ("event_statistics", "event_timeline", "event_lineups")
@@ -107,6 +122,7 @@ def sync_event_details(db=DB, event_ids=None, adapter=None):
                             con.register(incoming, frame)
                             con.execute(f"INSERT INTO {table} SELECT * FROM {incoming}")
                             con.unregister(incoming)
+                    mark_fresh(con, key)
                     con.execute("COMMIT")
                 except Exception:
                     con.execute("ROLLBACK")
@@ -122,8 +138,10 @@ def sync_event_details(db=DB, event_ids=None, adapter=None):
 def main():
     parser = argparse.ArgumentParser(description="Sync capped free match statistics, timeline and lineups")
     parser.add_argument("--event-ids", nargs="+")
+    parser.add_argument("--leagues", nargs="+", help="Limit automatic event selection to competition codes")
+    parser.add_argument("--refresh", action="store_true", help="Bypass persisted freshness checks")
     args = parser.parse_args()
-    report = sync_event_details(event_ids=args.event_ids)
+    report = sync_event_details(event_ids=args.event_ids, leagues=args.leagues, refresh=args.refresh)
     raise SystemExit(1 if any(row["status"] == "failed" for row in report) else 0)
 
 

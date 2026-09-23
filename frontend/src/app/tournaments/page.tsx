@@ -23,37 +23,29 @@ import {
   CartesianGrid,
 } from 'recharts';
 
-const TOURNAMENT_CONFIGS = [
-  {
-    code: 'CWC',
-    name: 'FIFA Club World Cup',
-    icon: '🌎',
-    defaultYear: 2025,
-    years: [2025],
-  },
-  {
-    code: 'UCL',
-    name: 'UEFA Champions League',
-    icon: '🏆',
-    defaultYear: 2025,
-    years: [2025, 2024, 2023, 2022, 2021],
-  },
-  {
-    code: 'WC',
-    name: 'FIFA World Cup',
-    icon: '🌍',
-    defaultYear: 2026,
-    years: [2026, 2022, 2018],
-  },
-];
+const calendarYearTournaments = new Set(['WC', 'CWC', 'EURO', 'COPA', 'AFCON', 'ASIAN']);
 
 function TournamentsContent() {
   const filters = useFilterParams();
-  const selectedTournament = TOURNAMENT_CONFIGS.some((item) => item.code === filters.competition)
-    ? filters.competition!
-    : 'UCL';
-  const currentTournamentConfig = TOURNAMENT_CONFIGS.find((c) => c.code === selectedTournament) || TOURNAMENT_CONFIGS[0];
+  const { data: catalog } = useQuery({ queryKey: queryKeys.catalog, queryFn: () => api.catalog() });
+  const tournamentConfigs = useMemo(() => (catalog?.competitions || [])
+    .filter((competition) => competition.kind === 'tournament' && competition.seasons.length > 0)
+    .map((competition) => ({
+      ...competition,
+      years: [...competition.seasons].sort((a, b) => b.season - a.season).map((season) => season.season),
+      defaultYear: Math.max(...competition.seasons.map((season) => season.season)),
+    })), [catalog?.competitions]);
+  const fallbackConfig = { code: 'UCL', name: 'UEFA Champions League', group: 'Continental clubs', years: [2025], defaultYear: 2025 };
+  const currentTournamentConfig = tournamentConfigs.find((competition) => competition.code === filters.competition)
+    || tournamentConfigs.find((competition) => competition.code === 'UCL')
+    || tournamentConfigs[0]
+    || fallbackConfig;
+  const selectedTournament = currentTournamentConfig.code;
   const selectedYear = filters.season || currentTournamentConfig.defaultYear;
+  const groupedTournaments = useMemo(() => tournamentConfigs.reduce((groups, competition) => {
+    groups.set(competition.group, [...(groups.get(competition.group) || []), competition]);
+    return groups;
+  }, new Map<string, typeof tournamentConfigs>()), [tournamentConfigs]);
 
   const [activeTab, setActiveTab] = useState<'matches' | 'scorers' | 'performance' | 'stages'>('matches');
   const [matchSearch, setMatchSearch] = useState('');
@@ -211,31 +203,33 @@ function TournamentsContent() {
     <div className="space-y-6">
       {/* Tournament Selector Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-surface0 pb-5">
-        <div className="flex items-center gap-3">
-          {TOURNAMENT_CONFIGS.map((t) => {
-            const active = selectedTournament === t.code;
-            return (
-              <button
-                key={t.code}
-                onClick={() => {
-                  filters.set({ competition: t.code, season: t.defaultYear, team: null });
-                  setStageFilter('all');
-                  setTeamFilter('all');
-                }}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
-                  active
-                    ? 'bg-blue text-crust shadow-lg shadow-blue/20'
-                    : 'bg-surface0 text-subtext1 hover:bg-surface1 hover:text-text'
-                }`}
-              >
-                <CompetitionBadge code={t.code} name={t.name} size={20} />
-                <span>{t.name}</span>
-              </button>
-            );
-          })}
+        <div className="flex min-w-0 items-center gap-3">
+          <CompetitionBadge code={currentTournamentConfig.code} name={currentTournamentConfig.name} size={36} />
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue">{currentTournamentConfig.group}</p>
+            <p className="truncate text-base font-black text-text">{currentTournamentConfig.name}</p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <select
+            value={selectedTournament}
+            onChange={(event) => {
+              const competition = tournamentConfigs.find((item) => item.code === event.target.value);
+              if (!competition) return;
+              filters.set({ competition: competition.code, season: competition.defaultYear, team: null });
+              setStageFilter('all');
+              setTeamFilter('all');
+            }}
+            className="max-w-[18rem] rounded-lg border border-surface1 bg-surface0 px-3 py-2 text-sm text-text outline-none hover:border-surface2 focus:border-blue"
+            aria-label="Tournament"
+          >
+            {Array.from(groupedTournaments.entries()).map(([group, competitions]) => (
+              <optgroup key={group} label={group}>
+                {competitions.map((competition) => <option key={competition.code} value={competition.code}>{competition.name}</option>)}
+              </optgroup>
+            ))}
+          </select>
           {/* Year selector for current tournament */}
           <select
             value={selectedYear}
@@ -243,9 +237,9 @@ function TournamentsContent() {
             className="rounded-lg border border-surface1 bg-surface0 px-3 py-2 text-sm text-text outline-none hover:border-surface2 focus:border-blue cursor-pointer"
             aria-label="Tournament Edition"
           >
-            {(TOURNAMENT_CONFIGS.find((t) => t.code === selectedTournament)?.years || [selectedYear]).map((yr) => (
+            {currentTournamentConfig.years.map((yr) => (
               <option key={yr} value={yr}>
-                {selectedTournament === 'WC' || selectedTournament === 'CWC'
+                {calendarYearTournaments.has(selectedTournament)
                   ? `${yr}`
                   : `${yr}/${(yr + 1).toString().slice(2)}`}
               </option>
@@ -548,7 +542,7 @@ function TournamentsContent() {
 export default function TournamentsPage() {
   return (
     <div className="space-y-6">
-      <PageHeader icon={Trophy} eyebrow="Knockout and international" title="Major Tournaments" description="Explore Champions League, Club World Cup and World Cup editions, stages, scorelines and scorer events from CC0 datasets." />
+      <PageHeader icon={Trophy} eyebrow="Knockout and international" title="Major Tournaments" description="Explore domestic cups, continental club competitions and international tournaments with stages, scorelines and scorer events." />
 
       <Suspense fallback={<LoadingSkeleton lines={8} />}>
         <TournamentsContent />
