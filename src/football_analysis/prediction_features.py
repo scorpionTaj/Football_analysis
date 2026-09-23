@@ -16,6 +16,7 @@ FEATURES = (
     "home_sot_against", "away_sot_against",
 )
 FORM_WINDOW = 10
+PRIOR_SEASON_FORM_MATCHES = 5
 
 
 def load_match_inputs(con):
@@ -26,7 +27,7 @@ def load_match_inputs(con):
         ["league", "season", "home_team", "away_team"], keep="last",
     )
     fixtures = con.sql("""
-        SELECT league, season, match_date, home_team, away_team, event_kind
+        SELECT league, season, match_date, home_team, away_team, event_kind, fetched_at
         FROM recent_events
         WHERE event_kind IN ('next', 'fixture') AND match_date >= current_date
     """).df()
@@ -34,7 +35,7 @@ def load_match_inputs(con):
         fixtures["home_key"] = fixtures.home_team.map(team_key)
         fixtures["away_key"] = fixtures.away_team.map(team_key)
         fixtures["priority"] = fixtures.event_kind.map({"fixture": 0, "next": 1})
-        fixtures = fixtures.sort_values("priority").drop_duplicates(
+        fixtures = fixtures.sort_values(["priority", "fetched_at"], ascending=[True, False]).drop_duplicates(
             ["league", "season", "home_key", "away_key"], keep="first",
         )
         completed = set(zip(
@@ -92,7 +93,14 @@ def build_match_features(matches, form_window=FORM_WINDOW):
             if previous_season is not None:
                 for key in list(ratings):
                     ratings[key] = 1500 + 0.75 * (ratings[key] - 1500)
-                history.clear()
+                if season == previous_season + 1:
+                    for key in list(history):
+                        history[key] = deque(
+                            list(history[key])[-min(form_window, PRIOR_SEASON_FORM_MATCHES):],
+                            maxlen=form_window,
+                        )
+                else:
+                    history.clear()
             previous_season = season
             for match_date, day_matches in season_matches.groupby("match_date", sort=True):
                 date = pd.Timestamp(match_date)

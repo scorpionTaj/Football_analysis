@@ -17,9 +17,9 @@ export function GlobalSearch({ onNavigate }: { onNavigate?: () => void }) {
     return () => window.clearTimeout(timer);
   }, [query]);
 
-  const { data: catalog } = useQuery({ queryKey: queryKeys.catalog, queryFn: api.catalog });
-  const { data: teams } = useQuery({ queryKey: queryKeys.teams(), queryFn: () => api.teams() });
-  const { data: players } = useQuery({
+  const { data: catalog, isLoading: catalogLoading } = useQuery({ queryKey: queryKeys.catalog, queryFn: api.catalog });
+  const { data: teams, isLoading: teamsLoading } = useQuery({ queryKey: queryKeys.teams(), queryFn: () => api.teams() });
+  const { data: players, isFetching: playersFetching } = useQuery({
     queryKey: queryKeys.players({ q: debounced, limit: 5 }),
     queryFn: () => api.players({ q: debounced, limit: 5 }),
     enabled: debounced.length >= 2,
@@ -79,7 +79,9 @@ export function GlobalSearch({ onNavigate }: { onNavigate?: () => void }) {
               <span className="truncate font-semibold text-text">{result.label}</span>
               <span className="shrink-0 text-[10px] text-subtext0">{result.meta}</span>
             </Link>
-          )) : <p className="px-3 py-3 text-xs text-subtext0">No matching data.</p>}
+          )) : <p role="status" className="px-3 py-3 text-xs text-subtext0">
+            {catalogLoading || teamsLoading || playersFetching ? 'Searching…' : 'No matching data.'}
+          </p>}
         </div>
       ) : null}
     </div>

@@ -151,18 +151,28 @@ def run_refresh_pipeline(database: Path, request: RefreshRequest, progress: Prog
         if domestic:
             from football_analysis.recent import sync_recent
             from football_analysis.fixtures import sync_fixtures
+            from football_analysis.open_fixtures import sync_open_fixtures
             report = sync_recent(
                 db=database, year=season, leagues=domestic,
                 refresh=request.force_download,
             )
             if report and all(row.get("status") == "failed" for row in report):
                 raise RuntimeError("No result partition could be refreshed")
+            open_reports = sync_open_fixtures(
+                db=database, season=season, leagues=domestic,
+                refresh=request.force_download,
+            )
             fixture_report = sync_fixtures(
                 db=database, season=season, leagues=domestic,
                 refresh=request.force_download,
             )
-            if fixture_report["status"] == "unavailable":
-                progress(1, "Results and fixtures", "Results refreshed; weekly fixture feed unavailable, prior rows retained.")
+            full_schedules = sum(row["status"] in {"success", "cached"} for row in open_reports)
+            weekly = fixture_report["status"] in {"success", "cached"}
+            progress(
+                1, "Results and fixtures",
+                f"Results refreshed; {full_schedules} full league schedules available"
+                f"; weekly fixture window {'available' if weekly else 'unavailable'}.",
+            )
         if provider_tournaments:
             from football_analysis.recent import sync_cup_events
             sync_cup_events(

@@ -2,7 +2,7 @@
 
 import { Card, Button } from '@heroui/react';
 import { Suspense, useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { queryKeys } from '@/lib/api/query-keys';
 import { useFilterParams } from '@/lib/hooks/use-filter-params';
@@ -30,7 +30,7 @@ function MatchesContent() {
       setDebouncedSearch(searchQuery.trim());
       setCurrentCursor(null);
       setCursorHistory([]);
-    }, 250);
+    }, 350);
     return () => window.clearTimeout(timer);
   }, [searchQuery]);
 
@@ -44,9 +44,10 @@ function MatchesContent() {
     limit: 20,
   }), [filters.competition, filters.season, filters.team, filters.venue, debouncedSearch, currentCursor]);
 
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, isFetching, isPlaceholderData, error, refetch } = useQuery({
     queryKey: queryKeys.matches(queryParams),
     queryFn: () => api.matches(queryParams),
+    placeholderData: keepPreviousData,
   });
 
   const selectedMatchParams = matchDate && matchHome && matchAway && filters.competition && filters.season ? {
@@ -126,10 +127,6 @@ function MatchesContent() {
     URL.revokeObjectURL(url);
   };
 
-  if (isLoading) return <LoadingSkeleton lines={10} />;
-  if (error) {
-    return <ErrorMessage title="Failed to load matches" detail={error.message} retry={() => refetch()} />;
-  }
   if (selectedMatchParams) {
     if (isDetailLoading) return <LoadingSkeleton lines={10} />;
     if (detailError) return <ErrorMessage title="Match detail could not load" detail={detailError.message} retry={() => refetchDetail()} />;
@@ -151,11 +148,13 @@ function MatchesContent() {
             <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-overlay0" />
             <input
               type="text"
+              aria-label="Search matches by club or referee"
               placeholder="Search club or referee..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-lg border border-surface1 bg-mantle pl-9 pr-3 py-1.5 text-xs text-text outline-none focus:border-blue"
+              className="w-full rounded-lg border border-surface1 bg-mantle pl-9 pr-20 py-1.5 text-xs text-text outline-none focus:border-blue"
             />
+            {isFetching && <span role="status" className="absolute right-3 top-2 text-[10px] text-blue">Searching…</span>}
           </div>
 
           <div className="flex items-center gap-2">
@@ -209,7 +208,11 @@ function MatchesContent() {
       </div>
 
       {/* Match Cards */}
-      {filteredMatches.length === 0 ? (
+      {error ? (
+        <ErrorMessage title="Failed to load matches" detail={error.message} retry={() => refetch()} />
+      ) : isLoading ? (
+        <LoadingSkeleton lines={6} />
+      ) : filteredMatches.length === 0 && !isPlaceholderData ? (
         <EmptyState icon="📅" message="No matches match the filter parameters." suggestion="Try clearing or broadening the filter selection." />
       ) : (
         <div className="space-y-2.5">
@@ -292,7 +295,7 @@ function MatchesContent() {
           <Button
             size="sm"
             variant="outline"
-            isDisabled={!page?.next_cursor}
+            isDisabled={isFetching || !page?.next_cursor}
             onPress={handleNextPage}
             className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium cursor-pointer"
           >

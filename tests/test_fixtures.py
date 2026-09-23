@@ -101,3 +101,36 @@ def test_weekly_fixture_supersedes_a_rescheduled_next_event(tmp_path):
         assert result.matches[0].home_goals == 2
     finally:
         store.close()
+
+
+def test_match_list_pages_near_future_before_distant_schedule(tmp_path):
+    today = date.today()
+    season = today.year if today.month >= 7 else today.year - 1
+    if today + timedelta(days=31) > date(season + 1, 6, 30):
+        return
+    db = tmp_path / "calendar-order.duckdb"
+    with connect(db) as con:
+        con.execute(
+            "INSERT INTO recent_events (event_id, league, season, match_date, home_team, away_team, "
+            "event_kind, source, fetched_at) VALUES "
+            "('distant', 'E0', ?, ?, 'Chelsea', 'Liverpool', 'fixture', 'test', current_timestamp), "
+            "('near', 'E0', ?, ?, 'Arsenal', 'Everton', 'fixture', 'test', current_timestamp)",
+            [season, today + timedelta(days=30), season, today + timedelta(days=1)],
+        )
+        con.execute(
+            "INSERT INTO recent_matches (league, season, match_date, home_team, away_team, "
+            "home_goals, away_goals, source, fetched_at) VALUES "
+            "('E0', ?, ?, 'Fulham', 'Brentford', 1, 0, 'test', current_timestamp)",
+            [season, today - timedelta(days=1)],
+        )
+    store = ReadOnlyStore(db)
+    try:
+        first = list_matches(store, competition="E0", season=season, limit=1)
+        second = list_matches(store, competition="E0", season=season, cursor=first.page.next_cursor, limit=1)
+        third = list_matches(store, competition="E0", season=season, cursor=second.page.next_cursor, limit=1)
+        assert [page.matches[0].home.name for page in (first, second, third)] == [
+            "Arsenal", "Chelsea", "Fulham",
+        ]
+        assert third.page.next_cursor is None
+    finally:
+        store.close()

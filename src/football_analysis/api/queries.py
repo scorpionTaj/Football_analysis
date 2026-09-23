@@ -33,6 +33,7 @@ from football_analysis.api.contracts import (
     EventStatistic,
     EventSummary,
     EventTimelineItem,
+    FixtureCoverageRow,
     Forecast,
     ForecastAuditRow,
     FormRow,
@@ -86,9 +87,11 @@ from football_analysis.config import (
     seasons,
 )
 from football_analysis.teams import display_team, team_key
+from football_analysis.fixtures import SOURCE as WEEKLY_FIXTURE_SOURCE
+from football_analysis.open_fixtures import SOURCE as FULL_FIXTURE_SOURCE
 
 
-API_SCHEMA_REVISION = "2026-09-23-fixtures-search-forecast-journal-v1"
+API_SCHEMA_REVISION = "2026-09-23-full-fixtures-season-form-v1"
 
 
 def _now() -> datetime:
@@ -132,17 +135,26 @@ def _search_text(value) -> str:
 
 
 def _fuzzy_score(query: str, value) -> float:
-    """Small dependency-free typo score used by API-backed search fields."""
+    """Prefer exact words and prefixes; tolerate typos only in longer queries."""
     needle, candidate = _search_text(query), _search_text(value)
     if not needle or not candidate:
         return 0.0
     if needle == candidate:
         return 1.0
-    if needle in candidate:
-        return 0.92 - min(candidate.index(needle), 20) / 200
     words = candidate.split()
-    word_score = max((SequenceMatcher(None, needle, word).ratio() for word in words), default=0.0)
-    return max(word_score, SequenceMatcher(None, needle, candidate).ratio())
+    if needle in words:
+        return 0.98
+    if any(word.startswith(needle) for word in words):
+        return 0.94
+    if len(needle) >= 3 and needle in candidate:
+        return 0.88
+    if len(needle) < 4:
+        return 0.0
+    close_lengths = (
+        part for part in (candidate, *words)
+        if abs(len(part) - len(needle)) <= max(2, len(needle) // 3)
+    )
+    return max((SequenceMatcher(None, needle, part).ratio() for part in close_lengths), default=0.0)
 
 
 def _has(store: ReadOnlyStore, name: str) -> bool:
@@ -480,18 +492,18 @@ def list_matches(
             "CAST(NULL AS INTEGER) AS home_fouls, CAST(NULL AS INTEGER) AS away_fouls, "
             "CAST(NULL AS INTEGER) AS home_yellows, CAST(NULL AS INTEGER) AS away_yellows, "
             "CAST(NULL AS INTEGER) AS home_reds, CAST(NULL AS INTEGER) AS away_reds, "
-            "referee, kickoff_time, CAST(NULL AS VARCHAR) AS stage, venue, source, event_kind "
+            "referee, kickoff_time, CAST(NULL AS VARCHAR) AS stage, venue, source, event_kind, fetched_at "
             "FROM recent_events WHERE event_kind IN ('fixture', 'next') AND match_date >= current_date"
         )
         if not events.empty:
             events["home_key"] = events.home_team.map(team_key)
             events["away_key"] = events.away_team.map(team_key)
             events["fixture_priority"] = (events.event_kind == "fixture").astype(int)
-            events = events.sort_values("fixture_priority", ascending=False).drop_duplicates(
+            events = events.sort_values(["fixture_priority", "fetched_at"], ascending=[False, False]).drop_duplicates(
                 ["competition", "season", "home_key", "away_key"], keep="first",
-            ).drop(columns=["event_kind", "home_key", "away_key", "fixture_priority"])
+            ).drop(columns=["event_kind", "home_key", "away_key", "fixture_priority", "fetched_at"])
         else:
-            events = events.drop(columns=["event_kind"])
+            events = events.drop(columns=["event_kind", "fetched_at"])
         frames.append(events)
     if not frames:
         return MatchListResponse(
@@ -543,27 +555,42 @@ def list_matches(
     if query and _search_text(query):
         search_columns = ("home_team", "away_team", "referee", "competition", "stage", "venue")
         matched = frame.apply(
-            lambda row: any(_fuzzy_score(query, row[column]) >= 0.58 for column in search_columns),
+            lambda row: any(_fuzzy_score(query, value) >= 0.75 for value in (
+                *(row[column] for column in search_columns),
+                display_team(row.home_team), display_team(row.away_team),
+            )),
             axis=1,
         )
         frame = frame[matched]
+    if frame.empty:
+        return MatchListResponse(
+            matches=[], page=PageMeta(next_cursor=None, limit=limit, returned=0),
+            source=_source("duckdb", "matches"),
+        )
+    frame["sort_group"] = frame.home_goals.isna().astype(int)
+    ordinal = frame.match_date.map(lambda value: value.date().toordinal())
+    frame["sort_order"] = np.where(frame.sort_group == 1, -ordinal, ordinal)
     frame = frame.sort_values(
-        ["match_date", "competition", "home_team", "away_team"],
-        ascending=[False, True, True, True],
+        ["sort_group", "sort_order", "competition", "home_team", "away_team"],
+        ascending=[False, False, True, True, True],
     ).reset_index(drop=True)
     token = decode_cursor(cursor)
     if token:
-        cursor_date = pd.Timestamp(token["d"])
+        cursor_group = int(token.get("g", 0))
+        cursor_order = int(token["o"]) if "o" in token else pd.Timestamp(token["d"]).date().toordinal()
         mask = (
-            (frame.match_date < cursor_date)
-            | ((frame.match_date == cursor_date) & (frame.competition > token["c"]))
+            (frame.sort_group < cursor_group)
+            | ((frame.sort_group == cursor_group) & (frame.sort_order < cursor_order))
+            | ((frame.sort_group == cursor_group) & (frame.sort_order == cursor_order) & (frame.competition > token["c"]))
             | (
-                (frame.match_date == cursor_date)
+                (frame.sort_group == cursor_group)
+                & (frame.sort_order == cursor_order)
                 & (frame.competition == token["c"])
                 & (frame.home_team > token["h"])
             )
             | (
-                (frame.match_date == cursor_date)
+                (frame.sort_group == cursor_group)
+                & (frame.sort_order == cursor_order)
                 & (frame.competition == token["c"])
                 & (frame.home_team == token["h"])
                 & (frame.away_team > token["a"])
@@ -577,7 +604,8 @@ def list_matches(
     if has_more and not page.empty:
         last = page.iloc[-1]
         next_cursor = encode_cursor({
-            "d": pd.Timestamp(last.match_date).strftime("%Y-%m-%d"),
+            "g": int(last.sort_group),
+            "o": int(last.sort_order),
             "c": last.competition,
             "h": last.home_team,
             "a": last.away_team,
@@ -1368,7 +1396,7 @@ def list_players(
             lambda row: max(_fuzzy_score(query, row[column]) for column in search_columns),
             axis=1,
         )
-        frame = frame[frame._search_score >= 0.58]
+        frame = frame[frame._search_score >= 0.75]
     if sort_by == "market_value":
         frame = frame[frame.market_value_eur.notna()].sort_values(
             ["market_value_eur", "player"], ascending=[False, True]
@@ -1557,7 +1585,7 @@ def predictions(store: ReadOnlyStore) -> PredictionsResponse:
             "accuracy": correct / resolved if resolved else None,
         }
         history = store.query(
-            "SELECT * FROM forecast_history ORDER BY issued_at DESC, match_date DESC LIMIT 30"
+            "SELECT * FROM forecast_history ORDER BY issued_at DESC, match_date ASC LIMIT 30"
         )
         for row in history.itertuples(index=False):
             forecast_history.append(ForecastAuditRow(
@@ -1865,6 +1893,26 @@ def quality(store: ReadOnlyStore) -> QualityResponse:
     timeline_count = row_count("event_timeline")
     lineup_count = row_count("event_lineups")
     prediction_count = row_count("match_predictions")
+    fixture_counts = {league: {"full_schedule": 0, "weekly_window": 0, "next_listed": 0, "latest_fetched_at": None}
+                      for league in RECENT_LEAGUES}
+    if _has(store, "recent_events"):
+        event_rows = store.query(
+            "SELECT league, source, count(*) AS rows, max(fetched_at) AS fetched_at "
+            "FROM recent_events WHERE season=? AND event_kind IN ('fixture', 'next') "
+            "AND match_date >= current_date GROUP BY league, source", [live],
+        )
+        for row in event_rows.itertuples(index=False):
+            if row.league not in fixture_counts:
+                continue
+            field = ("full_schedule" if row.source == FULL_FIXTURE_SOURCE else
+                     "weekly_window" if row.source == WEEKLY_FIXTURE_SOURCE else "next_listed")
+            fixture_counts[row.league][field] += int(row.rows)
+            previous = fixture_counts[row.league]["latest_fetched_at"]
+            stamp = _as_datetime(row.fetched_at)
+            if stamp is not None and (previous is None or stamp > previous):
+                fixture_counts[row.league]["latest_fetched_at"] = stamp
+    fixture_coverage = [FixtureCoverageRow(competition=league, **counts)
+                        for league, counts in fixture_counts.items()]
     recent_competitions = int(fixtures.loc[fixtures.season == live, "league"].nunique()) if not fixtures.empty else 0
     player_clubs = int(store.scalar("SELECT count(DISTINCT team) FROM open_players") or 0) if _has(store, "open_players") else 0
     tournament_teams = 0
@@ -1887,7 +1935,8 @@ def quality(store: ReadOnlyStore) -> QualityResponse:
     caps = [
         "TheSportsDB free standings and player feeds are explicitly capped.",
         "Transfermarkt Open Dataset is a 2025/26 snapshot with no 2026/27 squad rows.",
-        "Current-season fixtures are labelled live partial and never treated as complete.",
+        "OpenFootball supplies verified full-season schedules for seven leagues; Belgium, Turkey and Greece still rely on shorter feeds.",
+        "Future fixture dates and source-local kickoff times are provisional until the publishers update them.",
     ]
     return QualityResponse(
         completed_coverage=f"{complete_cells}/{expected_completed}",
@@ -1913,6 +1962,7 @@ def quality(store: ReadOnlyStore) -> QualityResponse:
         timeline_events=timeline_count,
         lineup_rows=lineup_count,
         model_predictions=prediction_count,
+        fixture_coverage=fixture_coverage,
         source_caps=caps,
         null_coverage=null_coverage,
         checksums=checksums,

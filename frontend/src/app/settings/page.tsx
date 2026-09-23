@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 
 const REFRESH_STEPS = [
-  { title: 'Results and fixtures', detail: 'Current scorelines and available weekly fixtures' },
+  { title: 'Results and fixtures', detail: 'Current scorelines, verified full calendars and nearby fixtures' },
   { title: 'Tables and competitions', detail: 'Reference standings and selected tournaments' },
   { title: 'Teams, players and match detail', detail: 'Artwork, squads, formations and event data' },
   { title: 'Models and validation', detail: 'Analytics caches and calibrated predictions' },

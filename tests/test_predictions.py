@@ -81,6 +81,22 @@ def test_shot_form_uses_only_prior_match_days():
     assert features.iloc[2].home_sot_for == 9.5
 
 
+def test_opening_form_carries_five_matches_from_previous_season_only():
+    matches = pd.DataFrame([
+        {"league": "E0", "season": 2024, "match_date": date(2024, 8, 1) + timedelta(days=day),
+         "home_team": "Arsenal", "away_team": "Liverpool", "home_goals": 2, "away_goals": 0}
+        for day in range(6)
+    ] + [
+        {"league": "E0", "season": season, "match_date": date(season, 8, 1),
+         "home_team": "Arsenal", "away_team": "Liverpool", "home_goals": 1, "away_goals": 0}
+        for season in (2025, 2027)
+    ])
+    features = build_match_features(matches)
+    assert features.loc[features.season == 2025, "home_form_ppg"].iloc[0] == 1.0
+    assert features.loc[features.season == 2025, "away_form_ppg"].iloc[0] == 0.0
+    assert features.loc[features.season == 2027, "home_form_ppg"].iloc[0] == 1 / 3
+
+
 def test_holdout_baseline_uses_training_prevalence():
     features = build_match_features(sample_matches())
     _, _, train, validation, _, metrics = train_time_split(features)

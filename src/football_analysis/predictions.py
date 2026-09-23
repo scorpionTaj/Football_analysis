@@ -18,7 +18,7 @@ from .ingest import connect
 from .prediction_features import FEATURES, build_match_features, future_features, load_match_inputs
 from .teams import team_key
 
-MODEL_VERSION = "softmax-form-shots-v3"
+MODEL_VERSION = "softmax-form-shots-v4"
 HIGH_CONFIDENCE_THRESHOLD = 0.75
 CLASS_NAMES = np.array(["Home", "Draw", "Away"])
 

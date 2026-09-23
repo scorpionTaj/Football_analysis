@@ -127,6 +127,37 @@ function QualityContent() {
         </div>
       </div>
 
+      <div className="rounded-xl border border-surface1 bg-surface0 p-5 space-y-3">
+        <div>
+          <h3 className="text-sm font-semibold text-text">Upcoming fixture coverage</h3>
+          <p className="mt-1 text-xs text-subtext0">Future rows by source. Full-season calendars are provisional, and these counts are not completed results.</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[560px] text-left text-xs">
+            <thead className="border-b border-surface1 text-subtext0">
+              <tr>
+                <th className="py-2 pr-3">League</th>
+                <th className="py-2 pr-3">Full calendar</th>
+                <th className="py-2 pr-3">Weekly feed</th>
+                <th className="py-2 pr-3">Next-event feed</th>
+                <th className="py-2">Last fetched</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(data.fixture_coverage || []).map((row) => (
+                <tr key={row.competition} className="border-b border-surface1/60 last:border-0">
+                  <td className="py-2 pr-3 font-semibold text-text">{row.competition}</td>
+                  <td className="py-2 pr-3 text-teal">{row.full_schedule}</td>
+                  <td className="py-2 pr-3 text-text">{row.weekly_window}</td>
+                  <td className="py-2 pr-3 text-text">{row.next_listed}</td>
+                  <td className="py-2 font-mono text-subtext0">{row.latest_fetched_at?.slice(0, 16).replace('T', ' ') || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-xl border border-surface1 bg-surface0 p-5 space-y-4">
           <h3 className="text-sm font-semibold text-text">Major tournament coverage</h3>

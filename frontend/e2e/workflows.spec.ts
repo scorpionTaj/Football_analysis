@@ -15,9 +15,18 @@ const match = {
 };
 const otherMatch = { ...match, match_date: '2026-09-22', kickoff_time: null, home: chelsea, away: arsenal, home_goals: 1, away_goals: 0 };
 
-async function mockApi(page: Page, onMatchSearch?: (query: string) => void) {
+async function mockApi(page: Page, onMatchSearch?: (query: string) => void, forecastRows: unknown[] = []) {
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    };
+    if (request.method() === 'OPTIONS') {
+      await route.fulfill({ status: 204, headers: corsHeaders });
+      return;
+    }
     const url = new URL(request.url());
     const path = url.pathname;
     let payload: unknown = {};
@@ -51,10 +60,10 @@ async function mockApi(page: Page, onMatchSearch?: (query: string) => void) {
         high_confidence_accuracy: 0.75, high_confidence_coverage: 0.04,
         outcome_backtest: [{ outcome: 'Draw', matches: 25, predicted: 5, correct: 2, recall: 0.08, precision: 0.4 }],
         walk_forward: [{ season: 2025, matches: 50, accuracy: 0.5, baseline_accuracy: 0.43, log_loss: 1.01 }],
-      }, calibration: [], forecasts: [], league_outlooks: [],
+      }, calibration: [], forecasts: forecastRows, league_outlooks: [],
       forecast_history: [], forecast_record: { issued: 0, resolved: 0, correct: 0, accuracy: null }, source,
     };
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(payload) });
+    await route.fulfill({ status: 200, contentType: 'application/json', headers: corsHeaders, body: JSON.stringify(payload) });
   });
 }
 
@@ -70,6 +79,29 @@ test('searches beyond the current page and preserves a match detail link', async
   await expect(page.getByRole('heading', { name: 'Match overview' })).toBeVisible();
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Match overview' })).toBeVisible();
+});
+
+test('keeps Match Centre search focused while debounced results update', async ({ page }) => {
+  const searches: string[] = [];
+  await mockApi(page, (query) => { searches.push(query); });
+  await page.goto('/matches?competition=E0&season=2026');
+  await expect(page.getByRole('button', { name: /Open Chelsea versus Arsenal match centre/ })).toBeVisible();
+  const search = page.getByRole('textbox', { name: 'Search matches by club or referee' });
+  await search.pressSequentially('Livrpool', { delay: 10 });
+  await expect(page.getByRole('button', { name: /Open Arsenal versus Liverpool match centre/ })).toBeVisible();
+  await expect(search).toBeFocused();
+  await expect(search).toHaveValue('Livrpool');
+  expect(searches.filter(Boolean)).toEqual(['Livrpool']);
+});
+
+test('global search finds a misspelled club without broad short-fragment matches', async ({ page }) => {
+  await mockApi(page);
+  await page.goto('/matches?competition=E0&season=2026');
+  const search = page.getByRole('textbox', { name: 'Search clubs, players and competitions' });
+  await search.fill('Chelsa');
+  await expect(page.getByRole('link', { name: /Chelsea Club \/ nation/ })).toBeVisible();
+  await search.fill('he');
+  await expect(page.getByRole('link', { name: /Chelsea Club \/ nation/ })).toHaveCount(0);
 });
 
 test('mobile navigation fits a narrow screen', async ({ page }) => {
@@ -89,4 +121,20 @@ test('refresh depth and model diagnostics render', async ({ page }) => {
   await page.goto('/predictions');
   await expect(page.getByRole('heading', { name: 'Home, draw and away audit' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Published forecast record' })).toBeVisible();
+});
+
+test('full-season forecasts stay browsable without rendering the whole calendar', async ({ page }) => {
+  const rows = Array.from({ length: 65 }, (_, index) => ({
+    competition: index < 40 ? 'E0' : 'SP1', season: 2026,
+    match_date: new Date(Date.UTC(2026, 9, index + 1)).toISOString().slice(0, 10),
+    home: arsenal, away: liverpool, predicted_result: 'Home',
+    home_probability: 0.5, draw_probability: 0.25, away_probability: 0.25,
+  }));
+  await mockApi(page, undefined, rows);
+  await page.goto('/predictions');
+  await expect(page.getByText('Showing 30 of 65 forecasts')).toBeVisible();
+  await page.getByRole('button', { name: 'Show 30 more forecasts' }).click();
+  await expect(page.getByText('Showing 60 of 65 forecasts')).toBeVisible();
+  await page.getByLabel('League').selectOption('SP1');
+  await expect(page.getByText('Showing 25 of 25 forecasts')).toBeVisible();
 });

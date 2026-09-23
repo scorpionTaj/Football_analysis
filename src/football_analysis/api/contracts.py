@@ -471,6 +471,14 @@ class QualityCell(BaseModel):
     match_count: int = 0
 
 
+class FixtureCoverageRow(BaseModel):
+    competition: str
+    full_schedule: int = 0
+    weekly_window: int = 0
+    next_listed: int = 0
+    latest_fetched_at: datetime | None = None
+
+
 class QualityResponse(BaseModel):
     completed_coverage: str
     live_competitions: str
@@ -495,6 +503,7 @@ class QualityResponse(BaseModel):
     timeline_events: int = 0
     lineup_rows: int = 0
     model_predictions: int = 0
+    fixture_coverage: list[FixtureCoverageRow] = Field(default_factory=list)
     source_caps: list[str] = Field(default_factory=list)
     null_coverage: dict[str, float] = Field(default_factory=dict)
     checksums: list[dict[str, Any]] = Field(default_factory=list)

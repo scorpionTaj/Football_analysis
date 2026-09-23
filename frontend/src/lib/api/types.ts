@@ -491,6 +491,13 @@ export interface QualityResponse {
   timeline_events: number;
   lineup_rows: number;
   model_predictions: number;
+  fixture_coverage: {
+    competition: string;
+    full_schedule: number;
+    weekly_window: number;
+    next_listed: number;
+    latest_fetched_at: string | null;
+  }[];
   source_caps: string[];
   null_coverage: Record<string, number>;
   checksums: Record<string, unknown>[];

@@ -238,6 +238,29 @@ def test_matches_use_cursor_pagination_and_etags(tmp_path):
     assert cached.status_code == 304
 
 
+def test_match_search_handles_short_alias_and_no_results(tmp_path):
+    db = tmp_path / "spain-search.duckdb"
+    seed(db)
+    with connect(db) as con:
+        con.execute(
+            "INSERT INTO recent_matches (league, season, match_date, home_team, away_team, "
+            "home_goals, away_goals, source, fetched_at) VALUES "
+            "('SP1', 2026, '2026-09-20', 'Barcelona', 'Real Madrid', 2, 1, 'test', current_timestamp)"
+        )
+    api = TestClient(create_app(db))
+    found = api.get("/api/v1/matches", params={"competition": "SP1", "season": 2026, "q": "fc", "limit": 20})
+    assert found.status_code == 200
+    assert [match["home"]["name"] for match in found.json()["matches"]] == ["FC Barcelona"]
+    typo = api.get("/api/v1/matches", params={"competition": "SP1", "season": 2026, "q": "Barcelna"})
+    assert [match["home"]["name"] for match in typo.json()["matches"]] == ["FC Barcelona"]
+    short_fragment = api.get("/api/v1/matches", params={"competition": "SP1", "season": 2026, "q": "ar"})
+    assert short_fragment.json()["matches"] == []
+    missing = api.get("/api/v1/matches", params={"competition": "SP1", "season": 2026, "q": "no-such-club", "limit": 20})
+    assert missing.status_code == 200
+    assert missing.json()["matches"] == []
+    assert missing.json()["page"]["next_cursor"] is None
+
+
 def test_tournament_players_predictions_and_quality(tmp_path):
     api = client(tmp_path)
     tourney = api.get("/api/v1/tournaments/UCL/2024").json()
@@ -261,6 +284,7 @@ def test_tournament_players_predictions_and_quality(tmp_path):
     assert quality["detailed_event_stats"] == 2
     assert quality["shot_coverage"]
     assert quality["source_caps"]
+    assert len(quality["fixture_coverage"]) == 10
 
 
 def test_missing_database_is_unavailable(tmp_path):
@@ -320,6 +344,8 @@ def test_player_search_and_facets_cover_legacy_filters(tmp_path):
     assert by_position["players"][0]["position"] == "Attack"
     typo = api.get("/api/v1/players", params={"q": "Skaa"}).json()
     assert typo["players"][0]["name"] == "Bukayo Saka"
+    short_fragment = api.get("/api/v1/players", params={"q": "ka"}).json()
+    assert short_fragment["players"] == []
 
 
 def test_transfers_with_all_filter(tmp_path):

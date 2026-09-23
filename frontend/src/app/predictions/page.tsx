@@ -1,7 +1,7 @@
 'use client';
 
 import { Card, Button } from '@heroui/react';
-import { Suspense, useMemo } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { queryKeys } from '@/lib/api/query-keys';
@@ -28,12 +28,24 @@ const LEAGUE_NAMES: Record<string, string> = {
 };
 
 function PredictionsContent() {
+  const [forecastLeague, setForecastLeague] = useState('all');
+  const [visibleForecasts, setVisibleForecasts] = useState(30);
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: queryKeys.predictions,
     queryFn: () => api.predictions(),
   });
 
-  const forecasts = data?.forecasts || [];
+  const forecasts = useMemo(() => data?.forecasts || [], [data?.forecasts]);
+  const forecastLeagues = useMemo(
+    () => Array.from(new Set(forecasts.map((row) => row.competition))).sort(),
+    [forecasts],
+  );
+  const filteredForecasts = useMemo(
+    () => forecasts
+      .filter((row) => forecastLeague === 'all' || row.competition === forecastLeague)
+      .sort((a, b) => a.match_date.localeCompare(b.match_date) || a.competition.localeCompare(b.competition)),
+    [forecasts, forecastLeague],
+  );
   const metrics = data?.metrics || {};
 
   const accuracy = typeof metrics.accuracy === 'number' ? (metrics.accuracy * 100).toFixed(1) : null;
@@ -253,16 +265,34 @@ function PredictionsContent() {
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium cursor-pointer"
             >
               <Download className="h-3.5 w-3.5 text-blue" />
-              <span>Export Predictions</span>
+              <span>Export all forecasts</span>
             </Button>
           )}
         </div>
+        <p className="text-xs leading-5 text-subtext0">Long-range percentages use today’s known form; they cannot account for matches, injuries or transfers that have not happened yet. Refresh after results for updated probabilities.</p>
 
         {forecasts.length === 0 ? (
           <EmptyState icon="🎯" message="No current match forecasts available." suggestion="Forecasts update when upcoming domestic fixtures are ingested." />
         ) : (
+          <>
+          <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-subtext0">
+            <label className="flex items-center gap-2">
+              <span>League</span>
+              <select
+                value={forecastLeague}
+                onChange={(event) => { setForecastLeague(event.target.value); setVisibleForecasts(30); }}
+                className="min-h-9 rounded-lg border border-surface1 bg-mantle px-2 text-text"
+              >
+                <option value="all">All leagues</option>
+                {forecastLeagues.map((league) => (
+                  <option key={league} value={league}>{LEAGUE_NAMES[league] || league}</option>
+                ))}
+              </select>
+            </label>
+            <span>Showing {Math.min(visibleForecasts, filteredForecasts.length)} of {filteredForecasts.length} forecasts</span>
+          </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {forecasts.map((f, idx) => {
+            {filteredForecasts.slice(0, visibleForecasts).map((f, idx) => {
               const homePct = Number((f.home_probability * 100).toFixed(0));
               const drawPct = Number((f.draw_probability * 100).toFixed(0));
               const awayPct = Number((f.away_probability * 100).toFixed(0));
@@ -336,6 +366,12 @@ function PredictionsContent() {
               );
             })}
           </div>
+          {visibleForecasts < filteredForecasts.length && (
+            <Button variant="outline" onPress={() => setVisibleForecasts((count) => count + 30)}>
+              Show 30 more forecasts
+            </Button>
+          )}
+          </>
         )}
       </div>
 

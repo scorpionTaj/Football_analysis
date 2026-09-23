@@ -43,7 +43,7 @@ The match and current-season tables preserve these fields. The analysis service 
 | Kickoff time | `Time` | Store the source clock time without inferring a timezone; add timezone-labelled ordering only if a future source verifies the zone. Dates alone can misorder same-day games. |
 | Half-time result code | `HTR` | No new field is required because it is derivable from the stored half-time goals. Validate it during ingestion as an integrity check. |
 | Opening/closing prices | Home/draw/away, totals and Asian-handicap columns, with `C` variants for closing prices | Keep in an isolated optional research table. Convert to overround-adjusted probabilities and use only as a benchmark for model calibration. Do not mix betting data into the default performance experience. |
-| Upcoming fixtures | `fixtures.csv` | A guarded weekly adapter now stores source-time kickoff and reconciles to current clubs. Its short, sometimes stale window does not establish a complete season calendar. |
+| Upcoming fixtures | OpenFootball `football.json` plus `fixtures.csv` | Seven current-season full league calendars are now guarded by complete-pair, date and identity checks; the weekly CSV remains a nearby fallback for all ten leagues. Neither source guarantees final kickoff times or supplies all domestic cups. |
 | Additional countries/divisions | Country pages and “all new countries” downloads | Add only through the competition manifest and the same completeness validation; this is lower priority than improving the ten current leagues. |
 
 The current local files do **not** contain expected-goals columns, so the application must not label shots or a home-grown estimate as provider xG. Any future xG field requires a separately verified source and explicit coverage reporting.
@@ -193,7 +193,7 @@ Primary sources: [free-tier pricing](https://www.football-data.org/pricing), [fr
 
 ## Implementation order for remaining free capabilities
 
-1. Improve domestic fixture coverage beyond the guarded weekly CSV only when a permitted source provides a reliably current, fuller schedule; retain timestamps and reconciliation.
+1. Maintain OpenFootball's seven validated full-season calendars and seek a permitted fuller source for Belgium, Turkey and Greece; retain timestamps and reconciliation.
 2. Preserve World Cup-family kickoff, timezone, half-time score and match number.
 3. Add OpenFootball full-detail World Cup lineups/events/officials with field coverage by edition.
 4. Improve OpenFootball European parsing for kickoff, venue, leg and scorer annotations; historical Europa League and Conference League coverage now comes from the normalized Transfermarkt snapshot.
