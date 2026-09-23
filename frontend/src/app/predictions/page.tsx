@@ -21,6 +21,12 @@ import {
   Legend,
 } from 'recharts';
 
+const LEAGUE_NAMES: Record<string, string> = {
+  E0: 'Premier League', SP1: 'La Liga', D1: 'Bundesliga', I1: 'Serie A', F1: 'Ligue 1',
+  N1: 'Eredivisie', P1: 'Primeira Liga', B1: 'Belgian Pro League',
+  T1: 'Süper Lig', G1: 'Greek Super League',
+};
+
 function PredictionsContent() {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: queryKeys.predictions,
@@ -36,12 +42,29 @@ function PredictionsContent() {
   const temperature = typeof metrics.temperature === 'number' ? metrics.temperature.toFixed(2) : null;
   const validationMatches = typeof metrics.validation_matches === 'number' ? metrics.validation_matches.toLocaleString() : null;
   const shotCoverage = typeof metrics.shot_coverage === 'number' ? (metrics.shot_coverage * 100).toFixed(1) : null;
+  const strongThreshold = typeof metrics.high_confidence_threshold === 'number' ? metrics.high_confidence_threshold : 0.75;
+  const strongMatches = typeof metrics.high_confidence_matches === 'number' ? metrics.high_confidence_matches : 0;
+  const strongAccuracy = typeof metrics.high_confidence_accuracy === 'number' ? metrics.high_confidence_accuracy : null;
+  const strongCoverage = typeof metrics.high_confidence_coverage === 'number' ? metrics.high_confidence_coverage : 0;
+  const strongLow95 = typeof metrics.high_confidence_low95 === 'number' ? metrics.high_confidence_low95 : null;
+  const strongHigh95 = typeof metrics.high_confidence_high95 === 'number' ? metrics.high_confidence_high95 : null;
+  const leagueBacktest = Array.isArray(metrics.league_backtest)
+    ? [...(metrics.league_backtest as { league: string; matches: number; accuracy: number; log_loss: number }[])]
+      .sort((a, b) => b.matches - a.matches)
+    : [];
+  const outcomeBacktest = Array.isArray(metrics.outcome_backtest)
+    ? metrics.outcome_backtest as { outcome: string; matches: number; predicted: number; correct: number; recall: number | null; precision: number | null }[]
+    : [];
+  const walkForward = Array.isArray(metrics.walk_forward)
+    ? metrics.walk_forward as { season: number; matches: number; accuracy: number; log_loss: number; baseline_accuracy: number }[]
+    : [];
+  const forecastRecord = data?.forecast_record;
+  const forecastHistory = data?.forecast_history || [];
+  const qualifyingForecasts = forecasts.filter((row) => Math.max(
+    row.home_probability, row.draw_probability, row.away_probability,
+  ) >= strongThreshold).length;
 
   const titleRaces = useMemo(() => {
-    const names: Record<string, string> = {
-      E0: 'Premier League', SP1: 'La Liga', D1: 'Bundesliga', I1: 'Serie A', F1: 'Ligue 1',
-      N1: 'Eredivisie', P1: 'Primeira Liga', B1: 'Belgian Pro League', T1: 'Süper Lig', G1: 'Greek Super League',
-    };
     const leagueOutlooks = data?.league_outlooks || [];
     const grouped = new Map<string, typeof leagueOutlooks>();
     for (const row of leagueOutlooks) {
@@ -51,7 +74,7 @@ function PredictionsContent() {
     }
     return Array.from(grouped, ([competition, rows]) => ({
       competition,
-      name: names[competition] || competition,
+      name: LEAGUE_NAMES[competition] || competition,
       rows: rows.sort((a, b) => b.title_probability - a.title_probability).slice(0, 3),
     }));
   }, [data?.league_outlooks]);
@@ -149,6 +172,23 @@ function PredictionsContent() {
         </p>
       </Card>
 
+      {strongMatches > 0 && strongAccuracy !== null && (
+        <Card className="grid gap-4 rounded-xl border border-teal/40 bg-teal/5 p-5 sm:grid-cols-[11rem_1fr] sm:items-center">
+          <div className="border-b border-teal/30 pb-4 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-5">
+            <p className="text-3xl font-black tabular-nums text-teal">{(strongAccuracy * 100).toFixed(1)}%</p>
+            <p className="text-xs font-semibold text-text">Observed on strong picks</p>
+          </div>
+          <div className="space-y-1.5">
+            <h2 className="text-sm font-bold text-text">A selective tier, not an 80% all-match model</h2>
+            <p className="text-xs leading-5 text-subtext1">
+              At least {(strongThreshold * 100).toFixed(0)}% predicted for one outcome: {strongMatches} of {validationMatches} holdout matches ({(strongCoverage * 100).toFixed(1)}% coverage).
+              {strongLow95 !== null && strongHigh95 !== null && ` The 95% interval is ${(strongLow95 * 100).toFixed(1)}–${(strongHigh95 * 100).toFixed(1)}%.`}
+            </p>
+            <p className="text-xs font-semibold text-teal">{qualifyingForecasts} upcoming fixtures meet this threshold now.</p>
+          </div>
+        </Card>
+      )}
+
       {titleRaces.length > 0 && (
         <section className="space-y-4" aria-labelledby="title-outlook-heading">
           <div>
@@ -226,6 +266,7 @@ function PredictionsContent() {
               const homePct = Number((f.home_probability * 100).toFixed(0));
               const drawPct = Number((f.draw_probability * 100).toFixed(0));
               const awayPct = Number((f.away_probability * 100).toFixed(0));
+              const confidence = Math.max(f.home_probability, f.draw_probability, f.away_probability);
 
               return (
                 <div
@@ -288,6 +329,9 @@ function PredictionsContent() {
                         : 'Draw'}
                     </span>
                   </div>
+                  <p className={`text-[11px] font-semibold ${confidence >= strongThreshold ? 'text-teal' : 'text-subtext0'}`}>
+                    {confidence >= strongThreshold ? 'High-confidence tier' : confidence >= 0.6 ? 'Moderate lean' : 'Open match'} · {(confidence * 100).toFixed(1)}% strongest outcome
+                  </p>
                 </div>
               );
             })}
@@ -324,6 +368,57 @@ function PredictionsContent() {
           </div>
         </div>
       )}
+
+      {leagueBacktest.length > 0 && (
+        <Card className="rounded-xl border border-surface1 bg-surface0 p-5 space-y-3">
+          <h2 className="text-base font-semibold text-text">Holdout by league</h2>
+          <p className="text-xs text-subtext0">The same later test period, split by competition. Small samples are less reliable.</p>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[420px] text-left text-xs">
+              <thead className="border-b border-surface1 text-subtext0"><tr><th className="py-2">League</th><th className="py-2 text-right">Matches</th><th className="py-2 text-right">Accuracy</th><th className="py-2 text-right">Log loss</th></tr></thead>
+              <tbody>{leagueBacktest.map((row) => <tr key={row.league} className="border-b border-surface1/50 last:border-0"><td className="py-2 font-semibold text-text">{LEAGUE_NAMES[row.league] || row.league}</td><td className="py-2 text-right text-subtext1">{row.matches}</td><td className="py-2 text-right text-subtext1">{(row.accuracy * 100).toFixed(1)}%</td><td className="py-2 text-right text-subtext1">{row.log_loss.toFixed(3)}</td></tr>)}</tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {(outcomeBacktest.length > 0 || walkForward.length > 0) && (
+        <div className="grid gap-4 xl:grid-cols-2">
+          {outcomeBacktest.length > 0 && (
+            <Card className="rounded-xl border border-surface1 bg-surface0 p-5">
+              <h2 className="text-base font-semibold text-text">Home, draw and away audit</h2>
+              <p className="mt-1 text-xs text-subtext0">Recall shows how often each real outcome was found; precision shows how often that prediction was right.</p>
+              <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[380px] text-xs">
+                <thead className="border-b border-surface1 text-subtext0"><tr><th className="py-2 text-left">Outcome</th><th className="text-right">Actual</th><th className="text-right">Predicted</th><th className="text-right">Recall</th><th className="text-right">Precision</th></tr></thead>
+                <tbody>{outcomeBacktest.map((row) => <tr key={row.outcome} className="border-b border-surface1/50 last:border-0"><td className="py-2 font-semibold text-text">{row.outcome}</td><td className="text-right text-subtext1">{row.matches}</td><td className="text-right text-subtext1">{row.predicted}</td><td className="text-right text-subtext1">{row.recall === null ? '—' : `${(row.recall * 100).toFixed(1)}%`}</td><td className="text-right text-subtext1">{row.precision === null ? '—' : `${(row.precision * 100).toFixed(1)}%`}</td></tr>)}</tbody>
+              </table></div>
+            </Card>
+          )}
+          {walkForward.length > 0 && (
+            <Card className="rounded-xl border border-surface1 bg-surface0 p-5">
+              <h2 className="text-base font-semibold text-text">Season-by-season walk-forward</h2>
+              <p className="mt-1 text-xs text-subtext0">Each season is scored using only earlier seasons for fitting and calibration.</p>
+              <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[360px] text-xs">
+                <thead className="border-b border-surface1 text-subtext0"><tr><th className="py-2 text-left">Season</th><th className="text-right">Games</th><th className="text-right">Accuracy</th><th className="text-right">Baseline</th><th className="text-right">Log loss</th></tr></thead>
+                <tbody>{walkForward.map((row) => <tr key={row.season} className="border-b border-surface1/50 last:border-0"><td className="py-2 font-semibold text-text">{row.season}/{String(row.season + 1).slice(-2)}</td><td className="text-right text-subtext1">{row.matches}</td><td className="text-right text-subtext1">{(row.accuracy * 100).toFixed(1)}%</td><td className="text-right text-subtext1">{(row.baseline_accuracy * 100).toFixed(1)}%</td><td className="text-right text-subtext1">{row.log_loss.toFixed(3)}</td></tr>)}</tbody>
+              </table></div>
+            </Card>
+          )}
+        </div>
+      )}
+
+      <Card className="rounded-xl border border-surface1 bg-surface0 p-5">
+        <h2 className="text-base font-semibold text-text">Published forecast record</h2>
+        <p className="mt-1 text-xs text-subtext0">Forecasts are kept as issued and matched with results after refresh. Re-forecasts for the same match are separate records.</p>
+        <p className="mt-3 text-sm font-semibold text-text">
+          {forecastRecord?.resolved ? `${forecastRecord.correct ?? 0} correct of ${forecastRecord.resolved} resolved (${((forecastRecord.accuracy ?? 0) * 100).toFixed(1)}%)` : 'No published forecasts resolved yet'}
+          <span className="ml-2 text-xs font-normal text-subtext0">· {forecastRecord?.issued ?? 0} issued</span>
+        </p>
+        {forecastHistory.length > 0 && <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[500px] text-xs">
+          <thead className="border-b border-surface1 text-subtext0"><tr><th className="py-2 text-left">Issued</th><th className="text-left">Fixture</th><th className="text-left">Pick</th><th className="text-left">Result</th></tr></thead>
+          <tbody>{forecastHistory.map((row) => <tr key={`${row.model_id}-${row.competition}-${row.match_date}-${row.home.team_id}-${row.away.team_id}`} className="border-b border-surface1/50 last:border-0"><td className="py-2 text-subtext1">{row.issued_at.slice(0, 10)}</td><td className="text-subtext1">{row.home.name} – {row.away.name}</td><td className="text-subtext1">{row.predicted_result}</td><td className={row.actual_result ? row.actual_result === row.predicted_result ? 'text-green' : 'text-red' : 'text-subtext0'}>{row.actual_result || 'Pending'}</td></tr>)}</tbody>
+        </table></div>}
+      </Card>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { Card, Button } from '@heroui/react';
-import { Suspense, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { queryKeys } from '@/lib/api/query-keys';
@@ -12,7 +12,6 @@ import { PageHeader } from '@/components/ui/page-header';
 import { FilterBar } from '@/components/filters';
 import { FootballBadge } from '@/lib/media-utils';
 import { Calendar, Download, ChevronRight, ChevronLeft, Search, UserCheck } from 'lucide-react';
-import { fuzzyMatch } from '@/lib/fuzzy';
 import type { Match } from '@/lib/api/types';
 import { MatchDetailCentre } from '@/components/match-detail-centre';
 
@@ -21,28 +20,41 @@ function MatchesContent() {
   const [currentCursor, setCurrentCursor] = useState<string | null>(null);
   const [cursorHistory, setCursorHistory] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const matchDate = filters.get('match_date');
+  const matchHome = filters.get('home');
+  const matchAway = filters.get('away');
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(searchQuery.trim());
+      setCurrentCursor(null);
+      setCursorHistory([]);
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [searchQuery]);
 
   const queryParams = useMemo(() => ({
     competition: filters.competition || undefined,
     season: filters.season || undefined,
     team: filters.team || undefined,
     venue: filters.venue || undefined,
+    q: debouncedSearch || undefined,
     cursor: currentCursor || undefined,
     limit: 20,
-  }), [filters.competition, filters.season, filters.team, filters.venue, currentCursor]);
+  }), [filters.competition, filters.season, filters.team, filters.venue, debouncedSearch, currentCursor]);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: queryKeys.matches(queryParams),
     queryFn: () => api.matches(queryParams),
   });
 
-  const selectedMatchParams = selectedMatch ? {
-    competition: selectedMatch.competition,
-    season: selectedMatch.season,
-    match_date: selectedMatch.match_date,
-    home: selectedMatch.home.name,
-    away: selectedMatch.away.name,
+  const selectedMatchParams = matchDate && matchHome && matchAway && filters.competition && filters.season ? {
+    competition: filters.competition,
+    season: filters.season,
+    match_date: matchDate,
+    home: matchHome,
+    away: matchAway,
   } : null;
   const { data: detail, isLoading: isDetailLoading, error: detailError, refetch: refetchDetail } = useQuery({
     queryKey: queryKeys.matchDetail(selectedMatchParams || {}),
@@ -53,18 +65,7 @@ function MatchesContent() {
   const matches = useMemo(() => data?.matches || [], [data?.matches]);
   const page = data?.page;
 
-  // Filter matches locally by search query (team names or referee)
-  const filteredMatches = useMemo(() => {
-    if (!searchQuery) return matches;
-    return matches.filter((match) => fuzzyMatch(searchQuery, [
-      match.home.name,
-      match.away.name,
-      match.referee,
-      match.competition,
-      match.stage,
-      match.venue,
-    ]));
-  }, [matches, searchQuery]);
+  const filteredMatches = matches;
 
   const handleNextPage = () => {
     if (page?.next_cursor) {
@@ -87,7 +88,13 @@ function MatchesContent() {
   };
 
   const openMatchCentre = (match: Match) => {
-    setSelectedMatch(match);
+    filters.set({
+      competition: match.competition,
+      season: match.season,
+      match_date: match.match_date,
+      home: match.home.name,
+      away: match.away.name,
+    });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -123,10 +130,10 @@ function MatchesContent() {
   if (error) {
     return <ErrorMessage title="Failed to load matches" detail={error.message} retry={() => refetch()} />;
   }
-  if (selectedMatch) {
+  if (selectedMatchParams) {
     if (isDetailLoading) return <LoadingSkeleton lines={10} />;
     if (detailError) return <ErrorMessage title="Match detail could not load" detail={detailError.message} retry={() => refetchDetail()} />;
-    if (detail) return <MatchDetailCentre detail={detail} onBack={() => setSelectedMatch(null)} />;
+    if (detail) return <MatchDetailCentre detail={detail} onBack={() => filters.set({ match_date: null, home: null, away: null })} />;
   }
 
   return (
@@ -216,7 +223,7 @@ function MatchesContent() {
             >
               {/* Date & Competition */}
               <div className="flex items-center gap-2.5 text-xs text-subtext0 min-w-[140px]">
-                <span className="font-mono text-overlay1">{m.match_date}</span>
+                <span className="font-mono text-overlay1">{m.match_date}{m.kickoff_time ? ` · ${m.kickoff_time}` : ''}</span>
                 <span className="rounded bg-surface1 px-2 py-0.5 text-subtext1 font-medium text-[11px]">
                   {m.competition}
                 </span>

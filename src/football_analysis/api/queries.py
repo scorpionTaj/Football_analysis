@@ -34,6 +34,7 @@ from football_analysis.api.contracts import (
     EventSummary,
     EventTimelineItem,
     Forecast,
+    ForecastAuditRow,
     FormRow,
     HealthResponse,
     LeagueTitleOutlook,
@@ -397,6 +398,7 @@ def _match_from_row(row, competition_field="league", media_map: dict[str, Any] |
         competition=competition,
         season=int(row.season),
         match_date=_as_date(row.match_date) or date.min,
+        kickoff_time=None if pd.isna(getattr(row, "kickoff_time", None)) else str(row.kickoff_time),
         home=_build_team_ref(row.home_team, media_map),
         away=_build_team_ref(row.away_team, media_map),
         home_goals=None if pd.isna(getattr(row, "home_goals", None)) else int(row.home_goals),
@@ -431,6 +433,7 @@ def list_matches(
     venue: str | None = None,
     cursor: str | None = None,
     limit: int = 50,
+    query: str | None = None,
 ) -> MatchListResponse:
     limit = max(1, min(int(limit), 200))
     frames = []
@@ -440,7 +443,7 @@ def list_matches(
             "home_goals, away_goals, home_shots, away_shots, home_sot, away_sot, "
             "half_time_home_goals, half_time_away_goals, home_corners, away_corners, "
             "home_fouls, away_fouls, home_yellows, away_yellows, home_reds, away_reds, "
-            "referee, CAST(NULL AS VARCHAR) AS stage, "
+            "referee, CAST(NULL AS VARCHAR) AS kickoff_time, CAST(NULL AS VARCHAR) AS stage, "
             "CAST(NULL AS VARCHAR) AS venue, 'football-data.co.uk' AS source FROM matches"
         ))
     if _has(store, "recent_matches"):
@@ -449,7 +452,7 @@ def list_matches(
             "home_goals, away_goals, home_shots, away_shots, home_sot, away_sot, "
             "half_time_home_goals, half_time_away_goals, home_corners, away_corners, "
             "home_fouls, away_fouls, home_yellows, away_yellows, home_reds, away_reds, "
-            "referee, CAST(NULL AS VARCHAR) AS stage, "
+            "referee, CAST(NULL AS VARCHAR) AS kickoff_time, CAST(NULL AS VARCHAR) AS stage, "
             "CAST(NULL AS VARCHAR) AS venue, source FROM recent_matches"
         ))
     if _has(store, "tournament_matches"):
@@ -462,8 +465,23 @@ def list_matches(
             "CAST(NULL AS INTEGER) AS away_corners, CAST(NULL AS INTEGER) AS home_fouls, "
             "CAST(NULL AS INTEGER) AS away_fouls, CAST(NULL AS INTEGER) AS home_yellows, "
             "CAST(NULL AS INTEGER) AS away_yellows, CAST(NULL AS INTEGER) AS home_reds, "
-            "CAST(NULL AS INTEGER) AS away_reds, CAST(NULL AS VARCHAR) AS referee, stage, venue, source "
+            "CAST(NULL AS INTEGER) AS away_reds, CAST(NULL AS VARCHAR) AS referee, "
+            "CAST(NULL AS VARCHAR) AS kickoff_time, stage, venue, source "
             "FROM tournament_matches"
+        ))
+    if _has(store, "recent_events"):
+        frames.append(store.query(
+            "SELECT league AS competition, season, match_date, home_team, away_team, "
+            "CAST(NULL AS INTEGER) AS home_goals, CAST(NULL AS INTEGER) AS away_goals, "
+            "CAST(NULL AS INTEGER) AS home_shots, CAST(NULL AS INTEGER) AS away_shots, "
+            "CAST(NULL AS INTEGER) AS home_sot, CAST(NULL AS INTEGER) AS away_sot, "
+            "CAST(NULL AS INTEGER) AS half_time_home_goals, CAST(NULL AS INTEGER) AS half_time_away_goals, "
+            "CAST(NULL AS INTEGER) AS home_corners, CAST(NULL AS INTEGER) AS away_corners, "
+            "CAST(NULL AS INTEGER) AS home_fouls, CAST(NULL AS INTEGER) AS away_fouls, "
+            "CAST(NULL AS INTEGER) AS home_yellows, CAST(NULL AS INTEGER) AS away_yellows, "
+            "CAST(NULL AS INTEGER) AS home_reds, CAST(NULL AS INTEGER) AS away_reds, "
+            "referee, kickoff_time, CAST(NULL AS VARCHAR) AS stage, venue, source "
+            "FROM recent_events WHERE event_kind IN ('fixture', 'next') AND match_date >= current_date"
         ))
     if not frames:
         return MatchListResponse(
@@ -471,6 +489,12 @@ def list_matches(
             source=_source("duckdb", "empty"),
         )
     frame = pd.concat(frames, ignore_index=True)
+    frame["home_key"] = frame.home_team.map(team_key)
+    frame["away_key"] = frame.away_team.map(team_key)
+    frame["has_result"] = frame.home_goals.notna().astype(int)
+    frame = frame.sort_values("has_result", ascending=False).drop_duplicates(
+        ["competition", "season", "home_key", "away_key", "match_date"], keep="first",
+    ).drop(columns=["home_key", "away_key", "has_result"])
     frame["match_date"] = pd.to_datetime(frame.match_date)
     if competition:
         frame = frame[frame.competition == competition]
@@ -495,6 +519,13 @@ def list_matches(
             frame = frame[away_keys == key]
     elif venue:
         frame = frame[frame.venue == venue]
+    if query and _search_text(query):
+        search_columns = ("home_team", "away_team", "referee", "competition", "stage", "venue")
+        matched = frame.apply(
+            lambda row: any(_fuzzy_score(query, row[column]) >= 0.58 for column in search_columns),
+            axis=1,
+        )
+        frame = frame[matched]
     frame = frame.sort_values(
         ["match_date", "competition", "home_team", "away_team"],
         ascending=[False, True, True, True],
@@ -1470,6 +1501,8 @@ def predictions(store: ReadOnlyStore) -> PredictionsResponse:
     model = models.iloc[0]
     metrics = json.loads(model.metrics) if isinstance(model.metrics, str) else (model.metrics or {})
     forecasts = []
+    forecast_history = []
+    forecast_record = {}
     calibration: list[CalibrationBin] = []
     tm_map = _team_media_map(store)
     if _has(store, "match_predictions"):
@@ -1489,11 +1522,41 @@ def predictions(store: ReadOnlyStore) -> PredictionsResponse:
             ))
         validation = rows[rows.prediction_kind == "validation"] if not rows.empty else rows
         calibration = _calibration(validation)
+    if _has(store, "forecast_history"):
+        record = store.query(
+            "SELECT count(*) AS issued, count(actual_result) AS resolved, "
+            "sum(CASE WHEN actual_result=predicted_result THEN 1 ELSE 0 END) AS correct "
+            "FROM forecast_history"
+        ).iloc[0]
+        resolved = int(record.resolved or 0)
+        forecast_record = {
+            "issued": int(record.issued or 0), "resolved": resolved,
+            "correct": int(record.correct or 0),
+            "accuracy": int(record.correct or 0) / resolved if resolved else None,
+        }
+        history = store.query(
+            "SELECT * FROM forecast_history ORDER BY issued_at DESC, match_date DESC LIMIT 30"
+        )
+        for row in history.itertuples(index=False):
+            forecast_history.append(ForecastAuditRow(
+                model_id=row.model_id, competition=row.league, season=int(row.season),
+                match_date=_as_date(row.match_date) or date.min,
+                home=_build_team_ref(row.home_team, tm_map),
+                away=_build_team_ref(row.away_team, tm_map),
+                predicted_result=row.predicted_result,
+                home_probability=float(row.home_probability),
+                draw_probability=float(row.draw_probability),
+                away_probability=float(row.away_probability),
+                issued_at=_as_datetime(row.issued_at) or datetime.min,
+                actual_result=_present(row.actual_result),
+                resolved_at=_as_datetime(row.resolved_at),
+            ))
     return PredictionsResponse(
         model_id=model.model_id, model_name=model.model_name,
         trained_at=_as_datetime(model.trained_at),
         validation_cutoff=_as_date(model.validation_cutoff),
         metrics=metrics, calibration=calibration, forecasts=forecasts,
+        forecast_history=forecast_history, forecast_record=forecast_record,
         league_outlooks=_league_title_outlooks(store, tm_map),
         source=_source("softmax-form-shots", "predictions", model.trained_at),
     )
@@ -1580,7 +1643,8 @@ def overview(
     next_match = None
     if season == current_season() and _has(store, "recent_events"):
         upcoming = store.query(
-            "SELECT * FROM recent_events WHERE season = ? AND event_kind = 'next' ORDER BY match_date, event_id",
+            "SELECT * FROM recent_events WHERE season = ? AND event_kind IN ('next', 'fixture') "
+            "AND match_date >= current_date ORDER BY match_date, event_kind, event_id",
             [season],
         )
         if not upcoming.empty:

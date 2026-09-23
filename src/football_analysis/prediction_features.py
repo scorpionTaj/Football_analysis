@@ -26,9 +26,25 @@ def load_match_inputs(con):
         ["league", "season", "home_team", "away_team"], keep="last",
     )
     fixtures = con.sql("""
-        SELECT league, season, match_date, home_team, away_team
-        FROM recent_events WHERE event_kind='next'
+        SELECT league, season, match_date, home_team, away_team, event_kind
+        FROM recent_events
+        WHERE event_kind IN ('next', 'fixture') AND match_date >= current_date
     """).df()
+    if not fixtures.empty:
+        fixtures["home_key"] = fixtures.home_team.map(team_key)
+        fixtures["away_key"] = fixtures.away_team.map(team_key)
+        fixtures["priority"] = fixtures.event_kind.map({"fixture": 0, "next": 1})
+        fixtures = fixtures.sort_values("priority").drop_duplicates(
+            ["league", "season", "home_key", "away_key"], keep="first",
+        )
+        completed = set(zip(
+            matches.league, matches.season,
+            matches.home_team.map(team_key), matches.away_team.map(team_key),
+        ))
+        fixtures = fixtures[[
+            (row.league, row.season, row.home_key, row.away_key) not in completed
+            for row in fixtures.itertuples(index=False)
+        ]][["league", "season", "match_date", "home_team", "away_team"]]
     return matches, fixtures
 
 

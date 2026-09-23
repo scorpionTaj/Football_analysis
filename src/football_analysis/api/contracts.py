@@ -79,6 +79,7 @@ class Match(BaseModel):
     competition: str
     season: int
     match_date: date
+    kickoff_time: str | None = None
     home: TeamRef
     away: TeamRef
     home_goals: int | None = None
@@ -406,6 +407,13 @@ class CalibrationBin(BaseModel):
     samples: int
 
 
+class ForecastAuditRow(Forecast):
+    model_id: str
+    issued_at: datetime
+    actual_result: str | None = None
+    resolved_at: datetime | None = None
+
+
 class LeagueTitleOutlook(BaseModel):
     competition: str
     season: int
@@ -425,6 +433,8 @@ class PredictionsResponse(BaseModel):
     metrics: dict[str, Any] = Field(default_factory=dict)
     calibration: list[CalibrationBin] = Field(default_factory=list)
     forecasts: list[Forecast] = Field(default_factory=list)
+    forecast_history: list[ForecastAuditRow] = Field(default_factory=list)
+    forecast_record: dict[str, Any] = Field(default_factory=dict)
     league_outlooks: list[LeagueTitleOutlook] = Field(default_factory=list)
     source: SourceMeta
 

@@ -109,6 +109,7 @@
 - [x] FA-089 Make artwork backfills bounded and resumable, cache unavailable lookups, and skip unchanged open-player imports.
 - [x] FA-090 Add one incremental/bootstrap sync command, persisted source freshness and unchanged-partition/model skips; preserve player stats on profile refresh.
 - [x] FA-091 Separate prediction input engineering from training, add leakage-safe rolling shots on target, and validate its holdout improvement against a training-only baseline.
+- [x] FA-092 Backtest stronger models and older seasons; keep the best calibrated model, and expose selective confidence with coverage, uncertainty and league-level diagnostics.
 - [x] FA-087 Add current-season league title outlooks and validate the 10-match calibrated result model chronologically.
 - [x] FA-088 Prove API/frontend parity for every legacy workflow, add missing reference/quality/tournament/correlation/player features, and remove the retired client and dependencies.
 - [ ] FA-084 Add a prediction retraining schedule only after the read-only API and ingestion job are deployed separately.

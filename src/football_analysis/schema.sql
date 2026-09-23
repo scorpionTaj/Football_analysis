@@ -147,6 +147,14 @@ CREATE TABLE IF NOT EXISTS match_predictions (
  away_probability DOUBLE NOT NULL,
  PRIMARY KEY(model_id, prediction_kind, league, match_date, home_team, away_team)
 );
+CREATE TABLE IF NOT EXISTS forecast_history (
+ model_id VARCHAR NOT NULL, league VARCHAR NOT NULL, season INTEGER NOT NULL,
+ match_date DATE NOT NULL, home_team VARCHAR NOT NULL, away_team VARCHAR NOT NULL,
+ predicted_result VARCHAR NOT NULL, home_probability DOUBLE NOT NULL,
+ draw_probability DOUBLE NOT NULL, away_probability DOUBLE NOT NULL,
+ issued_at TIMESTAMP NOT NULL, actual_result VARCHAR, resolved_at TIMESTAMP,
+ PRIMARY KEY(model_id, league, match_date, home_team, away_team)
+);
 CREATE TABLE IF NOT EXISTS players (
  source VARCHAR NOT NULL, player_id VARCHAR NOT NULL, team_id VARCHAR NOT NULL,
  team VARCHAR NOT NULL, player VARCHAR NOT NULL, position VARCHAR,

@@ -50,13 +50,17 @@ def cache_for_season(season: int | None) -> str:
 def create_app(
     database_path: Path | None = None,
     refresh_runner: RefreshRunner | None = None,
+    defer_database_open: bool = False,
 ) -> FastAPI:
     path = Path(database_path) if database_path is not None else DB
     store: ReadOnlyStore | None
-    try:
-        store = ReadOnlyStore(path)
-    except FileNotFoundError:
+    if defer_database_open:
         store = None
+    else:
+        try:
+            store = ReadOnlyStore(path)
+        except FileNotFoundError:
+            store = None
 
     app = FastAPI(
         title="Football Analysis API",
@@ -79,7 +83,12 @@ def create_app(
     )
     app.state.store = store
     app.state.database_path = path
-    app.state.refresh = RefreshCoordinator()
+    app.state.refresh = RefreshCoordinator(path.with_suffix(".refresh.json"))
+
+    @app.on_event("startup")
+    def open_deferred_database() -> None:
+        if defer_database_open and app.state.store is None and path.exists():
+            app.state.store = ReadOnlyStore(path)
 
     def require_store() -> ReadOnlyStore:
         current = app.state.store
@@ -118,12 +127,13 @@ def create_app(
         team: str | None = None,
         opponent: str | None = None,
         venue: str | None = None,
+        q: str | None = None,
         cursor: str | None = None,
         limit: int = Query(default=50, ge=1, le=200),
     ):
         try:
             payload = queries.list_matches(
-                require_store(), competition, season, team, opponent, venue, cursor, limit,
+                require_store(), competition, season, team, opponent, venue, cursor, limit, q,
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -290,7 +300,7 @@ def create_app(
     return app
 
 
-app = create_app()
+app = create_app(defer_database_open=True)
 
 
 def main() -> None:

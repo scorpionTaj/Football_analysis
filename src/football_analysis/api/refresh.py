@@ -57,9 +57,32 @@ def _featured_clubs_in_scope(database: Path, competitions: set[str], season: int
 class RefreshCoordinator:
     """Run at most one refresh while exposing a small polling-safe status contract."""
 
-    def __init__(self):
+    def __init__(self, status_path: Path | None = None):
         self._lock = threading.Lock()
+        self._status_path = status_path
         self._state = RefreshStatusResponse()
+        if status_path and status_path.exists():
+            try:
+                self._state = RefreshStatusResponse.model_validate_json(status_path.read_text())
+            except (OSError, ValueError):
+                self._state = RefreshStatusResponse(message="Previous refresh status could not be read.")
+            if self._state.status == "running":
+                self._state.status = "failed"
+                self._state.error = "The application stopped before this refresh finished."
+                self._state.message = "Earlier completed steps may have been applied; refresh again to resume."
+                self._state.finished_at = datetime.now().replace(microsecond=0)
+                self._save()
+
+    def _save(self) -> None:
+        if self._status_path is None:
+            return
+        self._status_path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = self._status_path.with_name(f".{self._status_path.name}.{uuid4().hex}.tmp")
+        try:
+            temporary.write_text(self._state.model_dump_json())
+            temporary.replace(self._status_path)
+        finally:
+            temporary.unlink(missing_ok=True)
 
     def status(self) -> RefreshStatusResponse:
         with self._lock:
@@ -75,6 +98,7 @@ class RefreshCoordinator:
                 step_name="Preparing", message="Closing the read snapshot safely.",
                 started_at=datetime.now().replace(microsecond=0),
             )
+            self._save()
 
         def progress(step: int, name: str, message: str) -> None:
             with self._lock:
@@ -85,6 +109,7 @@ class RefreshCoordinator:
                 self._state.completed_steps = sorted(set(completed))
                 self._state.step_name = name
                 self._state.message = message
+                self._save()
 
         def work() -> None:
             try:
@@ -97,12 +122,14 @@ class RefreshCoordinator:
                     self._state.step_name = "Published"
                     self._state.message = "The refreshed database is ready for the frontend."
                     self._state.finished_at = datetime.now().replace(microsecond=0)
+                    self._save()
             except Exception as exc:
                 with self._lock:
                     self._state.status = "failed"
                     self._state.error = str(exc)
-                    self._state.message = "Refresh stopped; the previous valid data remains available."
+                    self._state.message = "Refresh stopped. Completed stages remain applied; the failed stage may be partial."
                     self._state.finished_at = datetime.now().replace(microsecond=0)
+                    self._save()
 
         threading.Thread(target=work, name="football-data-refresh", daemon=True).start()
         return self.status()
@@ -123,12 +150,19 @@ def run_refresh_pipeline(database: Path, request: RefreshRequest, progress: Prog
         progress(1, "Results and fixtures", "Downloading current results and the next listed fixtures.")
         if domestic:
             from football_analysis.recent import sync_recent
+            from football_analysis.fixtures import sync_fixtures
             report = sync_recent(
                 db=database, year=season, leagues=domestic,
                 refresh=request.force_download,
             )
             if report and all(row.get("status") == "failed" for row in report):
                 raise RuntimeError("No result partition could be refreshed")
+            fixture_report = sync_fixtures(
+                db=database, season=season, leagues=domestic,
+                refresh=request.force_download,
+            )
+            if fixture_report["status"] == "unavailable":
+                progress(1, "Results and fixtures", "Results refreshed; weekly fixture feed unavailable, prior rows retained.")
         if provider_tournaments:
             from football_analysis.recent import sync_cup_events
             sync_cup_events(

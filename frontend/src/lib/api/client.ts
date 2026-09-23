@@ -75,6 +75,7 @@ export const api = {
     team?: string;
     opponent?: string;
     venue?: string;
+    q?: string;
     cursor?: string;
     limit?: number;
   }) => request<MatchListResponse>(`/api/v1/matches${params(opts || {})}`),

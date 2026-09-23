@@ -2,7 +2,8 @@ import numpy as np
 import pandas as pd
 
 from football_analysis.predictions import (
-    FEATURES, build_match_features, fit_softmax, future_features, train_time_split,
+    FEATURES, _confidence_backtest, _outcome_backtest, build_match_features, fit_softmax,
+    future_features, train_time_split,
 )
 
 
@@ -42,6 +43,9 @@ def test_time_split_is_chronological_and_reports_baseline():
     assert metrics["baseline_log_loss"] > 0
     assert 0.6 <= metrics["temperature"] <= 1.8
     assert metrics["calibration_matches"] > 0
+    assert metrics["high_confidence_threshold"] == 0.75
+    assert sum(row["matches"] for row in metrics["league_backtest"]) == len(validation)
+    assert sum(row["matches"] for row in metrics["outcome_backtest"]) == len(validation)
 
 
 def test_future_features_do_not_require_or_invent_an_outcome():
@@ -79,3 +83,24 @@ def test_holdout_baseline_uses_training_prevalence():
     training_rates = train.actual_result.value_counts(normalize=True)
     expected = -np.log(validation.actual_result.map(training_rates)).mean()
     assert np.isclose(metrics["baseline_log_loss"], expected)
+
+
+def test_confidence_backtest_reports_coverage_and_uncertainty():
+    probabilities = np.array([
+        [0.8, 0.1, 0.1], [0.1, 0.1, 0.8], [0.4, 0.3, 0.3],
+    ])
+    metrics = _confidence_backtest(probabilities, [0, 0, 1])
+    assert metrics["high_confidence_matches"] == 2
+    assert np.isclose(metrics["high_confidence_coverage"], 2 / 3)
+    assert metrics["high_confidence_accuracy"] == 0.5
+    assert metrics["high_confidence_low95"] < 0.5 < metrics["high_confidence_high95"]
+
+
+def test_outcome_backtest_exposes_missed_draws():
+    probabilities = np.array([[0.8, 0.1, 0.1], [0.6, 0.3, 0.1], [0.1, 0.1, 0.8]])
+    rows = _outcome_backtest(probabilities, [0, 1, 2])
+    draw = next(row for row in rows if row["outcome"] == "Draw")
+    assert draw["matches"] == 1
+    assert draw["predicted"] == 0
+    assert draw["recall"] == 0
+    assert draw["precision"] is None

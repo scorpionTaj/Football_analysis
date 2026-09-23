@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -15,8 +16,10 @@ import pandas as pd
 from .config import DB
 from .ingest import connect
 from .prediction_features import FEATURES, build_match_features, future_features, load_match_inputs
+from .teams import team_key
 
 MODEL_VERSION = "softmax-form-shots-v3"
+HIGH_CONFIDENCE_THRESHOLD = 0.75
 CLASS_NAMES = np.array(["Home", "Draw", "Away"])
 
 
@@ -94,6 +97,50 @@ def _calibrated_temperature(model, features, labels):
     return best_temperature
 
 
+def _confidence_backtest(probabilities, labels, threshold=HIGH_CONFIDENCE_THRESHOLD):
+    """Report selective accuracy and uncertainty without hiding excluded games."""
+    actual = np.asarray(labels, dtype=int)
+    selected = probabilities.max(axis=1) >= threshold
+    count = int(selected.sum())
+    correct = int((probabilities[selected].argmax(axis=1) == actual[selected]).sum()) if count else 0
+    observed = correct / count if count else None
+    if count:
+        z = 1.96
+        centre = (observed + z * z / (2 * count)) / (1 + z * z / count)
+        margin = z * math.sqrt(
+            observed * (1 - observed) / count + z * z / (4 * count * count)
+        ) / (1 + z * z / count)
+        lower, upper = max(0.0, centre - margin), min(1.0, centre + margin)
+    else:
+        lower = upper = None
+    return {
+        "high_confidence_threshold": threshold,
+        "high_confidence_matches": count,
+        "high_confidence_coverage": count / len(actual),
+        "high_confidence_accuracy": observed,
+        "high_confidence_low95": lower,
+        "high_confidence_high95": upper,
+    }
+
+
+def _outcome_backtest(probabilities, labels):
+    """Expose class imbalance and missed draws instead of one accuracy number."""
+    actual = np.asarray(labels, dtype=int)
+    predicted = probabilities.argmax(axis=1)
+    rows = []
+    for index, outcome in enumerate(CLASS_NAMES):
+        actual_count = int((actual == index).sum())
+        predicted_count = int((predicted == index).sum())
+        correct = int(((actual == index) & (predicted == index)).sum())
+        rows.append({
+            "outcome": str(outcome), "matches": actual_count,
+            "predicted": predicted_count, "correct": correct,
+            "recall": correct / actual_count if actual_count else None,
+            "precision": correct / predicted_count if predicted_count else None,
+        })
+    return rows
+
+
 def train_time_split(feature_frame, train_fraction=0.8):
     if len(feature_frame) < 100:
         raise ValueError("At least 100 chronological matches are required")
@@ -126,6 +173,26 @@ def train_time_split(feature_frame, train_fraction=0.8):
         "calibration_matches": int(len(calibration_rows)),
         "validation_matches": int(len(validation)),
     })
+    metrics.update(_confidence_backtest(
+        probabilities, validation.actual_result.map(label_map),
+    ))
+    league_backtest = []
+    for league in sorted(validation.league.unique()):
+        mask = validation.league.to_numpy() == league
+        league_probabilities = probabilities[mask]
+        league_actual = validation.loc[mask, "actual_result"].map(label_map).to_numpy()
+        league_backtest.append({
+            "league": league,
+            "matches": int(mask.sum()),
+            "accuracy": float((league_probabilities.argmax(axis=1) == league_actual).mean()),
+            "log_loss": float(-np.log(np.clip(
+                league_probabilities[np.arange(len(league_actual)), league_actual], 1e-9, 1,
+            )).mean()),
+        })
+    metrics["league_backtest"] = league_backtest
+    metrics["outcome_backtest"] = _outcome_backtest(
+        probabilities, validation.actual_result.map(label_map),
+    )
     uncalibrated = SoftmaxModel(refit.mean, refit.scale, refit.weights)
     raw_metrics = _metrics(
         uncalibrated.predict_proba(validation[list(FEATURES)]),
@@ -135,6 +202,29 @@ def train_time_split(feature_frame, train_fraction=0.8):
     final_fit = fit_softmax(feature_frame[list(FEATURES)], feature_frame.actual_result.map(label_map))
     final_model = SoftmaxModel(final_fit.mean, final_fit.scale, final_fit.weights, temperature)
     return final_model, cutoff, train, validation, probabilities, metrics
+
+
+def walk_forward_backtest(feature_frame):
+    """Test each later season with a model trained only on earlier seasons."""
+    label_map = {"Home": 0, "Draw": 1, "Away": 2}
+    rows = []
+    for season in sorted(feature_frame.season.unique()):
+        earlier = feature_frame[feature_frame.season < season]
+        test = feature_frame[feature_frame.season == season]
+        if len(earlier) < 100 or len(test) < 30:
+            continue
+        model, _, _, _, _, _ = train_time_split(earlier)
+        probabilities = model.predict_proba(test[list(FEATURES)])
+        actual = test.actual_result.map(label_map).to_numpy()
+        baseline = np.bincount(earlier.actual_result.map(label_map), minlength=3) / len(earlier)
+        metrics = _metrics(probabilities, actual, baseline)
+        rows.append({
+            "season": int(season), "matches": len(test),
+            "accuracy": metrics["accuracy"], "log_loss": metrics["log_loss"],
+            "baseline_accuracy": metrics["baseline_accuracy"],
+            "baseline_log_loss": metrics["baseline_log_loss"],
+        })
+    return rows
 
 
 def _input_fingerprint(matches, upcoming):
@@ -154,6 +244,29 @@ def _input_fingerprint(matches, upcoming):
     return digest.hexdigest()
 
 
+def _reconcile_forecast_history(con, matches):
+    """Resolve published probabilities against completed results without rewriting them."""
+    pending = con.sql("SELECT model_id, league, season, match_date, home_team, away_team "
+                      "FROM forecast_history WHERE actual_result IS NULL").df()
+    if pending.empty:
+        return
+    results = {}
+    for row in matches.itertuples(index=False):
+        if pd.isna(row.home_goals) or pd.isna(row.away_goals):
+            continue
+        key = (row.league, int(row.season), team_key(row.home_team), team_key(row.away_team))
+        results[key] = "Home" if row.home_goals > row.away_goals else "Away" if row.home_goals < row.away_goals else "Draw"
+    for row in pending.itertuples(index=False):
+        key = (row.league, int(row.season), team_key(row.home_team), team_key(row.away_team))
+        actual = results.get(key)
+        if actual:
+            con.execute(
+                "UPDATE forecast_history SET actual_result=?, resolved_at=current_timestamp "
+                "WHERE model_id=? AND league=? AND match_date=? AND home_team=? AND away_team=?",
+                [actual, row.model_id, row.league, row.match_date, row.home_team, row.away_team],
+            )
+
+
 def sync_predictions(db=DB, force=False):
     with connect(db) as con:
         matches, upcoming = load_match_inputs(con)
@@ -164,6 +277,7 @@ def sync_predictions(db=DB, force=False):
         model_record = con.execute(
             "SELECT model_id, metrics FROM prediction_models ORDER BY trained_at DESC LIMIT 1"
         ).fetchone()
+        _reconcile_forecast_history(con, matches)
         if not force and cached and cached[0] == fingerprint and model_record:
             return {"model_id": model_record[0], "status": "cached", **json.loads(model_record[1])}
         feature_frame = build_match_features(matches)
@@ -171,6 +285,7 @@ def sync_predictions(db=DB, force=False):
         metrics.update({
             "shot_coverage": float((matches.home_sot.notna() & matches.away_sot.notna()).mean()),
             "feature_count": len(FEATURES),
+            "walk_forward": walk_forward_backtest(feature_frame),
         })
         model_id = f"{MODEL_VERSION}-{datetime.now():%Y%m%d%H%M%S}"
         validation_rows = validation[["league", "season", "match_date", "home_team", "away_team", "actual_result"]].copy()
@@ -198,10 +313,23 @@ def sync_predictions(db=DB, force=False):
             "metrics": json.dumps(metrics),
         }])
         predictions = pd.concat([validation_rows, forecast_rows], ignore_index=True)
+        if not forecast_rows.empty:
+            history_rows = forecast_rows.drop(columns=["prediction_kind", "actual_result"]).copy()
+            history_rows["issued_at"] = datetime.now()
+            history_rows["actual_result"] = None
+            history_rows["resolved_at"] = None
+            history_rows = history_rows[[
+                "model_id", "league", "season", "match_date", "home_team", "away_team",
+                "predicted_result", "home_probability", "draw_probability", "away_probability",
+                "issued_at", "actual_result", "resolved_at",
+            ]]
+            con.register("incoming_forecast_history", history_rows)
         con.register("incoming_model", model_row)
         con.register("incoming_predictions", predictions)
         con.execute("BEGIN")
         try:
+            if not forecast_rows.empty:
+                con.execute("INSERT OR IGNORE INTO forecast_history SELECT * FROM incoming_forecast_history")
             con.execute("DELETE FROM match_predictions")
             con.execute("DELETE FROM prediction_models")
             con.execute("INSERT INTO prediction_models SELECT * FROM incoming_model")
@@ -218,6 +346,8 @@ def sync_predictions(db=DB, force=False):
         finally:
             con.unregister("incoming_model")
             con.unregister("incoming_predictions")
+            if not forecast_rows.empty:
+                con.unregister("incoming_forecast_history")
     return {"model_id": model_id, **metrics, "forecasts": len(forecast_rows)}
 
 

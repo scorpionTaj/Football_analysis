@@ -59,6 +59,7 @@ export interface Match {
   competition: string;
   season: number;
   match_date: string;
+  kickoff_time: string | null;
   home: TeamRef;
   away: TeamRef;
   home_goals: number | null;
@@ -420,6 +421,13 @@ export interface Forecast {
   away_probability: number;
 }
 
+export interface ForecastAuditRow extends Forecast {
+  model_id: string;
+  issued_at: string;
+  actual_result: string | null;
+  resolved_at: string | null;
+}
+
 export interface CalibrationBin {
   predicted_outcome: string;
   mean_probability: number;
@@ -446,6 +454,8 @@ export interface PredictionsResponse {
   metrics: Record<string, unknown>;
   calibration: CalibrationBin[];
   forecasts: Forecast[];
+  forecast_history: ForecastAuditRow[];
+  forecast_record: { issued?: number; resolved?: number; correct?: number; accuracy?: number | null };
   league_outlooks: LeagueTitleOutlook[];
   source: SourceMeta;
 }
