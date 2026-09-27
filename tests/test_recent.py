@@ -1,5 +1,9 @@
 import football_analysis.recent as recent
 import pandas as pd
+from types import SimpleNamespace
+
+from football_analysis.ingest import connect
+from football_analysis.sync_state import mark_fresh
 
 
 class _Response:
@@ -60,3 +64,22 @@ def test_empty_cup_window_is_cached_without_repeated_requests(tmp_path):
         db=db, season=2026, competitions=["FAC"], adapter=adapter,
     )[0]["status"] == "cached"
     assert adapter.calls == 1
+
+
+def test_recent_reports_optional_event_failures_with_cached_results(monkeypatch, tmp_path):
+    db = tmp_path / "recent.duckdb"
+    with connect(db) as con:
+        mark_fresh(con, "recent-matches:E0:2026", "digest")
+    monkeypatch.setattr(recent.FootballDataCSV, "fetch", lambda *_args: SimpleNamespace(
+        frame=pd.DataFrame(), digest="digest",
+    ))
+
+    class FailingEvents:
+        def fetch(self, _league, _kind):
+            raise RuntimeError("events offline")
+
+    report = recent.sync_recent(db=db, year=2026, leagues=["E0"], event_adapter=FailingEvents())
+    assert report[0]["status"] == "cached"
+    assert report[0]["source"] == recent.SOURCE_CSV
+    assert [row["event_kind"] for row in report[1:]] == ["past", "next"]
+    assert all(row["source"] == recent.SOURCE_EVENTS and row["status"] == "failed" for row in report[1:])

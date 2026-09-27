@@ -148,6 +148,9 @@ function Pitch({ detail, side }: { detail: MatchCentreDetailResponse; side: Side
 export function MatchDetailCentre({ detail, onBack }: { detail: MatchCentreDetailResponse; onBack: () => void }) {
   const [side, setSide] = useState<Side>('home');
   const match = detail.match;
+  const isFixturePreview = match.home_goals === null && match.away_goals === null
+    && !detail.lineups.length && !detail.statistics.length && !detail.timeline.length
+    && !detail.home_formation && !detail.away_formation;
   const orderedTimeline = useMemo(() => [...detail.timeline].sort((a, b) => Number.parseInt(a.minute || '999', 10) - Number.parseInt(b.minute || '999', 10)), [detail.timeline]);
 
   return (
@@ -157,7 +160,7 @@ export function MatchDetailCentre({ detail, onBack }: { detail: MatchCentreDetai
       <Card className="overflow-hidden rounded-[1.8rem] border border-surface1 bg-surface0">
         <div className="border-b border-surface1 bg-mantle/75 p-5 sm:p-8">
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3 text-xs text-subtext0">
-            <span className="flex items-center gap-2"><CalendarDays className="size-4" />{match.match_date}{match.kickoff_time ? ` · ${match.kickoff_time} source time` : ''} · {match.competition}</span>
+            <span className="flex items-center gap-2"><CalendarDays className="size-4" />{match.match_date}{match.kickoff_time ? ` · Kickoff ${match.kickoff_time}` : ''} · {match.competition}</span>
             <span>{detail.status || match.stage || 'Match record'}</span>
           </div>
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 sm:gap-8">
@@ -180,7 +183,29 @@ export function MatchDetailCentre({ detail, onBack }: { detail: MatchCentreDetai
           </div>
         </div>
 
-        <div className="grid xl:grid-cols-[1.05fr_0.95fr]">
+        {isFixturePreview ? (
+          <section className="space-y-5 p-5 sm:p-8">
+            <div>
+              <h2 className="text-lg font-black text-text">Fixture preview</h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-subtext1">
+                This match has not produced a verified result or match events yet. The fixture information below is what the source has published.
+              </p>
+            </div>
+            <dl className="grid gap-4 rounded-xl border border-surface1 bg-mantle/60 p-4 text-sm sm:grid-cols-2">
+              <div><dt className="text-subtext0">Date</dt><dd className="font-semibold text-text">{match.match_date}</dd></div>
+              <div><dt className="text-subtext0">Kickoff</dt><dd className="font-semibold text-text">{match.kickoff_time || 'Not announced'}</dd></div>
+              <div><dt className="text-subtext0">Competition</dt><dd className="font-semibold text-text">{match.competition}</dd></div>
+              <div><dt className="text-subtext0">Venue</dt><dd className="font-semibold text-text">{detail.stadium || match.venue || 'Not announced'}</dd></div>
+              {match.stage ? <div><dt className="text-subtext0">Stage</dt><dd className="font-semibold text-text">{match.stage}</dd></div> : null}
+              {match.referee ? <div><dt className="text-subtext0">Referee</dt><dd className="font-semibold text-text">{match.referee}</dd></div> : null}
+              {detail.home_coach ? <div><dt className="text-subtext0">{match.home.name} coach</dt><dd className="font-semibold text-text">{detail.home_coach}</dd></div> : null}
+              {detail.away_coach ? <div><dt className="text-subtext0">{match.away.name} coach</dt><dd className="font-semibold text-text">{detail.away_coach}</dd></div> : null}
+            </dl>
+            {detail.narrative.length ? <div className="space-y-2 text-sm leading-6 text-subtext1">{detail.narrative.map((line) => <p key={line}>{line}</p>)}</div> : null}
+            {detail.coverage_notes.length ? <div className="rounded-xl border border-yellow/25 bg-yellow/5 p-4"><h3 className="mb-2 text-sm font-bold text-yellow">Data coverage</h3><ul className="space-y-1 text-xs leading-5 text-subtext1">{detail.coverage_notes.map((note) => <li key={note}>• {note}</li>)}</ul></div> : null}
+            <SourceBadge meta={detail.source} />
+          </section>
+        ) : <div className="grid xl:grid-cols-[1.05fr_0.95fr]">
           <div className="border-b border-surface1 p-4 sm:p-6 xl:border-b-0 xl:border-r">
             <div className="mb-5 flex rounded-xl border border-surface1 bg-mantle p-1">
               {(['home', 'away'] as Side[]).map((value) => {
@@ -223,10 +248,10 @@ export function MatchDetailCentre({ detail, onBack }: { detail: MatchCentreDetai
               </div>
             </section>
           </div>
-        </div>
+        </div>}
       </Card>
 
-      <div className="grid gap-5 lg:grid-cols-[1fr_0.72fr]">
+      {!isFixturePreview ? <div className="grid gap-5 lg:grid-cols-[1fr_0.72fr]">
         <Card className="rounded-2xl border border-surface1 bg-surface0 p-4 sm:p-6">
           <h2 className="mb-5 flex items-center gap-2 text-lg font-black text-text"><Timer className="size-5 text-yellow" />Match timeline</h2>
           {orderedTimeline.length ? (
@@ -265,7 +290,7 @@ export function MatchDetailCentre({ detail, onBack }: { detail: MatchCentreDetai
           ) : null}
           <SourceBadge meta={detail.source} />
         </div>
-      </div>
+      </div> : null}
     </div>
   );
 }

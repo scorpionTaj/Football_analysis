@@ -11,7 +11,7 @@ import { LoadingSkeleton, ErrorMessage, EmptyState } from '@/components/ui/loadi
 import { PageHeader } from '@/components/ui/page-header';
 import { FilterBar } from '@/components/filters';
 import { FootballBadge } from '@/lib/media-utils';
-import { Calendar, Download, ChevronRight, ChevronLeft, Search, UserCheck } from 'lucide-react';
+import { ArrowLeft, Calendar, Download, ChevronRight, ChevronLeft, Search, UserCheck } from 'lucide-react';
 import type { Match } from '@/lib/api/types';
 import { MatchDetailCentre } from '@/components/match-detail-centre';
 
@@ -129,7 +129,10 @@ function MatchesContent() {
 
   if (selectedMatchParams) {
     if (isDetailLoading) return <LoadingSkeleton lines={10} />;
-    if (detailError) return <ErrorMessage title="Match detail could not load" detail={detailError.message} retry={() => refetchDetail()} />;
+    if (detailError) return <div className="space-y-4">
+      <Button variant="outline" size="sm" onPress={() => filters.set({ match_date: null, home: null, away: null })} className="gap-2"><ArrowLeft className="size-4" />Back to matches</Button>
+      <ErrorMessage title="Match detail could not load" detail={detailError.message} retry={() => refetchDetail()} />
+    </div>;
     if (detail) return <MatchDetailCentre detail={detail} onBack={() => filters.set({ match_date: null, home: null, away: null })} />;
   }
 
@@ -182,7 +185,8 @@ function MatchesContent() {
       </Card>
 
       {/* KPI Stats for current page */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <p className="text-xs text-subtext0 sm:hidden">{filteredMatches.length} {filteredMatches.length === 1 ? 'fixture' : 'fixtures'} on this page</p>
+      <div className="hidden grid-cols-2 gap-4 sm:grid sm:grid-cols-4">
         <Card className="rounded-xl bg-surface0 border border-surface1 p-4 shadow-sm">
           <p className="text-xs text-subtext0 uppercase font-medium">Matches on Page</p>
           <p className="text-2xl font-bold text-text mt-1">{filteredMatches.length}</p>
@@ -221,36 +225,36 @@ function MatchesContent() {
               type="button"
               key={`${m.match_date}_${m.home.team_id}_${m.away.team_id}_${idx}`}
               onClick={() => openMatchCentre(m)}
-              className="flex w-full cursor-pointer flex-col gap-3 rounded-xl border border-surface1 bg-surface0 p-4 text-left transition-colors hover:border-blue/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue sm:flex-row sm:items-center sm:justify-between"
+              className="flex w-full cursor-pointer flex-col gap-3 rounded-xl border border-surface1 bg-surface0 p-4 text-left transition-colors hover:border-blue/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)] lg:items-center"
               aria-label={`Open ${m.home.name} versus ${m.away.name} match centre`}
             >
               {/* Date & Competition */}
-              <div className="flex items-center gap-2.5 text-xs text-subtext0 min-w-[140px]">
-                <span className="font-mono text-overlay1">{m.match_date}{m.kickoff_time ? ` · ${m.kickoff_time} source time` : ''}</span>
+              <div className="flex min-w-0 flex-wrap items-center gap-2.5 text-xs text-subtext0">
+                <span className="font-medium text-subtext1">{m.match_date}{m.kickoff_time ? ` · Kickoff ${m.kickoff_time}` : ''}</span>
                 <span className="rounded bg-surface1 px-2 py-0.5 text-subtext1 font-medium text-[11px]">
                   {m.competition}
                 </span>
               </div>
 
               {/* Match Scoreline */}
-              <div className="flex items-center justify-center gap-3 sm:gap-6 flex-1 px-4">
-                <div className="w-1/2 flex items-center justify-end gap-2 font-semibold text-text truncate">
-                  <span className="truncate">{m.home.name}</span>
+              <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:gap-4">
+                <div className="flex min-w-0 flex-col items-center gap-1 text-center font-semibold leading-tight text-text sm:flex-row-reverse sm:justify-start sm:gap-2 sm:text-right">
                   <FootballBadge url={m.home.badge_url} name={m.home.name} size={22} />
+                  <span className="min-w-0 [overflow-wrap:anywhere]">{m.home.name}</span>
                 </div>
-                <div className="flex items-center justify-center min-w-[64px]">
-                  <span className="rounded-md bg-mantle border border-surface1 px-3 py-1 text-sm font-bold text-blue tracking-wider">
+                <div className="flex min-w-14 items-center justify-center">
+                  <span className="whitespace-nowrap rounded-md border border-surface1 bg-mantle px-2 py-1 text-sm font-bold tracking-wider text-blue sm:px-3">
                     {m.home_goals !== null ? m.home_goals : '-'} : {m.away_goals !== null ? m.away_goals : '-'}
                   </span>
                 </div>
-                <div className="w-1/2 flex items-center justify-start gap-2 font-semibold text-text truncate">
+                <div className="flex min-w-0 flex-col items-center gap-1 text-center font-semibold leading-tight text-text sm:flex-row sm:justify-start sm:gap-2 sm:text-left">
                   <FootballBadge url={m.away.badge_url} name={m.away.name} size={22} />
-                  <span className="truncate">{m.away.name}</span>
+                  <span className="min-w-0 [overflow-wrap:anywhere]">{m.away.name}</span>
                 </div>
               </div>
 
               {/* Referee & Venue */}
-              <div className="flex items-center justify-end gap-3 text-xs text-subtext0 min-w-[160px]">
+              <div className="flex min-w-0 items-center justify-end gap-3 text-xs text-subtext0">
                 {m.home_shots !== null && m.away_shots !== null ? (
                   <span className="rounded-lg bg-mantle px-2 py-1 font-mono text-[11px] text-subtext1" title="Shots (home–away)">
                     Shots {m.home_shots}–{m.away_shots}

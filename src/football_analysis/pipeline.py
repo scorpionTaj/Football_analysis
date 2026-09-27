@@ -8,13 +8,14 @@ import json
 import duckdb
 
 from .api.contracts import RefreshRequest
-from .api.refresh import run_refresh_pipeline
+from .api.refresh import RefreshRunReport, run_refresh_pipeline
 from .config import CLUBS, DATA, DB, seasons
 
 
 def run_pipeline(*, bootstrap=False, step=4, season=None, competitions=None,
                  force=False, all_media=False, max_teams=100, db=DB):
     """Refresh published data; bootstrap adds the historical source backfill once."""
+    report = RefreshRunReport()
     if bootstrap:
         from .adapters import FootballDataCSV
         from .ingest import ingest
@@ -24,29 +25,27 @@ def run_pipeline(*, bootstrap=False, step=4, season=None, competitions=None,
         from .tournaments import OpenFootballTournaments, default_partitions, sync_tournaments
 
         tasks = (
-            ("Historical league results", lambda: ingest(
+            ("Historical league results", True, lambda: ingest(
                 FootballDataCSV(DATA / "raw", refresh=force), db=db,
                 years=seasons(),
             )),
-            ("Historical standings", lambda: sync_standings(
+            ("Historical standings", False, lambda: sync_standings(
                 db=db, years=seasons(), refresh=force,
             )),
-            ("Historical tournaments", lambda: sync_tournaments(
+            ("Historical tournaments", False, lambda: sync_tournaments(
                 db=db, partitions=default_partitions(),
                 adapter=OpenFootballTournaments(refresh=force),
             )),
-            ("Historical players and match context", lambda: sync_open_players(
+            ("Historical players and match context", False, lambda: sync_open_players(
                 db=db, refresh=force,
             )),
-            ("Featured player profiles and stats", lambda: sync_players(
+            ("Featured player profiles and stats", False, lambda: sync_players(
                 db=db, clubs=list(CLUBS.values()), include_stats=True, refresh=force,
             )),
         )
-        for name, task in tasks:
+        for name, required, task in tasks:
             print(json.dumps({"stage": name, "status": "running"}), flush=True)
-            result = task()
-            if isinstance(result, list) and result and all(row.get("status") == "failed" for row in result):
-                raise RuntimeError(f"{name}: every source partition failed")
+            report.attempt(0, name, task, required=required)
 
     request = RefreshRequest(
         target_step=step, season=season, competitions=competitions or [],
@@ -56,12 +55,26 @@ def run_pipeline(*, bootstrap=False, step=4, season=None, competitions=None,
     def progress(number, name, message):
         print(json.dumps({"step": number, "stage": name, "message": message}), flush=True)
 
-    run_refresh_pipeline(db, request, progress)
+    current = run_refresh_pipeline(db, request, progress)
+    if current is not None:
+        report.outcomes.extend(current.outcomes)
     if all_media:
         from .media import discover_missing_clubs, sync_media
-        clubs = discover_missing_clubs(db, retry_missing=force)[:max_teams]
-        sync_media(db=db, clubs=clubs, leagues=[], refresh=force, retry_missing=force)
-    print(json.dumps({"status": "complete", "bootstrap": bootstrap, "step": step}), flush=True)
+
+        def backfill_media():
+            clubs = discover_missing_clubs(db, retry_missing=force)[:max_teams]
+            return sync_media(db=db, clubs=clubs, leagues=[], refresh=force, retry_missing=force)
+
+        report.attempt(step, "Additional media", backfill_media)
+    failed_count = len(report.required_failures)
+    degraded_count = len(report.failures) - failed_count
+    print(json.dumps({
+        "status": "failed" if failed_count else "degraded" if degraded_count else "success",
+        "bootstrap": bootstrap, "step": step,
+        "failed_count": failed_count, "degraded_count": degraded_count,
+        "source_messages": [report.message(row) for row in report.failures],
+    }), flush=True)
+    return report
 
 
 def main():
@@ -77,11 +90,13 @@ def main():
     if args.max_teams < 1:
         parser.error("--max-teams must be positive")
     try:
-        run_pipeline(
+        report = run_pipeline(
             bootstrap=args.bootstrap, step=args.step, season=args.season,
             competitions=args.competitions, force=args.force,
             all_media=args.all_media, max_teams=args.max_teams,
         )
+        if report.required_failures:
+            raise SystemExit(1)
     except duckdb.ConnectionException as exc:
         if "different configuration" not in str(exc) and "being used" not in str(exc):
             raise

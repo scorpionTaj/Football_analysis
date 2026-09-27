@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
+import os
 from contextlib import asynccontextmanager
+from datetime import date
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response
@@ -33,8 +37,10 @@ from football_analysis.api.contracts import (
     TournamentResponse,
     TransferListResponse,
 )
-from football_analysis.api.db import ReadOnlyStore
+from football_analysis.api.db import PostgresReadOnlyStore, ReadOnlyStore
+from football_analysis.api.postgres_matches import PartitionUnavailable, read_partition
 from football_analysis.api.refresh import RefreshCoordinator, RefreshRunner, run_refresh_pipeline
+from football_analysis.api.response_cache import RedisResponseCache
 from football_analysis.config import DB, TOURNAMENTS, current_season
 
 
@@ -42,6 +48,7 @@ CACHE_SHORT = "public, max-age=60, stale-while-revalidate=300"
 CACHE_STABLE = "public, max-age=300, stale-while-revalidate=3600"
 CACHE_HISTORICAL = "public, max-age=86400, stale-while-revalidate=604800"
 CACHE_DETAIL = "public, max-age=0, must-revalidate"
+CACHE_REVISION = "catalog-overview-v1"
 
 
 def cache_for_season(season: int | None) -> str:
@@ -52,21 +59,38 @@ def create_app(
     database_path: Path | None = None,
     refresh_runner: RefreshRunner | None = None,
     defer_database_open: bool = False,
+    response_cache: RedisResponseCache | None = None,
 ) -> FastAPI:
     path = Path(database_path) if database_path is not None else DB
-    store: ReadOnlyStore | None
+    read_backend = os.environ.get("FOOTBALL_API_READ_BACKEND", "duckdb").lower()
+    if read_backend not in {"duckdb", "postgres"}:
+        raise ValueError("FOOTBALL_API_READ_BACKEND must be duckdb or postgres")
+    match_backend = os.environ.get("FOOTBALL_MATCH_READ_BACKEND", "duckdb").lower()
+    if match_backend not in {"duckdb", "postgres"}:
+        raise ValueError("FOOTBALL_MATCH_READ_BACKEND must be duckdb or postgres")
+    postgres_dsn = os.environ.get("FOOTBALL_POSTGRES_DSN")
+    if (match_backend == "postgres" or read_backend == "postgres") and not postgres_dsn:
+        raise ValueError("FOOTBALL_POSTGRES_DSN is required for the PostgreSQL match read path")
+    def open_store() -> ReadOnlyStore | PostgresReadOnlyStore:
+        if read_backend == "postgres":
+            return PostgresReadOnlyStore(
+                postgres_dsn, os.environ.get("FOOTBALL_POSTGRES_SCHEMA", "football_analysis_next"),
+            )
+        return ReadOnlyStore(path)
+
+    store: ReadOnlyStore | PostgresReadOnlyStore | None
     if defer_database_open:
         store = None
     else:
         try:
-            store = ReadOnlyStore(path)
+            store = open_store()
         except FileNotFoundError:
             store = None
 
     @asynccontextmanager
     async def lifespan(application: FastAPI):
-        if defer_database_open and application.state.store is None and path.exists():
-            application.state.store = ReadOnlyStore(path)
+        if defer_database_open and application.state.store is None and (read_backend == "postgres" or path.exists()):
+            application.state.store = open_store()
         try:
             yield
         finally:
@@ -98,19 +122,45 @@ def create_app(
     app.state.store = store
     app.state.database_path = path
     app.state.refresh = RefreshCoordinator(path.with_suffix(".refresh.json"))
+    response_cache = response_cache if response_cache is not None else RedisResponseCache.from_environment()
 
-    def require_store() -> ReadOnlyStore:
+    def require_store() -> ReadOnlyStore | PostgresReadOnlyStore:
         current = app.state.store
         if current is None:
             raise HTTPException(status_code=503, detail="Database is unavailable")
         return current
 
-    def with_cache(payload, request: Request, cache: str = CACHE_SHORT) -> Response:
+    def with_cache(payload, request: Request, cache: str = CACHE_SHORT, etag: str | None = None) -> Response:
         body = payload.model_dump(mode="json")
-        etag = queries.snapshot_etag(require_store()) if app.state.store else '"empty"'
+        etag = etag or (queries.snapshot_etag(require_store()) if app.state.store else '"empty"')
         if request.headers.get("if-none-match") == etag:
             return Response(status_code=304, headers={"ETag": etag, "Cache-Control": cache})
         return JSONResponse(body, headers={"ETag": etag, "Cache-Control": cache})
+
+    def with_redis_cache(request: Request, build, cache_control: str, ttl: int) -> Response:
+        store = require_store()
+        # Include every query pair, including duplicates and unknown parameters.
+        # Sort names but retain the order of repeated values: FastAPI may use
+        # the last value for a repeated parameter.
+        identity = json.dumps(
+            [queries.API_SCHEMA_REVISION, CACHE_REVISION, store.generation,
+             date.today().isoformat(), request.url.path,
+             sorted(request.query_params.multi_items(), key=lambda pair: pair[0])],
+            separators=(",", ":"),
+        )
+        digest = hashlib.sha256(identity.encode()).hexdigest()
+        key = f"football-api:{digest}"
+        etag = f'"{digest}"'
+        headers = {"ETag": etag, "Cache-Control": cache_control}
+        if request.headers.get("if-none-match") == etag:
+            return Response(status_code=304, headers=headers)
+        cached = response_cache.get(key) if response_cache is not None else None
+        if cached is not None:
+            return Response(content=cached, media_type="application/json", headers=headers)
+        body = JSONResponse(build(store).model_dump(mode="json"), headers=headers)
+        if response_cache is not None:
+            response_cache.set(key, body.body, ttl)
+        return body
 
     @app.get("/api/v1/health", response_model=HealthResponse)
     def health():
@@ -118,7 +168,7 @@ def create_app(
 
     @app.get("/api/v1/catalog", response_model=CatalogResponse)
     def catalog(request: Request):
-        return with_cache(queries.catalog(require_store()), request, CACHE_STABLE)
+        return with_redis_cache(request, queries.catalog, CACHE_STABLE, 300)
 
     @app.get("/api/v1/teams", response_model=TeamListResponse)
     def teams(
@@ -141,12 +191,23 @@ def create_app(
         limit: int = Query(default=50, ge=1, le=200),
     ):
         try:
+            partition = None
+            if read_backend == "duckdb" and match_backend == "postgres" and competition and season is not None:
+                partition = read_partition(postgres_dsn, competition, season)
             payload = queries.list_matches(
                 require_store(), competition, season, team, opponent, venue, cursor, limit, q,
+                raw_frame=partition.rows if partition else None,
+                source_name="postgresql" if partition or read_backend == "postgres" else "duckdb",
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
-        return with_cache(payload, request, cache_for_season(season))
+        except PartitionUnavailable as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        etag = None
+        if partition:
+            raw = f"{queries.snapshot_etag(require_store())}:{partition.version}:{partition.checksum}"
+            etag = '"' + hashlib.sha256(raw.encode()).hexdigest() + '"'
+        return with_cache(payload, request, cache_for_season(season), etag=etag)
 
     @app.get("/api/v1/shots", response_model=ShotAnalysisResponse)
     def shots(
@@ -253,7 +314,12 @@ def create_app(
         competition: str | None = None,
         season: int | None = None,
     ):
-        return with_cache(queries.overview(require_store(), team, competition, season), request)
+        return with_redis_cache(
+            request,
+            lambda store: queries.overview(store, team, competition, season),
+            CACHE_SHORT,
+            60,
+        )
 
     @app.get("/api/v1/transfers", response_model=TransferListResponse)
     def transfers(
@@ -288,6 +354,8 @@ def create_app(
 
     @app.post("/api/v1/refresh", response_model=RefreshStatusResponse, status_code=202)
     def start_refresh(body: RefreshRequest):
+        if read_backend == "postgres":
+            raise HTTPException(status_code=409, detail="PostgreSQL snapshot refresh is not available yet")
         def execute(refresh_request: RefreshRequest, progress):
             current = app.state.store
             if current is not None:
@@ -297,7 +365,7 @@ def create_app(
                 runner = refresh_runner or (
                     lambda req, update: run_refresh_pipeline(path, req, update)
                 )
-                runner(refresh_request, progress)
+                return runner(refresh_request, progress)
             finally:
                 app.state.store = ReadOnlyStore(path)
 

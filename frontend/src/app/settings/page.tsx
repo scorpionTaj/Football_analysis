@@ -55,7 +55,7 @@ export default function SettingsPage() {
   });
 
   useEffect(() => {
-    if (refreshStatus?.status === 'success') {
+    if (refreshStatus?.status === 'success' || refreshStatus?.status === 'degraded' || refreshStatus?.status === 'failed') {
       queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] !== 'refresh-status' });
     }
   }, [queryClient, refreshStatus?.finished_at, refreshStatus?.status]);
@@ -250,7 +250,7 @@ export default function SettingsPage() {
               </div>
               <p className="mt-2 max-w-2xl text-xs leading-5 text-subtext0">Choose how deep the refresh should run. Each level includes the steps before it. Completed stages are saved as they finish, so an interrupted run can be resumed.</p>
             </div>
-            <span className={`rounded-full px-3 py-1 text-xs font-bold ${refreshStatus?.status === 'running' ? 'bg-yellow/15 text-yellow' : refreshStatus?.status === 'success' ? 'bg-green/15 text-green' : refreshStatus?.status === 'failed' ? 'bg-red/15 text-red' : 'bg-surface1 text-subtext1'}`}>
+            <span className={`rounded-full px-3 py-1 text-xs font-bold ${refreshStatus?.status === 'running' || refreshStatus?.status === 'degraded' ? 'bg-yellow/15 text-yellow' : refreshStatus?.status === 'success' ? 'bg-green/15 text-green' : refreshStatus?.status === 'failed' ? 'bg-red/15 text-red' : 'bg-surface1 text-subtext1'}`}>
               {refreshStatus?.status || 'idle'}
             </span>
           </div>
@@ -311,7 +311,12 @@ export default function SettingsPage() {
             <div className="rounded-xl border border-surface1 bg-mantle p-4">
               <div className="mb-2 flex items-center justify-between gap-3 text-xs"><span className="font-bold text-text">{refreshStatus.step_name}</span><span className="font-mono text-subtext0">{refreshStatus.current_step}/{refreshStatus.target_step}</span></div>
               <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-surface1"><div className={`h-full ${refreshStatus.status === 'failed' ? 'bg-red' : refreshStatus.status === 'success' ? 'bg-green' : 'bg-teal'}`} style={{ width: `${Math.max(4, refreshStatus.current_step / refreshStatus.target_step * 100)}%` }} /></div>
-              <p className="text-xs leading-5 text-subtext0">{refreshStatus.error || refreshStatus.message}</p>
+              <p className="text-xs leading-5 text-subtext0">{refreshStatus.message}</p>
+              {refreshStatus.source_messages?.length ? (
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-yellow" aria-label="Source refresh problems">
+                  {refreshStatus.source_messages.map((message, index) => <li key={`${index}-${message}`}>{message}</li>)}
+                </ul>
+              ) : null}
             </div>
           ) : null}
 

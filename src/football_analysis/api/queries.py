@@ -72,7 +72,7 @@ from football_analysis.api.contracts import (
     TransferRow,
     canonical_team_id,
 )
-from football_analysis.api.db import ReadOnlyStore
+from football_analysis.api.db import PostgresReadOnlyStore, ReadOnlyStore
 from football_analysis.api.pagination import decode_cursor, encode_cursor
 from football_analysis.config import (
     CALENDAR_YEAR_TOURNAMENTS,
@@ -92,10 +92,6 @@ from football_analysis.open_fixtures import SOURCE as FULL_FIXTURE_SOURCE
 
 
 API_SCHEMA_REVISION = "2026-09-23-full-fixtures-season-form-v1"
-
-
-def _now() -> datetime:
-    return datetime.now().replace(microsecond=0)
 
 
 def _as_date(value) -> date | None:
@@ -162,28 +158,22 @@ def _has(store: ReadOnlyStore, name: str) -> bool:
 
 
 def _source(name: str, coverage: str, freshness=None) -> SourceMeta:
-    return SourceMeta(source=name, coverage=coverage, freshness=_as_datetime(freshness) or freshness)
+    return SourceMeta(source=name, coverage=coverage, freshness=_as_datetime(freshness))
+
+
+def _store_source(store: ReadOnlyStore | PostgresReadOnlyStore) -> str:
+    return "postgresql" if isinstance(store, PostgresReadOnlyStore) else "duckdb"
 
 
 def snapshot_etag(store: ReadOnlyStore) -> str:
-    parts: list[str] = [API_SCHEMA_REVISION]
-    tables = store.tables()
-    for table, column in (
-        ("ingestion_runs", "fetched_at"),
-        ("recent_matches", "fetched_at"),
-        ("tournament_matches", "fetched_at"),
-        ("analytics_metadata", "refreshed_at"),
-        ("prediction_models", "trained_at"),
-        ("open_players", "fetched_at"),
-        ("match_contexts", "fetched_at"),
-    ):
-        if table in tables:
-            stamp = store.scalar(f"SELECT max({column}) FROM {table}")
-            count = store.scalar(f"SELECT count(*) FROM {table}")
-            parts.append(f"{table}:{count}:{stamp}")
-    if "matches" in tables:
-        parts.append(f"matches:{store.scalar('SELECT count(*) FROM matches')}")
-    digest = hashlib.md5("|".join(parts).encode(), usedforsecurity=False).hexdigest()
+    # The former count/max(timestamp) list missed reference_standings,
+    # team_media, competition_media, recent_events, and several prediction and
+    # analytics tables. It also missed in-place edits at an unchanged stamp.
+    # A read-only store is replaced after refresh, so its generation covers
+    # the entire published snapshot without touching DuckDB per request.
+    digest = hashlib.md5(
+        f"{API_SCHEMA_REVISION}|{store.generation}".encode(), usedforsecurity=False
+    ).hexdigest()
     return f'"{digest}"'
 
 
@@ -292,14 +282,14 @@ def catalog(store: ReadOnlyStore) -> CatalogResponse:
     return CatalogResponse(
         competitions=competitions,
         current_season=live,
-        generated_at=_now(),
-        source=_source("duckdb", "catalog", freshness),
+        generated_at=store.opened_at,
+        source=_source(_store_source(store), "catalog", freshness),
     )
 
 
 def list_teams(store: ReadOnlyStore, competition: str | None, season: int | None) -> TeamListResponse:
     if not (_has(store, "team_seasons") or _has(store, "recent_matches") or _has(store, "tournament_matches")):
-        return TeamListResponse(teams=[], source=_source("duckdb", "empty"))
+        return TeamListResponse(teams=[], source=_source(_store_source(store), "empty"))
 
     # Unified query combining historical team_seasons, live recent_matches, and tournament_matches
     q = """
@@ -398,7 +388,7 @@ def list_teams(store: ReadOnlyStore, competition: str | None, season: int | None
         )
         for row in frame.itertuples(index=False)
     ]
-    return TeamListResponse(teams=teams, source=_source("duckdb", "teams"))
+    return TeamListResponse(teams=teams, source=_source(_store_source(store), "teams"))
 
 
 def _match_from_row(row, competition_field="league", media_map: dict[str, Any] | None = None) -> Match:
@@ -446,71 +436,16 @@ def list_matches(
     cursor: str | None = None,
     limit: int = 50,
     query: str | None = None,
+    raw_frame: pd.DataFrame | None = None,
+    source_name: str = "duckdb",
 ) -> MatchListResponse:
     limit = max(1, min(int(limit), 200))
-    frames = []
-    if _has(store, "matches"):
-        frames.append(store.query(
-            "SELECT league AS competition, season, match_date, home_team, away_team, "
-            "home_goals, away_goals, home_shots, away_shots, home_sot, away_sot, "
-            "half_time_home_goals, half_time_away_goals, home_corners, away_corners, "
-            "home_fouls, away_fouls, home_yellows, away_yellows, home_reds, away_reds, "
-            "referee, CAST(NULL AS VARCHAR) AS kickoff_time, CAST(NULL AS VARCHAR) AS stage, "
-            "CAST(NULL AS VARCHAR) AS venue, 'football-data.co.uk' AS source FROM matches"
-        ))
-    if _has(store, "recent_matches"):
-        frames.append(store.query(
-            "SELECT league AS competition, season, match_date, home_team, away_team, "
-            "home_goals, away_goals, home_shots, away_shots, home_sot, away_sot, "
-            "half_time_home_goals, half_time_away_goals, home_corners, away_corners, "
-            "home_fouls, away_fouls, home_yellows, away_yellows, home_reds, away_reds, "
-            "referee, CAST(NULL AS VARCHAR) AS kickoff_time, CAST(NULL AS VARCHAR) AS stage, "
-            "CAST(NULL AS VARCHAR) AS venue, source FROM recent_matches"
-        ))
-    if _has(store, "tournament_matches"):
-        frames.append(store.query(
-            "SELECT competition, season, match_date, home_team, away_team, "
-            "home_goals, away_goals, CAST(NULL AS INTEGER) AS home_shots, "
-            "CAST(NULL AS INTEGER) AS away_shots, CAST(NULL AS INTEGER) AS home_sot, "
-            "CAST(NULL AS INTEGER) AS away_sot, CAST(NULL AS INTEGER) AS half_time_home_goals, "
-            "CAST(NULL AS INTEGER) AS half_time_away_goals, CAST(NULL AS INTEGER) AS home_corners, "
-            "CAST(NULL AS INTEGER) AS away_corners, CAST(NULL AS INTEGER) AS home_fouls, "
-            "CAST(NULL AS INTEGER) AS away_fouls, CAST(NULL AS INTEGER) AS home_yellows, "
-            "CAST(NULL AS INTEGER) AS away_yellows, CAST(NULL AS INTEGER) AS home_reds, "
-            "CAST(NULL AS INTEGER) AS away_reds, CAST(NULL AS VARCHAR) AS referee, "
-            "CAST(NULL AS VARCHAR) AS kickoff_time, stage, venue, source "
-            "FROM tournament_matches"
-        ))
-    if _has(store, "recent_events"):
-        events = store.query(
-            "SELECT league AS competition, season, match_date, home_team, away_team, "
-            "CAST(NULL AS INTEGER) AS home_goals, CAST(NULL AS INTEGER) AS away_goals, "
-            "CAST(NULL AS INTEGER) AS home_shots, CAST(NULL AS INTEGER) AS away_shots, "
-            "CAST(NULL AS INTEGER) AS home_sot, CAST(NULL AS INTEGER) AS away_sot, "
-            "CAST(NULL AS INTEGER) AS half_time_home_goals, CAST(NULL AS INTEGER) AS half_time_away_goals, "
-            "CAST(NULL AS INTEGER) AS home_corners, CAST(NULL AS INTEGER) AS away_corners, "
-            "CAST(NULL AS INTEGER) AS home_fouls, CAST(NULL AS INTEGER) AS away_fouls, "
-            "CAST(NULL AS INTEGER) AS home_yellows, CAST(NULL AS INTEGER) AS away_yellows, "
-            "CAST(NULL AS INTEGER) AS home_reds, CAST(NULL AS INTEGER) AS away_reds, "
-            "referee, kickoff_time, CAST(NULL AS VARCHAR) AS stage, venue, source, event_kind, fetched_at "
-            "FROM recent_events WHERE event_kind IN ('fixture', 'next') AND match_date >= current_date"
-        )
-        if not events.empty:
-            events["home_key"] = events.home_team.map(team_key)
-            events["away_key"] = events.away_team.map(team_key)
-            events["fixture_priority"] = (events.event_kind == "fixture").astype(int)
-            events = events.sort_values(["fixture_priority", "fetched_at"], ascending=[False, False]).drop_duplicates(
-                ["competition", "season", "home_key", "away_key"], keep="first",
-            ).drop(columns=["event_kind", "home_key", "away_key", "fixture_priority", "fetched_at"])
-        else:
-            events = events.drop(columns=["event_kind", "fetched_at"])
-        frames.append(events)
-    if not frames:
+    frame = load_match_source_rows(store) if raw_frame is None else raw_frame.copy()
+    if frame.empty:
         return MatchListResponse(
             matches=[], page=PageMeta(next_cursor=None, limit=limit, returned=0),
-            source=_source("duckdb", "empty"),
+            source=_source(source_name, "empty"),
         )
-    frame = pd.concat(frames, ignore_index=True)
     frame["home_key"] = frame.home_team.map(team_key)
     frame["away_key"] = frame.away_team.map(team_key)
     frame["has_result"] = frame.home_goals.notna().astype(int)
@@ -545,11 +480,11 @@ def list_matches(
                 | (frame.home_team == opponent) | (frame.away_team == opponent)
             )
             team_mask &= opponent_mask
-        frame = frame[team_mask]
         if venue == "Home":
-            frame = frame[home_keys == key]
+            team_mask &= home_keys == key
         elif venue == "Away":
-            frame = frame[away_keys == key]
+            team_mask &= away_keys == key
+        frame = frame[team_mask]
     elif venue:
         frame = frame[frame.venue == venue]
     if query and _search_text(query):
@@ -565,7 +500,7 @@ def list_matches(
     if frame.empty:
         return MatchListResponse(
             matches=[], page=PageMeta(next_cursor=None, limit=limit, returned=0),
-            source=_source("duckdb", "matches"),
+            source=_source(source_name, "matches"),
         )
     frame["sort_group"] = frame.home_goals.isna().astype(int)
     ordinal = frame.match_date.map(lambda value: value.date().toordinal())
@@ -615,8 +550,76 @@ def list_matches(
     return MatchListResponse(
         matches=matches,
         page=PageMeta(next_cursor=next_cursor, limit=limit, returned=len(matches)),
-        source=_source("duckdb", "matches"),
+        source=_source(source_name, "matches"),
     )
+
+
+def load_match_source_rows(store: ReadOnlyStore) -> pd.DataFrame:
+    """Load the four source feeds before shared match reconciliation and filtering."""
+    frames = []
+    if _has(store, "matches"):
+        frames.append(store.query(
+            "SELECT league AS competition, season, match_date, home_team, away_team, "
+            "home_goals, away_goals, home_shots, away_shots, home_sot, away_sot, "
+            "half_time_home_goals, half_time_away_goals, home_corners, away_corners, "
+            "home_fouls, away_fouls, home_yellows, away_yellows, home_reds, away_reds, "
+            "referee, CAST(NULL AS VARCHAR) AS kickoff_time, CAST(NULL AS VARCHAR) AS stage, "
+            "CAST(NULL AS VARCHAR) AS venue, 'football-data.co.uk' AS source FROM matches "
+            "ORDER BY league, season, match_date, home_team, away_team"
+        ))
+    if _has(store, "recent_matches"):
+        frames.append(store.query(
+            "SELECT league AS competition, season, match_date, home_team, away_team, "
+            "home_goals, away_goals, home_shots, away_shots, home_sot, away_sot, "
+            "half_time_home_goals, half_time_away_goals, home_corners, away_corners, "
+            "home_fouls, away_fouls, home_yellows, away_yellows, home_reds, away_reds, "
+            "referee, CAST(NULL AS VARCHAR) AS kickoff_time, CAST(NULL AS VARCHAR) AS stage, "
+            "CAST(NULL AS VARCHAR) AS venue, source FROM recent_matches "
+            "ORDER BY league, season, match_date, home_team, away_team"
+        ))
+    if _has(store, "tournament_matches"):
+        frames.append(store.query(
+            "SELECT competition, season, match_date, home_team, away_team, "
+            "home_goals, away_goals, CAST(NULL AS INTEGER) AS home_shots, "
+            "CAST(NULL AS INTEGER) AS away_shots, CAST(NULL AS INTEGER) AS home_sot, "
+            "CAST(NULL AS INTEGER) AS away_sot, CAST(NULL AS INTEGER) AS half_time_home_goals, "
+            "CAST(NULL AS INTEGER) AS half_time_away_goals, CAST(NULL AS INTEGER) AS home_corners, "
+            "CAST(NULL AS INTEGER) AS away_corners, CAST(NULL AS INTEGER) AS home_fouls, "
+            "CAST(NULL AS INTEGER) AS away_fouls, CAST(NULL AS INTEGER) AS home_yellows, "
+            "CAST(NULL AS INTEGER) AS away_yellows, CAST(NULL AS INTEGER) AS home_reds, "
+            "CAST(NULL AS INTEGER) AS away_reds, CAST(NULL AS VARCHAR) AS referee, "
+            "CAST(NULL AS VARCHAR) AS kickoff_time, stage, venue, source "
+            "FROM tournament_matches "
+            "ORDER BY competition, season, match_date, home_team, away_team"
+        ))
+    if _has(store, "recent_events"):
+        events = store.query(
+            "SELECT league AS competition, season, match_date, home_team, away_team, "
+            "CAST(NULL AS INTEGER) AS home_goals, CAST(NULL AS INTEGER) AS away_goals, "
+            "CAST(NULL AS INTEGER) AS home_shots, CAST(NULL AS INTEGER) AS away_shots, "
+            "CAST(NULL AS INTEGER) AS home_sot, CAST(NULL AS INTEGER) AS away_sot, "
+            "CAST(NULL AS INTEGER) AS half_time_home_goals, CAST(NULL AS INTEGER) AS half_time_away_goals, "
+            "CAST(NULL AS INTEGER) AS home_corners, CAST(NULL AS INTEGER) AS away_corners, "
+            "CAST(NULL AS INTEGER) AS home_fouls, CAST(NULL AS INTEGER) AS away_fouls, "
+            "CAST(NULL AS INTEGER) AS home_yellows, CAST(NULL AS INTEGER) AS away_yellows, "
+            "CAST(NULL AS INTEGER) AS home_reds, CAST(NULL AS INTEGER) AS away_reds, "
+            "referee, kickoff_time, CAST(NULL AS VARCHAR) AS stage, venue, source, event_kind, fetched_at, event_id "
+            "FROM recent_events WHERE event_kind IN ('fixture', 'next') AND match_date >= current_date "
+            "ORDER BY league, season, match_date, home_team, away_team, event_id"
+        )
+        if not events.empty:
+            events["home_key"] = events.home_team.map(team_key)
+            events["away_key"] = events.away_team.map(team_key)
+            events["fixture_priority"] = (events.event_kind == "fixture").astype(int)
+            events = events.sort_values(
+                ["fixture_priority", "fetched_at", "event_id"], ascending=[False, False, True],
+            ).drop_duplicates(
+                ["competition", "season", "home_key", "away_key"], keep="first",
+            ).drop(columns=["event_kind", "home_key", "away_key", "fixture_priority", "fetched_at", "event_id"])
+        else:
+            events = events.drop(columns=["event_kind", "fetched_at", "event_id"])
+        frames.append(events)
+    return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 
 def shot_analysis(
@@ -1316,9 +1319,10 @@ def tournament(store: ReadOnlyStore, competition: str, season: int) -> Tournamen
             source=_source("openfootball", "empty"),
         )
     matches = store.query(
-        "SELECT * FROM tournament_matches WHERE competition = ? AND season = ? ORDER BY match_date, home_team",
+        "SELECT * FROM tournament_matches WHERE competition = ? AND season = ?",
         [competition, season],
     )
+    matches = matches.sort_values(["match_date", "home_team", "away_team"], kind="stable")
     stages = []
     if not matches.empty:
         grouped = matches.groupby("stage", as_index=False).size().rename(columns={"size": "match_count"})
@@ -1340,9 +1344,10 @@ def tournament(store: ReadOnlyStore, competition: str, season: int) -> Tournamen
     scorers = []
     if _has(store, "tournament_goals"):
         goals = store.query(
-            "SELECT * FROM tournament_goals WHERE competition = ? AND season = ? ORDER BY match_date, player",
+            "SELECT * FROM tournament_goals WHERE competition = ? AND season = ?",
             [competition, season],
         )
+        goals = goals.sort_values(["match_date", "player", "team", "minute"], kind="stable")
         scorers = [
             TournamentGoal(
                 match_date=_as_date(row.match_date) or date.min,
@@ -1544,7 +1549,7 @@ def predictions(store: ReadOnlyStore) -> PredictionsResponse:
     empty = PredictionsResponse(source=_source("softmax-form-shots", "empty"))
     if not _has(store, "prediction_models"):
         return empty
-    models = store.query("SELECT * FROM prediction_models ORDER BY trained_at DESC LIMIT 1")
+    models = store.query("SELECT * FROM prediction_models ORDER BY trained_at DESC, model_id LIMIT 1")
     if models.empty:
         return empty
     model = models.iloc[0]
@@ -1557,6 +1562,9 @@ def predictions(store: ReadOnlyStore) -> PredictionsResponse:
     if _has(store, "match_predictions"):
         rows = store.query(
             "SELECT * FROM match_predictions WHERE model_id = ?", [model.model_id]
+        )
+        rows = rows.sort_values(
+            ["league", "season", "match_date", "home_team", "away_team", "prediction_kind"], kind="stable",
         )
         future = rows[rows.prediction_kind == "forecast"] if not rows.empty else rows
         for row in future.itertuples(index=False):
@@ -1584,9 +1592,11 @@ def predictions(store: ReadOnlyStore) -> PredictionsResponse:
             "correct": correct,
             "accuracy": correct / resolved if resolved else None,
         }
-        history = store.query(
-            "SELECT * FROM forecast_history ORDER BY issued_at DESC, match_date ASC LIMIT 30"
-        )
+        history = store.query("SELECT * FROM forecast_history")
+        history = history.sort_values(
+            ["issued_at", "match_date", "league", "home_team", "away_team", "model_id"],
+            ascending=[False, True, True, True, True, True], kind="stable",
+        ).head(30)
         for row in history.itertuples(index=False):
             forecast_history.append(ForecastAuditRow(
                 model_id=row.model_id, competition=row.league, season=int(row.season),
@@ -1736,7 +1746,7 @@ def overview(
         performance_over_time=analysis_data.rankings,
         elo_trajectory=analysis_data.elo_ratings,
         forecasts=preds.forecasts,
-        source=_source("duckdb", "overview"),
+        source=_source(_store_source(store), "overview"),
     )
 
 
@@ -1969,5 +1979,5 @@ def quality(store: ReadOnlyStore) -> QualityResponse:
         refresh_timestamps=stamps,
         grid=grid,
         shot_coverage=shots.coverage,
-        source=_source("duckdb", "quality"),
+        source=_source(_store_source(store), "quality"),
     )

@@ -15,7 +15,7 @@ const match = {
 };
 const otherMatch = { ...match, match_date: '2026-09-22', kickoff_time: null, home: chelsea, away: arsenal, home_goals: 1, away_goals: 0 };
 
-async function mockApi(page: Page, onMatchSearch?: (query: string) => void, forecastRows: unknown[] = []) {
+async function mockApi(page: Page, onMatchSearch?: (query: string) => void, forecastRows: unknown[] = [], matchRows?: typeof match[]) {
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const corsHeaders = {
@@ -38,7 +38,7 @@ async function mockApi(page: Page, onMatchSearch?: (query: string) => void, fore
     else if (path === '/api/v1/matches') {
       const query = url.searchParams.get('q') || '';
       onMatchSearch?.(query);
-      const matches = query ? query.toLowerCase().includes('livrpool') ? [match] : [] : [otherMatch];
+      const matches = matchRows ?? (query ? query.toLowerCase().includes('livrpool') ? [match] : [] : [otherMatch]);
       payload = { matches, page: { next_cursor: null, limit: 20, returned: matches.length }, source };
     } else if (path === '/api/v1/match-detail') payload = {
       match, status: 'Scheduled', stadium: null, attendance: null,
@@ -76,9 +76,12 @@ test('searches beyond the current page and preserves a match detail link', async
   expect(lastQuery).toBe('Livrpool');
   await page.getByRole('button', { name: /Open Arsenal versus Liverpool match centre/ }).click();
   await expect(page).toHaveURL(/match_date=2026-09-27/);
-  await expect(page.getByRole('heading', { name: 'Match overview' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Fixture preview' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Match timeline' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Match statistics' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Technical area' })).toHaveCount(0);
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Match overview' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Fixture preview' })).toBeVisible();
 });
 
 test('keeps Match Centre search focused while debounced results update', async ({ page }) => {
@@ -94,23 +97,119 @@ test('keeps Match Centre search focused while debounced results update', async (
   expect(searches.filter(Boolean)).toEqual(['Livrpool']);
 });
 
+test('missing match detail offers a way back to the fixture list', async ({ page }) => {
+  await mockApi(page);
+  await page.route('**/api/v1/match-detail**', (route) => route.fulfill({
+    status: 404,
+    contentType: 'application/json',
+    headers: { 'Access-Control-Allow-Origin': '*' },
+    body: JSON.stringify({ detail: 'Match not found' }),
+  }));
+  await page.goto('/matches?competition=E0&season=2026&match_date=2026-09-27&home=Arsenal&away=Liverpool');
+  await expect(page.getByText('Match detail could not load')).toBeVisible();
+  await page.getByRole('button', { name: 'Back to matches' }).click();
+  await expect(page.getByRole('heading', { name: 'Match Centre' })).toBeVisible();
+});
+
 test('global search finds a misspelled club without broad short-fragment matches', async ({ page }) => {
   await mockApi(page);
   await page.goto('/matches?competition=E0&season=2026');
-  const search = page.getByRole('textbox', { name: 'Search clubs, players and competitions' });
+  const search = page.getByRole('combobox', { name: 'Search clubs, players and competitions' });
   await search.fill('Chelsa');
-  await expect(page.getByRole('link', { name: /Chelsea Club \/ nation/ })).toBeVisible();
+  await expect(page.getByRole('option', { name: /Chelsea Club \/ nation/ })).toBeVisible();
+  await expect(search).toHaveAttribute('aria-expanded', 'true');
+  await search.press('ArrowDown');
+  await expect(search).toHaveAttribute('aria-activedescendant', 'global-search-option-0');
+  await search.press('Escape');
+  await expect(search).toHaveAttribute('aria-expanded', 'false');
   await search.fill('he');
-  await expect(page.getByRole('link', { name: /Chelsea Club \/ nation/ })).toHaveCount(0);
+  await expect(page.getByRole('option', { name: /Chelsea Club \/ nation/ })).toHaveCount(0);
+  await search.fill('Chelsa');
+  await expect(page.getByRole('option', { name: /Chelsea Club \/ nation/ })).toBeVisible();
+  await search.press('ArrowDown');
+  await search.press('Enter');
+  await expect(page).toHaveURL(/\/clubs\?team=Chelsea/);
 });
 
 test('mobile navigation fits a narrow screen', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mockApi(page);
   await page.goto('/matches?competition=E0&season=2026');
-  await expect(page.getByRole('button', { name: 'Open navigation menu' })).toBeVisible();
+  const trigger = page.getByRole('button', { name: 'Open navigation menu' });
+  await expect(trigger).toBeVisible();
   await expect(page.getByRole('navigation', { name: 'Quick navigation' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Football Analysis home' })).toBeHidden();
+  await trigger.focus();
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('button', { name: 'Refresh visible data' })).toBeFocused();
+  await trigger.click();
+  await expect(page.getByRole('dialog', { name: 'Primary navigation' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Football Analysis home' })).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(page.getByRole('button', { name: 'Toggle color mode' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('link', { name: 'Football Analysis home' })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(trigger).toBeFocused();
+  await expect(page.getByRole('dialog', { name: 'Primary navigation' })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
+
+test('long club names remain readable in mobile fixture rows', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const longMatch = {
+    ...match,
+    home: { ...arsenal, name: 'Borussia Mönchengladbach' },
+    away: { ...liverpool, name: 'Athletic Club Bilbao' },
+  };
+  await mockApi(page, undefined, [], [longMatch]);
+  await page.goto('/matches?competition=E0&season=2026');
+  const row = page.getByRole('button', { name: /Open Borussia Mönchengladbach versus Athletic Club Bilbao match centre/ });
+  await expect(row).toBeVisible();
+  const name = row.getByText('Borussia Mönchengladbach');
+  expect(await name.evaluate((element) => element.getBoundingClientRect().height)).toBeGreaterThan(28);
+  expect(await name.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
+
+test('muted text tokens retain readable contrast across themes', async ({ page }) => {
+  await mockApi(page);
+  await page.goto('/matches?competition=E0&season=2026');
+  const values = await page.evaluate(() => {
+    const themes = ['mocha', 'latte', 'tokyo-night', 'nord', 'dracula', 'github-light'];
+    return themes.map((theme) => {
+      document.documentElement.dataset.theme = theme;
+      const style = getComputedStyle(document.documentElement);
+      return {
+        theme,
+        surface: style.getPropertyValue('--surface0').trim(),
+        muted: ['--overlay0', '--overlay1', '--subtext0'].map((token) => style.getPropertyValue(token).trim()),
+      };
+    });
+  });
+  const luminance = (hex: string) => {
+    const [red, green, blue] = [1, 3, 5].map((start) => parseInt(hex.slice(start, start + 2), 16) / 255)
+      .map((channel) => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4);
+    return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+  };
+  for (const { theme, surface, muted } of values) {
+    for (const color of muted) {
+      const [lighter, darker] = [luminance(surface), luminance(color)].sort((a, b) => b - a);
+      expect((lighter + 0.05) / (darker + 0.05), `${theme}: ${color} on ${surface}`).toBeGreaterThanOrEqual(4.5);
+    }
+  }
+});
+
+test('overview exposes the competition catalog through fuzzy search', async ({ page }) => {
+  await mockApi(page);
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Football intelligence, from fixture to forecast' })).toBeVisible();
+  await page.getByRole('button', { name: 'Browse all 1' }).click();
+  const search = page.getByRole('searchbox', { name: 'Find a league or cup' });
+  await search.fill('Premir');
+  await expect(page.locator('#competition-browser').getByRole('button', { name: /Premier League/ })).toBeVisible();
+  await search.fill('No such competition');
+  await expect(page.getByText('No competition matches that search.')).toBeVisible();
 });
 
 test('refresh depth and model diagnostics render', async ({ page }) => {

@@ -97,10 +97,11 @@ export function Sidebar({ isOpen = false, onClose }: { isOpen?: boolean; onClose
   const { theme, isDark, setMode } = useTheme();
   return (
     <aside
-      className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-surface1/60 bg-mantle/95 shadow-2xl shadow-crust/30 backdrop-blur-xl transition-transform duration-300 lg:translate-x-0 ${
-        isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-      }`}
+      id="primary-navigation-panel"
+      className={`fixed inset-y-0 left-0 z-50 w-72 flex-col border-r border-surface1/60 bg-mantle/95 shadow-2xl shadow-crust/30 backdrop-blur-xl lg:flex ${isOpen ? 'flex' : 'hidden'}`}
       aria-label="Primary navigation"
+      role={isOpen ? 'dialog' : undefined}
+      aria-modal={isOpen ? true : undefined}
     >
       <div className="flex h-20 items-center justify-between border-b border-surface1/60 px-5">
         <Brand />
@@ -173,9 +174,9 @@ export function MobileHeader({ onToggle, isOpen = false }: { onToggle: () => voi
   const current = NAV_ITEMS.find((item) => isActive(pathname, item.href));
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-surface1/60 bg-base/90 px-4 backdrop-blur-xl lg:hidden">
+    <header id="mobile-navigation-header" className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-surface1/60 bg-base/90 px-4 backdrop-blur-xl lg:hidden">
       <div className="flex min-w-0 items-center gap-3">
-        <Button isIconOnly size="sm" variant="ghost" onPress={onToggle} aria-label={isOpen ? 'Close navigation menu' : 'Open navigation menu'} aria-expanded={isOpen}>
+        <Button id="mobile-menu-trigger" isIconOnly size="sm" variant="ghost" onPress={onToggle} aria-label={isOpen ? 'Close navigation menu' : 'Open navigation menu'} aria-expanded={isOpen} aria-controls="primary-navigation-panel">
           {isOpen ? <X className="size-5" aria-hidden="true" /> : <Menu className="size-5" aria-hidden="true" />}
         </Button>
         <div className="min-w-0">
@@ -213,12 +214,56 @@ function MobileDock({ onMore }: { onMore: () => void }) {
 export function Navigation() {
   const [mobileOpen, setMobileOpen] = useState(false);
   useEffect(() => {
+    if (!mobileOpen) return;
+    const panel = document.getElementById('primary-navigation-panel');
+    const main = document.getElementById('main-content');
+    const dock = document.querySelector<HTMLElement>('[aria-label="Quick navigation"]');
+    const header = document.getElementById('mobile-navigation-header');
+    const focusable = () => Array.from(panel?.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])') || []);
+    main?.setAttribute('inert', '');
+    dock?.setAttribute('inert', '');
+    header?.setAttribute('inert', '');
+    focusable()[0]?.focus();
+
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMobileOpen(false);
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setMobileOpen(false);
+      }
+      if (event.key !== 'Tab') return;
+      const items = focusable();
+      const first = items[0];
+      const last = items.at(-1);
+      if (!first || !last) return;
+      if (!panel?.contains(document.activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+        return;
+      }
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    const desktop = window.matchMedia('(min-width: 1024px)');
+    const closeOnDesktop = () => {
+      if (desktop.matches) setMobileOpen(false);
     };
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+    desktop.addEventListener('change', closeOnDesktop);
+    closeOnDesktop();
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      desktop.removeEventListener('change', closeOnDesktop);
+      main?.removeAttribute('inert');
+      dock?.removeAttribute('inert');
+      header?.removeAttribute('inert');
+      if (!desktop.matches) document.getElementById('mobile-menu-trigger')?.focus();
+    };
+  }, [mobileOpen]);
 
   return (
     <>

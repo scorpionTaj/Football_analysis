@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import threading
+from datetime import datetime
 from pathlib import Path
+from uuid import uuid4
 
 import duckdb
 import pandas as pd
@@ -18,6 +20,11 @@ class ReadOnlyStore:
             raise FileNotFoundError(f"Database is missing: {self.path}")
         self._con = duckdb.connect(str(self.path), read_only=True)
         self._lock = threading.Lock()
+        self.opened_at = datetime.now().replace(microsecond=0)
+        # A refresh closes this read snapshot and opens a new one. The token
+        # covers every table, including media and reference data, without a
+        # query or a fragile list of per-table timestamps on each cache hit.
+        self.generation = uuid4().hex
 
     def tables(self) -> set[str]:
         frame = self.query("SHOW TABLES")
@@ -40,3 +47,61 @@ class ReadOnlyStore:
     def close(self) -> None:
         with self._lock:
             self._con.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        self.close()
+
+
+class PostgresReadOnlyStore:
+    """Read the verified snapshot through the API's existing DataFrame queries."""
+
+    def __init__(self, dsn: str, schema: str):
+        from .postgres_matches import _connect, _driver, _schema_name
+
+        if not dsn:
+            raise ValueError("FOOTBALL_POSTGRES_DSN is required")
+        psycopg = _driver()
+        self.schema = _schema_name(schema)
+        self.path = f"postgresql:{self.schema}"
+        self._con = _connect(dsn, autocommit=True)
+        self._con.execute(psycopg.sql.SQL("SET search_path TO {}").format(psycopg.sql.Identifier(self.schema)))
+        self._con.execute("SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY")
+        self._lock = threading.Lock()
+        self.opened_at = datetime.now().replace(microsecond=0)
+        self.generation = uuid4().hex
+        self._tables = set(self.query(
+            "SELECT table_name FROM information_schema.tables WHERE table_schema = ?", [self.schema],
+        ).table_name.astype(str))
+        if "snapshot_manifest" not in self._tables:
+            self._con.close()
+            raise ValueError("PostgreSQL schema has no verified snapshot; run football-migrate-postgres first")
+
+    def tables(self) -> set[str]:
+        return set(self._tables)
+
+    def query(self, sql: str, params: list | tuple | None = None) -> pd.DataFrame:
+        sql = sql.replace(
+            "try_cast(minute AS INTEGER)",
+            "CASE WHEN minute ~ '^[0-9]+$' THEN minute::integer END",
+        ).replace("?", "%s")
+        with self._lock:
+            with self._con.cursor() as cursor:
+                cursor.execute(sql, params or ())
+                return pd.DataFrame(cursor.fetchall(), columns=[column.name for column in cursor.description])
+
+    def scalar(self, sql: str, params: list | tuple | None = None):
+        frame = self.query(sql, params)
+        return None if frame.empty else frame.iloc[0, 0]
+
+    def close(self) -> None:
+        with self._lock:
+            self._con.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        self.close()

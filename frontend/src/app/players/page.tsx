@@ -10,7 +10,7 @@ import { SourceBadge } from '@/components/ui/source-badge';
 import { LoadingSkeleton, ErrorMessage, EmptyState } from '@/components/ui/loading';
 import { PageHeader } from '@/components/ui/page-header';
 import { usePagination } from '@/components/ui/pagination';
-import type { PlayerProfileResponse } from '@/lib/api/types';
+import type { PlayerProfileResponse, PlayerStat } from '@/lib/api/types';
 import { FootballBadge, PlayerAvatar } from '@/lib/media-utils';
 import { User, Search, ChevronRight, ChevronLeft, Download, Award } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
@@ -26,6 +26,20 @@ function formatCurrency(eur: number | null | undefined): string {
   return `€${eur.toLocaleString()}`;
 }
 
+type ComparisonPlayer = { id: string; name: string };
+
+function comparisonKey(stat: PlayerStat): string {
+  return JSON.stringify([String(stat.season), stat.competition]);
+}
+
+function formatComparisonValue(value: number | null | undefined): string {
+  return value == null ? '—' : value.toLocaleString();
+}
+
+function formatPer90(value: number | null | undefined, minutes: number | null | undefined): string {
+  return value == null || minutes == null || minutes <= 0 ? '—' : (value * 90 / minutes).toFixed(2);
+}
+
 function PlayersContent() {
   const filters = useFilterParams();
   const [searchQuery, setSearchQuery] = useState(filters.get('q') || '');
@@ -35,6 +49,8 @@ function PlayersContent() {
   const [selectedPosition, setSelectedPosition] = useState('');
   const [currentCursor, setCurrentCursor] = useState<string | null>(null);
   const [cursorHistory, setCursorHistory] = useState<string[]>([]);
+  const [comparisonPlayers, setComparisonPlayers] = useState<[ComparisonPlayer | null, ComparisonPlayer | null]>([null, null]);
+  const [comparisonKeySelection, setComparisonKeySelection] = useState('');
 
   // 300ms debounce to prevent constant refetching on each keystroke
   useEffect(() => {
@@ -71,6 +87,52 @@ function PlayersContent() {
     queryFn: () => api.player(effectivePlayerId || ''),
     enabled: !!effectivePlayerId,
   });
+
+  const { data: firstComparisonProfile, isLoading: isFirstComparisonLoading, error: firstComparisonError, refetch: refetchFirstComparison } = useQuery({
+    queryKey: queryKeys.player(comparisonPlayers[0]?.id || ''),
+    queryFn: () => api.player(comparisonPlayers[0]?.id || ''),
+    enabled: !!comparisonPlayers[0],
+  });
+  const { data: secondComparisonProfile, isLoading: isSecondComparisonLoading, error: secondComparisonError, refetch: refetchSecondComparison } = useQuery({
+    queryKey: queryKeys.player(comparisonPlayers[1]?.id || ''),
+    queryFn: () => api.player(comparisonPlayers[1]?.id || ''),
+    enabled: !!comparisonPlayers[1],
+  });
+
+  const comparisonOptions = useMemo(() => {
+    const pairs = new Map<string, { key: string; season: string; competition: string | null }>();
+    for (const stat of [...(firstComparisonProfile?.stats || []), ...(secondComparisonProfile?.stats || [])]) {
+      if (stat.statistic !== 'season' || stat.season == null) continue;
+      const key = comparisonKey(stat);
+      pairs.set(key, { key, season: String(stat.season), competition: stat.competition });
+    }
+    return [...pairs.values()].sort((a, b) =>
+      b.season.localeCompare(a.season, undefined, { numeric: true }) ||
+      (a.competition || '').localeCompare(b.competition || ''),
+    );
+  }, [firstComparisonProfile?.stats, secondComparisonProfile?.stats]);
+
+  const firstComparisonKeys = new Set((firstComparisonProfile?.stats || [])
+    .filter((stat) => stat.statistic === 'season' && stat.season != null)
+    .map(comparisonKey));
+  const secondComparisonKeys = new Set((secondComparisonProfile?.stats || [])
+    .filter((stat) => stat.statistic === 'season' && stat.season != null)
+    .map(comparisonKey));
+  const defaultComparisonOption = comparisonOptions.find((option) =>
+    firstComparisonKeys.has(option.key) && secondComparisonKeys.has(option.key),
+  ) || comparisonOptions[0];
+  const selectedComparisonOption = comparisonOptions.find((option) => option.key === comparisonKeySelection) || defaultComparisonOption;
+  const comparisonStats = [firstComparisonProfile, secondComparisonProfile].map((player) =>
+    player?.stats.find((stat) => stat.statistic === 'season' && stat.season != null && comparisonKey(stat) === selectedComparisonOption?.key),
+  );
+
+  const toggleComparisonPlayer = (player: ComparisonPlayer) => {
+    setComparisonPlayers(([first, second]) => {
+      if (first?.id === player.id) return [second, null];
+      if (second?.id === player.id) return [first, null];
+      return [first || player, first ? player : null];
+    });
+  };
 
   const profileSeasonTotals = useMemo(() => {
     const totals = new Map<string, { season: string; appearances: number; goals: number; assists: number; minutes: number }>();
@@ -212,6 +274,61 @@ function PlayersContent() {
         <ErrorMessage title="Failed to load players" detail={listError.message} retry={() => refetch()} />
       )}
 
+      <section aria-label="Player comparison" className="rounded-xl border border-surface1 bg-surface0 p-4 sm:p-5 space-y-4">
+        <div>
+          <h2 className="text-lg font-bold text-text">Compare players</h2>
+          <p className="text-xs text-subtext0 mt-1">Transfermarkt Open Dataset · 2025/26 snapshot, through July 2026. These are historical records, not current 2026/27 squads. Choosing a third player replaces Player 2.</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {comparisonPlayers.map((player, index) => (
+            <div key={index} className="flex items-center justify-between gap-3 rounded-lg border border-surface1 bg-mantle p-3">
+              <div className="min-w-0">
+                <p className="text-xs text-subtext0">Player {index + 1}</p>
+                <p className="truncate text-sm font-semibold text-text">{player?.name || 'Choose from the list below'}</p>
+              </div>
+              {player && <button type="button" onClick={() => toggleComparisonPlayer(player)} aria-label={`Remove ${player.name} from comparison`} className="shrink-0 rounded px-2 py-1 text-xs text-blue hover:bg-surface1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue">Remove</button>}
+            </div>
+          ))}
+        </div>
+        {comparisonPlayers[0] && comparisonPlayers[1] && (
+          isFirstComparisonLoading || isSecondComparisonLoading ? <LoadingSkeleton lines={4} /> :
+          firstComparisonError || secondComparisonError ? (
+            <ErrorMessage title="Failed to load comparison" detail={(firstComparisonError || secondComparisonError)?.message || 'Try again.'} retry={() => {
+              if (firstComparisonError) void refetchFirstComparison();
+              if (secondComparisonError) void refetchSecondComparison();
+            }} />
+          ) : firstComparisonProfile && secondComparisonProfile ? (
+            comparisonOptions.length ? (
+              <div className="space-y-3">
+                <div className="flex flex-col gap-1 sm:max-w-sm">
+                  <label htmlFor="comparison-season-competition" className="text-xs font-medium text-subtext1">Season and competition</label>
+                  <select id="comparison-season-competition" value={selectedComparisonOption?.key || ''} onChange={(event) => setComparisonKeySelection(event.target.value)} className="rounded-lg border border-surface1 bg-mantle px-3 py-2 text-sm text-text outline-none focus:border-blue">
+                    {comparisonOptions.map((option) => <option key={option.key} value={option.key}>{option.season} · {option.competition || 'Unspecified competition'}</option>)}
+                  </select>
+                </div>
+                <div className="overflow-x-auto rounded-lg border border-surface1">
+                  <table className="w-full min-w-[300px] text-sm">
+                    <caption className="sr-only">Historical season statistics for {firstComparisonProfile.name} and {secondComparisonProfile.name}</caption>
+                    <thead className="bg-mantle text-xs text-subtext0"><tr><th scope="col" className="p-2 text-left">Metric</th><th scope="col" className="p-2 text-right">Player 1</th><th scope="col" className="p-2 text-right">Player 2</th></tr></thead>
+                    <tbody className="divide-y divide-surface1 text-text">
+                      {([
+                        ['Appearances', comparisonStats[0]?.appearances, comparisonStats[1]?.appearances],
+                        ['Goals', comparisonStats[0]?.goals, comparisonStats[1]?.goals],
+                        ['Assists', comparisonStats[0]?.assists, comparisonStats[1]?.assists],
+                        ['Minutes', comparisonStats[0]?.minutes_played, comparisonStats[1]?.minutes_played],
+                      ] as const).map(([label, first, second]) => <tr key={label}><th scope="row" className="p-2 text-left font-medium">{label}</th><td className="p-2 text-right tabular-nums">{formatComparisonValue(first)}</td><td className="p-2 text-right tabular-nums">{formatComparisonValue(second)}</td></tr>)}
+                      <tr><th scope="row" className="p-2 text-left font-medium">Goals / 90</th><td className="p-2 text-right tabular-nums">{formatPer90(comparisonStats[0]?.goals, comparisonStats[0]?.minutes_played)}</td><td className="p-2 text-right tabular-nums">{formatPer90(comparisonStats[1]?.goals, comparisonStats[1]?.minutes_played)}</td></tr>
+                      <tr><th scope="row" className="p-2 text-left font-medium">Assists / 90</th><td className="p-2 text-right tabular-nums">{formatPer90(comparisonStats[0]?.assists, comparisonStats[0]?.minutes_played)}</td><td className="p-2 text-right tabular-nums">{formatPer90(comparisonStats[1]?.assists, comparisonStats[1]?.minutes_played)}</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-xs text-subtext0">— means unavailable. Per-90 figures require recorded minutes above zero.</p>
+              </div>
+            ) : <p className="text-sm text-subtext0">No historical season statistics are available for these players.</p>
+          ) : null
+        )}
+      </section>
+
       {/* Two-Pane Layout: Player List + Profile Drawer */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left: Player Discovery List */}
@@ -238,15 +355,13 @@ function PlayersContent() {
               <div className="divide-y divide-surface1 max-h-[640px] overflow-y-auto">
                 {players.map((p) => {
                   const isSelected = effectivePlayerId === p.player_id;
+                  const comparisonSlot = comparisonPlayers.findIndex((player) => player?.id === p.player_id);
                   return (
-                    <button
-                      key={p.player_id}
-                      onClick={() => setSelectedPlayerId(p.player_id)}
-                      className={`w-full text-left p-3 flex items-center justify-between transition-colors cursor-pointer ${
+                    <div key={p.player_id} className={`flex items-center transition-colors ${
                         isSelected ? 'bg-blue/15 border-l-4 border-blue' : 'hover:bg-surface1/40'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3 truncate pr-2">
+                      }`}>
+                      <button type="button" aria-label={`View profile for ${p.name}`} aria-pressed={isSelected} onClick={() => setSelectedPlayerId(p.player_id)} className="flex min-w-0 flex-1 cursor-pointer items-center justify-between p-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue">
+                      <div className="flex items-center gap-3 min-w-0 truncate pr-2">
                         <PlayerAvatar image_url={p.image_url} name={p.name} size={36} />
                         <div className="space-y-0.5 truncate">
                           <p className={`font-semibold text-sm truncate ${isSelected ? 'text-blue' : 'text-text'}`}>
@@ -266,7 +381,11 @@ function PlayersContent() {
                         </div>
                       </div>
                       <ChevronRight className={`h-4 w-4 shrink-0 ${isSelected ? 'text-blue' : 'text-overlay0'}`} />
-                    </button>
+                      </button>
+                      <button type="button" aria-label={`${comparisonSlot >= 0 ? 'Remove' : 'Add'} ${p.name} ${comparisonSlot >= 0 ? 'from' : 'to'} comparison`} aria-pressed={comparisonSlot >= 0} onClick={() => toggleComparisonPlayer({ id: p.player_id, name: p.name })} className="mr-3 shrink-0 rounded-lg border border-surface1 px-2 py-1 text-xs font-medium text-blue hover:bg-surface1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue">
+                        {comparisonSlot >= 0 ? `Player ${comparisonSlot + 1}` : 'Compare'}
+                      </button>
+                    </div>
                   );
                 })}
               </div>
@@ -320,7 +439,7 @@ function PlayersContent() {
                   />
                   <div>
                     <h2 className="text-xl font-bold text-text">{profile.name}</h2>
-                    <p className="text-sm text-subtext1 mt-1 flex items-center gap-2">
+                    <div className="text-sm text-subtext1 mt-1 flex items-center gap-2">
                       <FootballBadge url={profile.team.badge_url} name={profile.team.name} size={18} />
                       <span>{profile.team.name}</span>
                       {profile.position && (
@@ -328,7 +447,7 @@ function PlayersContent() {
                           {profile.position}
                         </span>
                       )}
-                    </p>
+                    </div>
                   </div>
                 </div>
 

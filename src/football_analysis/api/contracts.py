@@ -577,9 +577,18 @@ class RefreshRequest(BaseModel):
     force_download: bool = False
 
 
+class RefreshSourceOutcome(BaseModel):
+    step: int
+    source: str
+    partition: str | None = None
+    status: str
+    required: bool = False
+    detail: str | None = None
+
+
 class RefreshStatusResponse(BaseModel):
     job_id: str | None = None
-    status: Literal["idle", "running", "success", "failed"] = "idle"
+    status: Literal["idle", "running", "success", "degraded", "failed"] = "idle"
     current_step: int = 0
     target_step: int = 4
     completed_steps: list[int] = Field(default_factory=list)
@@ -588,3 +597,7 @@ class RefreshStatusResponse(BaseModel):
     started_at: datetime | None = None
     finished_at: datetime | None = None
     error: str | None = None
+    failed_count: int = 0
+    degraded_count: int = 0
+    source_messages: list[str] = Field(default_factory=list)
+    source_outcomes: list[RefreshSourceOutcome] = Field(default_factory=list)

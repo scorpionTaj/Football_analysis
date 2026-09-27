@@ -207,7 +207,7 @@ export interface RefreshRequest {
 
 export interface RefreshStatusResponse {
   job_id: string | null;
-  status: 'idle' | 'running' | 'success' | 'failed';
+  status: 'idle' | 'running' | 'success' | 'degraded' | 'failed';
   current_step: number;
   target_step: number;
   completed_steps: number[];
@@ -216,6 +216,9 @@ export interface RefreshStatusResponse {
   started_at: string | null;
   finished_at: string | null;
   error: string | null;
+  failed_count: number;
+  degraded_count: number;
+  source_messages: string[];
 }
 
 export interface AnalysisFilters {

@@ -201,7 +201,7 @@ def sync_recent(db=DB, year=None, leagues=None, refresh=False, event_adapter=Non
                     "SELECT count(*) FROM recent_matches WHERE league=? AND season=?", [league, year]
                 ).fetchone()[0]
                 if cached_fingerprint(con, key) == batch.digest and existing_count == len(frame):
-                    report.append({"league": league, "season": year, "status": "cached", "rows": len(frame)})
+                    report.append({"league": league, "season": year, "source": SOURCE_CSV, "status": "cached", "rows": len(frame)})
                     print(report[-1], flush=True)
                     continue
                 frame["source"] = SOURCE_CSV
@@ -227,16 +227,17 @@ def sync_recent(db=DB, year=None, leagues=None, refresh=False, event_adapter=Non
                     raise
                 finally:
                     con.unregister("incoming_recent")
-                report.append({"league": league, "season": year, "status": "success", "rows": len(frame)})
+                report.append({"league": league, "season": year, "source": SOURCE_CSV, "status": "success", "rows": len(frame)})
                 matches_changed = True
             except Exception as exc:
-                report.append({"league": league, "season": year, "status": "failed", "detail": str(exc)})
+                report.append({"league": league, "season": year, "source": SOURCE_CSV, "status": "failed", "detail": str(exc)})
             print(report[-1], flush=True)
 
         for league in leagues:
             for event_kind in ("past", "next"):
                 key = f"recent-events:{league}:{event_kind}"
                 if not refresh and is_fresh(con, key, timedelta(hours=1)):
+                    report.append({"league": league, "event_kind": event_kind, "source": SOURCE_EVENTS, "status": "cached"})
                     continue
                 try:
                     frame = event_adapter.fetch(league, event_kind)
@@ -271,8 +272,10 @@ def sync_recent(db=DB, year=None, leagues=None, refresh=False, event_adapter=Non
                             con.unregister("incoming_events")
                     else:
                         mark_fresh(con, key)
+                    report.append({"league": league, "event_kind": event_kind, "source": SOURCE_EVENTS, "status": "success", "rows": len(frame)})
                 except Exception as exc:
-                    print({"league": league, "event_kind": event_kind, "status": "failed", "detail": str(exc)}, flush=True)
+                    report.append({"league": league, "event_kind": event_kind, "source": SOURCE_EVENTS, "status": "failed", "detail": str(exc)})
+                    print(report[-1], flush=True)
         if matches_changed:
             refresh_analytics(con)
     return report
@@ -288,7 +291,7 @@ def main():
     if args.cached and args.refresh:
         parser.error("--cached and --refresh cannot be combined")
     result = sync_recent(year=args.season, leagues=args.leagues, refresh=args.refresh)
-    raise SystemExit(1 if any(row["status"] == "failed" for row in result) else 0)
+    raise SystemExit(1 if any(row["status"] == "failed" and row["source"] == SOURCE_CSV for row in result) else 0)
 
 
 if __name__ == "__main__":

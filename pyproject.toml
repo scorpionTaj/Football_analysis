@@ -19,6 +19,8 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8,<10", "httpx2>=2,<3"]
+postgres = ["psycopg[binary]>=3.2,<4"]
+redis = ["redis>=5,<7"]
 
 [project.scripts]
 football-ingest = "football_analysis.ingest:main"
@@ -33,6 +35,8 @@ football-sync-event-details = "football_analysis.event_details:main"
 football-train-predictions = "football_analysis.predictions:main"
 football-sync = "football_analysis.pipeline:main"
 football-api = "football_analysis.api.app:main"
+football-publish-matches = "football_analysis.api.postgres_matches:main"
+football-migrate-postgres = "football_analysis.postgres_snapshot:main"
 
 [tool.setuptools.package-data]
 football_analysis = ["schema.sql"]

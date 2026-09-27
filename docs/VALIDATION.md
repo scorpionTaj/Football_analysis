@@ -1,5 +1,11 @@
 # Validation — 23 September 2026
 
+## PostgreSQL migration checkpoint — 27 September 2026
+
+- The complete local DuckDB snapshot copied into a temporary PostgreSQL server, with every table content-verified before commit. Real-data API responses matched for catalog, 2026/27 matches, predictions, players, transfers and Champions League; the comparison exposed and fixed nondeterministic forecast ordering.
+- The full suite passed: 107 tests, with the opt-in large snapshot test skipped on normal runs. The migration CLI installed and its help command ran successfully.
+- The Supabase env file has a valid private schema and project-matching DSN, but its direct endpoint is IPv6-only and unreachable from this host. A session-pooler DSN is needed before remote validation or publication. DuckDB remains the writer and refresh backend.
+
 ## Final frontend cutover
 
 - FastAPI is the only presentation data boundary; the Next.js/HeroUI application is the only frontend.

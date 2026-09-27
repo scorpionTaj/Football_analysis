@@ -128,9 +128,9 @@ export function CompetitionBadge({
   size = 36,
   className = '',
 }: CompetitionBadgeProps) {
-  const [error, setError] = useState(false);
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
 
-  if (!badge_url || error) {
+  if (!badge_url || failedUrl === badge_url) {
     const isTournament = code === 'UCL' || code === 'CWC' || code === 'WC';
     return (
       <div
@@ -153,7 +153,7 @@ export function CompetitionBadge({
       alt={name}
       width={size}
       height={size}
-      onError={() => setError(true)}
+      onError={() => setFailedUrl(badge_url)}
       unoptimized
       className={`object-contain shrink-0 drop-shadow-md transition-transform duration-200 hover:scale-105 ${className}`}
       style={{ width: size, height: size, maxWidth: size, maxHeight: size }}
@@ -176,7 +176,7 @@ export function PlayerAvatar({
   className = '',
   ring = true,
 }: PlayerAvatarProps) {
-  const [error, setError] = useState(false);
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
 
   const initials = name
     ? name
@@ -192,7 +192,7 @@ export function PlayerAvatar({
     ? 'ring-2 ring-blue/50 dark:ring-blue/60 ring-offset-2 ring-offset-surface0 shadow-md'
     : 'border border-surface1/80 shadow-sm';
 
-  if (!image_url || error) {
+  if (!image_url || failedUrl === image_url) {
     return (
       <div
         className={`inline-flex items-center justify-center rounded-full bg-gradient-to-br from-blue/20 via-sapphire/15 to-mauve/20 text-blue font-bold shrink-0 ${ringClasses} ${className}`}
@@ -216,7 +216,7 @@ export function PlayerAvatar({
       alt={name}
       width={size}
       height={size}
-      onError={() => setError(true)}
+      onError={() => setFailedUrl(image_url)}
       unoptimized
       className={`rounded-full object-cover bg-surface1/30 shrink-0 transition-all duration-200 hover:scale-105 hover:ring-sapphire ${ringClasses} ${className}`}
       style={{ width: size, height: size, minWidth: size, minHeight: size }}

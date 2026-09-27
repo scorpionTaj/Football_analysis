@@ -77,6 +77,12 @@ The 2026/27 campaign is integrated into every match-driven page and adds the Ere
 
 Data lives in `data/`; override with `FOOTBALL_DATA_DIR`. Raw archives and the database are excluded from version control. The lockfile pins the tested environment. No automated downloads run on page views.
 
+Optional API response caching: install the Redis extra (`uv sync --extra redis`) and set `REDIS_URL` to a Redis URL. Only catalog and overview GET JSON responses use Redis, with 300-second and 60-second TTLs respectively. Each reopened DuckDB snapshot gets a new cache generation after refresh; Redis errors fall back to DuckDB. Without `REDIS_URL`, the API uses DuckDB as before.
+
+Optional PostgreSQL match reads: install `uv sync --extra postgres`, publish a competition/season with `FOOTBALL_POSTGRES_DSN=... uv run football-publish-matches E0 2026`, then set `FOOTBALL_MATCH_READ_BACKEND=postgres` when starting the API. Republish after data refreshes. DuckDB stays the writer and default reader; unset the backend switch to roll back. See [the database decision](docs/DATABASE_DECISION.md) for partition validation and scope.
+
+PostgreSQL cutover preparation: fill `FOOTBALL_POSTGRES_DSN` in the ignored `.env` with a PostgreSQL connection string from your Supabase dashboard, then install `uv sync --extra postgres`. A Supabase project URL and API key do not replace the database connection string. With the API and sync command stopped, run `set -a; . ./.env; set +a` and `uv run football-migrate-postgres --schema football_analysis_next`. The copier creates a private schema, copies every source table, checks row counts and content, and leaves the DuckDB file intact. Repeating the command verifies the published snapshot; if the source changes, use a new schema name. For a read-only API trial, start it with `FOOTBALL_API_READ_BACKEND=postgres`; in this mode, in-app refresh is disabled with HTTP 409 because writers have not moved yet. **Do not remove DuckDB yet:** ingestion and refresh still depend on it. The snapshot is a migration checkpoint, not the completed cutover.
+
 ## Verification
 
 ```bash
