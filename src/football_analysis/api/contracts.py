@@ -633,6 +633,8 @@ class RefreshRequest(BaseModel):
     season: int | None = None
     competitions: list[str] = Field(default_factory=list)
     force_download: bool = False
+    # Routine refresh: current results/fixtures, then warehouse + forecasts + publish (skips steps 2-3).
+    quick: bool = False
 
 
 class RefreshSourceOutcome(BaseModel):

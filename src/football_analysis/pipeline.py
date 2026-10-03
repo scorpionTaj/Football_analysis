@@ -13,7 +13,7 @@ from .config import CLUBS, DATA, DB, seasons
 
 
 def run_pipeline(*, bootstrap=False, step=4, season=None, competitions=None,
-                 force=False, all_media=False, max_teams=100, db=DB):
+                 force=False, all_media=False, max_teams=100, quick=False, db=DB):
     """Refresh published data; bootstrap adds the historical source backfill once."""
     report = RefreshRunReport()
     if bootstrap:
@@ -48,8 +48,8 @@ def run_pipeline(*, bootstrap=False, step=4, season=None, competitions=None,
             report.attempt(0, name, task, required=required)
 
     request = RefreshRequest(
-        target_step=step, season=season, competitions=competitions or [],
-        force_download=force,
+        target_step=4 if quick else step, season=season, competitions=competitions or [],
+        force_download=force, quick=quick,
     )
 
     def progress(number, name, message):
@@ -84,6 +84,8 @@ def main():
     parser.add_argument("--season", type=int, help="Current season start year")
     parser.add_argument("--competitions", nargs="+", help="Limit current refresh to competition codes")
     parser.add_argument("--force", action="store_true", help="Bypass source freshness checks and redownload")
+    parser.add_argument("--quick", action="store_true",
+                        help="Routine run: current results + fixtures, then warehouse, forecasts and publish")
     parser.add_argument("--all-media", action="store_true", help="Also backfill a bounded batch of missing badges")
     parser.add_argument("--max-teams", type=int, default=100, help="Maximum badge lookups with --all-media")
     args = parser.parse_args()
@@ -93,7 +95,7 @@ def main():
         report = run_pipeline(
             bootstrap=args.bootstrap, step=args.step, season=args.season,
             competitions=args.competitions, force=args.force,
-            all_media=args.all_media, max_teams=args.max_teams,
+            all_media=args.all_media, max_teams=args.max_teams, quick=args.quick,
         )
         if report.required_failures:
             raise SystemExit(1)

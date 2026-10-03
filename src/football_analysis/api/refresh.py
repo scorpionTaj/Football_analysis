@@ -228,8 +228,10 @@ def run_refresh_pipeline(database: Path, request: RefreshRequest, progress: Prog
                     report.add(1, source, row, required=source == "Football-Data.co.uk")
             except Exception as exc:
                 report.add(1, "Football-Data.co.uk", {"status": "failed", "detail": str(exc)}, required=True)
+            from football_analysis.open_fixtures import LEAGUE_FILES
+            # Only leagues OpenFootball publishes; B1/T1/G1 have no calendar and are not a failure.
             open_reports = report.attempt(1, "OpenFootball fixtures", lambda: sync_open_fixtures(
-                db=database, season=season, leagues=domestic,
+                db=database, season=season, leagues=[code for code in domestic if code in LEAGUE_FILES],
                 refresh=request.force_download,
             )) or []
             fixture_report = report.attempt(1, "Weekly fixtures", lambda: sync_fixtures(
@@ -250,7 +252,7 @@ def run_refresh_pipeline(database: Path, request: RefreshRequest, progress: Prog
                 refresh=request.force_download,
             ))
 
-    if request.target_step >= 2:
+    if request.target_step >= 2 and not request.quick:
         progress(2, "Tables and competitions", "Refreshing reference tables and selected tournaments.")
         supported = [code for code in domestic if code in {"E0", "D1", "I1", "F1", "SP1"}]
         if supported:
@@ -268,7 +270,7 @@ def run_refresh_pipeline(database: Path, request: RefreshRequest, progress: Prog
                 adapter=OpenFootballTournaments(refresh=request.force_download),
             ))
 
-    if request.target_step >= 3:
+    if request.target_step >= 3 and not request.quick:
         progress(3, "Teams, players and match detail", "Refreshing artwork, squads, formations and event detail.")
         from football_analysis.event_details import sync_event_details
         from football_analysis.media import sync_media

@@ -90,7 +90,7 @@ def test_required_result_failure_makes_football_sync_exit_nonzero(monkeypatch, t
     assert json.loads(capsys.readouterr().out.strip().splitlines()[-1])["status"] == "failed"
 
 
-def test_all_four_stages_keep_running_after_optional_source_failures(monkeypatch, tmp_path):
+def test_all_four_stages_keep_running_after_optional_source_failures(monkeypatch, tmp_path, quick=False):
     import pandas as pd
     from football_analysis import event_details, fixtures, history, ingest, media, open_fixtures, open_players, recent, reference_standings, transfers, warehouse
     from football_analysis.api import refresh
@@ -116,11 +116,19 @@ def test_all_four_stages_keep_running_after_optional_source_failures(monkeypatch
 
     progress = []
     report = run_refresh_pipeline(
-        tmp_path / "unused.duckdb", RefreshRequest(target_step=4, season=2026, competitions=["E0"]),
+        tmp_path / "unused.duckdb", RefreshRequest(target_step=4, season=2026, competitions=["E0"], quick=quick),
         lambda step, *_args: progress.append(step),
     )
+    if quick:  # routine run: results/fixtures, then straight to warehouse + forecasts + publish
+        assert progress == [1, 1, 4]
+        assert {row.step for row in report.outcomes} == {1, 4} and not report.required_failures
+        return
     assert progress == [1, 1, 2, 3, 4]
     assert {row.step for row in report.outcomes} == {1, 2, 3, 4}
     assert len(report.required_failures) == 0
     assert {row.source for row in report.failures} == {"Reference standings", "Open players"}
     assert any(row.source == "Model leaderboard" and row.status == "success" for row in report.outcomes)
+
+
+def test_quick_refresh_skips_enrichment_but_still_builds_and_forecasts(monkeypatch, tmp_path):
+    test_all_four_stages_keep_running_after_optional_source_failures(monkeypatch, tmp_path, quick=True)
