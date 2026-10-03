@@ -62,7 +62,7 @@ class PostgresReadOnlyStore:
     """Read the verified snapshot through the API's existing DataFrame queries."""
 
     def __init__(self, dsn: str, schema: str):
-        from .postgres_matches import _connect, _driver, _schema_name
+        from football_analysis.pg import connect as _connect, driver as _driver, schema_name as _schema_name
 
         if not dsn:
             raise ValueError("FOOTBALL_POSTGRES_DSN is required")

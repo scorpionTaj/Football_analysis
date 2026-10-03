@@ -24,10 +24,8 @@ from pathlib import Path
 import duckdb
 from psycopg import sql
 
-from .api.postgres_matches import _connect
-from .config import DB
-from .postgres_snapshot import TYPES, _chunks, _name, _rows_digest
-from .sqlite_snapshot import LOCAL_SNAPSHOT
+from .config import DB, LOCAL_SNAPSHOT
+from .pg import TYPES, chunks as _chunks, connect as _connect, rows_digest as _rows_digest, schema_name as _name
 
 # Warehouse outputs served next to the app tables (published name -> DuckDB relation).
 # Only what the API reads: the Supabase free tier caps the database at 500 MB, so large

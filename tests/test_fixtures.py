@@ -4,7 +4,6 @@ from football_analysis.api.db import ReadOnlyStore
 from football_analysis.api.queries import list_matches
 from football_analysis.fixtures import normalize_fixtures, sync_fixtures
 from football_analysis.ingest import connect
-from football_analysis.prediction_features import load_match_inputs
 
 
 class StaticFixtureAdapter:
@@ -52,9 +51,9 @@ def test_weekly_fixtures_are_reconciled_and_searchable_before_pagination(tmp_pat
     report = sync_fixtures(db, season=season, leagues=["E0"], adapter=StaticFixtureAdapter(raw), today=today)
     assert report == {"status": "success", "rows": 1, "unmapped": 1}
     with connect(db) as con:
-        _, upcoming = load_match_inputs(con)
-    assert len(upcoming) == 1
-    assert upcoming.iloc[0].home_team == "Arsenal"
+        upcoming = con.execute("SELECT home_team FROM recent_events WHERE event_kind = 'fixture' "
+                               "AND match_date >= current_date").fetchall()
+    assert upcoming == [("Arsenal",)]
     store = ReadOnlyStore(db)
     try:
         result = list_matches(store, competition="E0", season=season, limit=1, query="Livrpool")

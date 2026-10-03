@@ -22,6 +22,7 @@ def _load_dotenv(path: Path) -> None:
 _load_dotenv(ROOT / ".env")
 DATA = Path(os.environ.get("FOOTBALL_DATA_DIR", ROOT / "data"))
 DB = DATA / "football.duckdb"
+LOCAL_SNAPSHOT = DATA / "football.sqlite3"  # SQLite read fallback built by football-publish
 LEAGUES = {"E0": "Premier League", "SP1": "La Liga", "D1": "Bundesliga", "I1": "Serie A", "F1": "Ligue 1"}
 RECENT_LEAGUES = {
     **LEAGUES,

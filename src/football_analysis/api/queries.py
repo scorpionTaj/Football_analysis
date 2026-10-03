@@ -442,11 +442,10 @@ def list_matches(
     cursor: str | None = None,
     limit: int = 50,
     query: str | None = None,
-    raw_frame: pd.DataFrame | None = None,
     source_name: str = "duckdb",
 ) -> MatchListResponse:
     limit = max(1, min(int(limit), 200))
-    frame = load_match_source_rows(store) if raw_frame is None else raw_frame.copy()
+    frame = load_match_source_rows(store)
     if frame.empty:
         return MatchListResponse(
             matches=[], page=PageMeta(next_cursor=None, limit=limit, returned=0),

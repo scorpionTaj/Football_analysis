@@ -41,11 +41,9 @@ from football_analysis.api.contracts import (
     TransferListResponse,
 )
 from football_analysis.api.db import PostgresReadOnlyStore, ReadOnlyStore, SQLiteReadOnlyStore
-from football_analysis.api.postgres_matches import PartitionUnavailable, read_partition
 from football_analysis.api.refresh import RefreshCoordinator, RefreshRunner, run_refresh_pipeline
 from football_analysis.api.response_cache import RedisResponseCache
-from football_analysis.config import DB, TOURNAMENTS, current_season
-from football_analysis.sqlite_snapshot import LOCAL_SNAPSHOT
+from football_analysis.config import DB, LOCAL_SNAPSHOT, TOURNAMENTS, current_season
 
 
 CACHE_SHORT = "public, max-age=60, stale-while-revalidate=300"
@@ -69,12 +67,7 @@ def create_app(
     read_backend = os.environ.get("FOOTBALL_API_READ_BACKEND", "duckdb").lower()
     if read_backend not in {"duckdb", "postgres"}:
         raise ValueError("FOOTBALL_API_READ_BACKEND must be duckdb or postgres")
-    match_backend = os.environ.get("FOOTBALL_MATCH_READ_BACKEND", "duckdb").lower()
-    if match_backend not in {"duckdb", "postgres"}:
-        raise ValueError("FOOTBALL_MATCH_READ_BACKEND must be duckdb or postgres")
     postgres_dsn = os.environ.get("FOOTBALL_POSTGRES_DSN")
-    if read_backend == "duckdb" and match_backend == "postgres" and not postgres_dsn:
-        raise ValueError("FOOTBALL_POSTGRES_DSN is required for the PostgreSQL match read path")
     local_snapshot = LOCAL_SNAPSHOT if database_path is None else path.with_suffix(".sqlite3")
 
     def open_store() -> ReadOnlyStore | PostgresReadOnlyStore | SQLiteReadOnlyStore:
@@ -208,24 +201,14 @@ def create_app(
         limit: int = Query(default=50, ge=1, le=200),
     ):
         try:
-            partition = None
-            if read_backend == "duckdb" and match_backend == "postgres" and competition and season is not None:
-                partition = read_partition(postgres_dsn, competition, season)
             payload = queries.list_matches(
                 require_store(), competition, season, team, opponent, venue, cursor, limit, q,
-                raw_frame=partition.rows if partition else None,
-                source_name="postgresql" if partition or isinstance(app.state.store, PostgresReadOnlyStore)
+                source_name="postgresql" if isinstance(app.state.store, PostgresReadOnlyStore)
                 else "sqlite" if isinstance(app.state.store, SQLiteReadOnlyStore) else "duckdb",
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except PartitionUnavailable as exc:
-            raise HTTPException(status_code=503, detail=str(exc)) from exc
-        etag = None
-        if partition:
-            raw = f"{queries.snapshot_etag(require_store())}:{partition.version}:{partition.checksum}"
-            etag = '"' + hashlib.sha256(raw.encode()).hexdigest() + '"'
-        return with_cache(payload, request, cache_for_season(season), etag=etag)
+        return with_cache(payload, request, cache_for_season(season))
 
     @app.get("/api/v1/shots", response_model=ShotAnalysisResponse)
     def shots(

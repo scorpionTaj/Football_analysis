@@ -4,15 +4,103 @@ forecast_history) so the existing /api/v1/predictions contract keeps working."""
 from __future__ import annotations
 
 import json
+import math
 from datetime import datetime
 
 import numpy as np
 import pandas as pd
 
-from ..predictions import (
-    CLASS_NAMES, _confidence_backtest, _metrics, _outcome_backtest, _reconcile_forecast_history,
-)
+from ..teams import team_key
 from .evaluate import metrics as proper_metrics
+
+CLASS_NAMES = np.array(["Home", "Draw", "Away"])
+HIGH_CONFIDENCE_THRESHOLD = 0.75
+
+
+def _metrics(probabilities, labels, baseline_prevalence=None):
+    actual = np.asarray(labels, dtype=int)
+    clipped = np.clip(probabilities, 1e-9, 1)
+    predicted = probabilities.argmax(axis=1)
+    prevalence = (
+        np.bincount(actual, minlength=3) / len(actual)
+        if baseline_prevalence is None else np.asarray(baseline_prevalence, dtype=float)
+    )
+    baseline = np.tile(prevalence, (len(actual), 1))
+    return {
+        "accuracy": float((predicted == actual).mean()),
+        "log_loss": float(-np.log(clipped[np.arange(len(actual)), actual]).mean()),
+        "brier_score": float(np.square(probabilities - np.eye(3)[actual]).sum(axis=1).mean()),
+        "baseline_accuracy": float((np.full(len(actual), prevalence.argmax()) == actual).mean()),
+        "baseline_log_loss": float(-np.log(np.clip(baseline[np.arange(len(actual)), actual], 1e-9, 1)).mean()),
+    }
+
+
+def _confidence_backtest(probabilities, labels, threshold=HIGH_CONFIDENCE_THRESHOLD):
+    """Report selective accuracy and uncertainty without hiding excluded games."""
+    actual = np.asarray(labels, dtype=int)
+    selected = probabilities.max(axis=1) >= threshold
+    count = int(selected.sum())
+    correct = int((probabilities[selected].argmax(axis=1) == actual[selected]).sum()) if count else 0
+    observed = correct / count if count else None
+    if count:
+        z = 1.96
+        centre = (observed + z * z / (2 * count)) / (1 + z * z / count)
+        margin = z * math.sqrt(
+            observed * (1 - observed) / count + z * z / (4 * count * count)
+        ) / (1 + z * z / count)
+        lower, upper = max(0.0, centre - margin), min(1.0, centre + margin)
+    else:
+        lower = upper = None
+    return {
+        "high_confidence_threshold": threshold,
+        "high_confidence_matches": count,
+        "high_confidence_coverage": count / len(actual),
+        "high_confidence_accuracy": observed,
+        "high_confidence_low95": lower,
+        "high_confidence_high95": upper,
+    }
+
+
+def _outcome_backtest(probabilities, labels):
+    """Expose class imbalance and missed draws instead of one accuracy number."""
+    actual = np.asarray(labels, dtype=int)
+    predicted = probabilities.argmax(axis=1)
+    rows = []
+    for index, outcome in enumerate(CLASS_NAMES):
+        actual_count = int((actual == index).sum())
+        predicted_count = int((predicted == index).sum())
+        correct = int(((actual == index) & (predicted == index)).sum())
+        rows.append({
+            "outcome": str(outcome), "matches": actual_count,
+            "predicted": predicted_count, "correct": correct,
+            "recall": correct / actual_count if actual_count else None,
+            "precision": correct / predicted_count if predicted_count else None,
+        })
+    return rows
+
+
+def _reconcile_forecast_history(con, matches):
+    """Resolve published probabilities against completed results without rewriting them."""
+    pending = con.sql("SELECT model_id, league, season, match_date, home_team, away_team "
+                      "FROM forecast_history WHERE actual_result IS NULL").df()
+    if pending.empty:
+        return
+    results = {}
+    for row in matches.itertuples(index=False):
+        if pd.isna(row.home_goals) or pd.isna(row.away_goals):
+            continue
+        key = (row.league, int(row.season), team_key(row.home_team), team_key(row.away_team))
+        results[key] = "Home" if row.home_goals > row.away_goals else "Away" if row.home_goals < row.away_goals else "Draw"
+    for row in pending.itertuples(index=False):
+        key = (row.league, int(row.season), team_key(row.home_team), team_key(row.away_team))
+        actual = results.get(key)
+        if actual:
+            con.execute(
+                "UPDATE forecast_history SET actual_result=?, resolved_at=current_timestamp "
+                "WHERE model_id=? AND league=? AND match_date=? AND home_team=? AND away_team=?",
+                [actual, row.model_id, row.league, row.match_date, row.home_team, row.away_team],
+            )
+
 
 LABELS = dict(enumerate(CLASS_NAMES))
 PROBS = ["p_home", "p_draw", "p_away"]
