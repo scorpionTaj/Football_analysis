@@ -29,30 +29,32 @@ import {
 import { useTheme } from './theme-provider';
 import { GlobalSearch } from './global-search';
 
+type NavGroup = 'Explore' | 'Analyze' | 'Model' | 'Data';
 type NavItem = {
   href: string;
   label: string;
   shortLabel: string;
   icon: LucideIcon;
-  group: 'Explore' | 'Intelligence' | 'System';
+  group: NavGroup;
 };
 
 export const NAV_ITEMS: readonly NavItem[] = [
   { href: '/', label: 'Overview', shortLabel: 'Home', icon: LayoutDashboard, group: 'Explore' },
   { href: '/matches', label: 'Match Centre', shortLabel: 'Matches', icon: CalendarDays, group: 'Explore' },
   { href: '/tables', label: 'League Tables', shortLabel: 'Tables', icon: Table2, group: 'Explore' },
-  { href: '/clubs', label: 'Club Lab', shortLabel: 'Clubs', icon: Shield, group: 'Explore' },
-  { href: '/players', label: 'Players', shortLabel: 'Players', icon: UsersRound, group: 'Explore' },
-  { href: '/tournaments', label: 'Tournaments', shortLabel: 'Cups', icon: Trophy, group: 'Intelligence' },
-  { href: '/analysis', label: 'Analysis Lab', shortLabel: 'Analysis', icon: FlaskConical, group: 'Intelligence' },
-  { href: '/shots', label: 'Shot Intelligence', shortLabel: 'Shots', icon: Crosshair, group: 'Intelligence' },
-  { href: '/predictions', label: 'Predictions', shortLabel: 'Forecasts', icon: Target, group: 'Intelligence' },
-  { href: '/quality', label: 'Data Quality', shortLabel: 'Quality', icon: Gauge, group: 'System' },
-  { href: '/settings', label: 'Settings', shortLabel: 'Settings', icon: Settings, group: 'System' },
+  { href: '/tournaments', label: 'Tournaments', shortLabel: 'Cups', icon: Trophy, group: 'Explore' },
+  { href: '/clubs', label: 'Club Lab', shortLabel: 'Clubs', icon: Shield, group: 'Analyze' },
+  { href: '/players', label: 'Players', shortLabel: 'Players', icon: UsersRound, group: 'Analyze' },
+  { href: '/analysis', label: 'Analysis Lab', shortLabel: 'Analysis', icon: BarChart3, group: 'Analyze' },
+  { href: '/shots', label: 'Shot Intelligence', shortLabel: 'Shots', icon: Crosshair, group: 'Analyze' },
+  { href: '/predictions', label: 'Predictions', shortLabel: 'Forecasts', icon: Target, group: 'Model' },
+  { href: '/models', label: 'Model Lab', shortLabel: 'Models', icon: FlaskConical, group: 'Model' },
+  { href: '/quality', label: 'Data Quality', shortLabel: 'Quality', icon: Gauge, group: 'Data' },
+  { href: '/settings', label: 'Settings', shortLabel: 'Settings', icon: Settings, group: 'Data' },
 ] as const;
 
-const GROUPS = ['Explore', 'Intelligence', 'System'] as const;
-const MOBILE_ITEMS = NAV_ITEMS.filter((item) => ['/', '/matches', '/analysis', '/players'].includes(item.href));
+const GROUPS: readonly NavGroup[] = ['Explore', 'Analyze', 'Model', 'Data'];
+const MOBILE_ITEMS = NAV_ITEMS.filter((item) => ['/', '/matches', '/predictions', '/models'].includes(item.href));
 
 function isActive(pathname: string, href: string) {
   return href === '/' ? pathname === '/' : pathname.startsWith(href);

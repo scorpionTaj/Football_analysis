@@ -190,7 +190,7 @@ export default function SettingsPage() {
                   )}
                 </div>
 
-                <div className="flex items-center justify-between text-[11px] opacity-75">
+                <div className="flex items-center justify-between text-[11px]">
                   <span style={{ color: opt.previewText }} className="capitalize font-mono">
                     {opt.type}
                   </span>

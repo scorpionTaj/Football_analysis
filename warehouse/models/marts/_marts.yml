@@ -1,0 +1,34 @@
+version: 2
+
+models:
+  - name: fct_match
+    description: One row per played domestic match (15 leagues incl. second divisions, 2005+), with market probabilities.
+    columns:
+      - name: match_id
+        tests: [unique, not_null]
+      - name: league
+        tests:
+          - not_null
+          - relationships: {to: ref('leagues'), field: league}
+      - name: match_date
+        tests: [not_null]
+      - name: home_team
+        tests: [not_null]
+      - name: away_team
+        tests: [not_null]
+      - name: home_goals
+        tests: [not_null]
+      - name: away_goals
+        tests: [not_null]
+      - name: result
+        tests:
+          - accepted_values: {values: ['H', 'D', 'A']}
+  - name: mart_team_season
+    description: League table per league-season reconstructed from results.
+    tests:
+      - unique_combination: {columns: [league, season, team]}
+  - name: int_team_matches
+    columns:
+      - name: venue
+        tests:
+          - accepted_values: {values: ['Home', 'Away']}

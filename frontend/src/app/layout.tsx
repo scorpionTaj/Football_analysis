@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Navigation } from '@/components/navigation';
 import Providers from './providers';
 import './globals.css';
@@ -9,6 +9,14 @@ export const metadata: Metadata = {
     template: '%s · Football Analysis',
   },
   description: 'European football performance, match, player and model intelligence from transparent public data.',
+};
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: '(prefers-color-scheme: dark)', color: '#1e1e2e' },
+    { media: '(prefers-color-scheme: light)', color: '#eff1f5' },
+  ],
+  colorScheme: 'dark light',
 };
 
 export default function RootLayout({

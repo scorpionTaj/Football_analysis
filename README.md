@@ -1,37 +1,72 @@
 # football_analysis
 
-Linux-friendly football analytics with FastAPI, DuckDB and a responsive Next.js/HeroUI frontend. No payment, API key, or subscription is required.
+A football data engineering and data science project: 20 seasons of European league data
+are landed, modelled in a tested dbt warehouse, orchestrated with Dagster, used to train and
+compare match-outcome models tracked in MLflow, and served through FastAPI to a Next.js app.
+No paid API or key is required.
 
-## Start with the existing database
+## Architecture
 
-```bash
-cd /home/scorpiontaj/Projects/Football_analysis
-uv sync --extra dev
-uv run football-api
+```
+Sources ── Football-Data CSVs (15 leagues incl. 2nd divisions, 2005+, with odds)
+        ── OpenFootball fixtures/tournaments · Transfermarkt CC0 · TheSportsDB (capped)
+   │  Python extractors (football_analysis.*.sync_*)            Dagster assets, group "extract"
+   ▼
+DuckDB  data/football.duckdb  — single writer, compute warehouse
+   main.*          raw app tables written by the extractors
+   staging.*       typed sources (dbt views)                     Dagster group "warehouse"
+   marts.*         fct_match, mart_team_season, … (dbt tables, 28 data tests)
+   ml.*            ml_match_features (leakage-safe), model_runs, predictions
+   │  football-train-models: walk-forward leaderboard → MLflow → champion   group "ml"
+   │  football-publish: changed tables swapped atomically                    group "serving"
+   ▼
+PostgreSQL (Supabase, private schema) ──► FastAPI /api/v1 ──► Next.js (frontend/)
+SQLite data/football.sqlite3 ── automatic read fallback when PostgreSQL is unreachable
 ```
 
-In a second terminal:
+## Quick start
 
 ```bash
-cd /home/scorpiontaj/Projects/Football_analysis/frontend
-npm install
-npm run dev -- --port 3001
+uv sync --extra dev --extra de --extra ml
+uv run football-fetch-history                 # land 2005+ CSVs (once; ~6 min, courteous pacing)
+uv run football-build-warehouse                # dbt build: models + 28 data tests
+uv run football-train-models                  # leaderboard + champion + forecasts
+set -a; . ./.env; set +a; uv run football-publish   # PostgreSQL + SQLite fallback
+FOOTBALL_API_READ_BACKEND=postgres uv run football-api
+npm --prefix frontend run dev -- --port 3001
 ```
 
-For a new database, stop `football-api` first and run one historical bootstrap command:
+Orchestrated instead of by hand (UI at http://localhost:3000, schedules mirror the old cadence):
 
 ```bash
-cd /home/scorpiontaj/Projects/Football_analysis
-uv run football-sync --bootstrap
+cp dagster.yaml .dagster/ && DAGSTER_HOME=$PWD/.dagster uv run dagster dev -m football_analysis.orchestration
 ```
 
-For later updates, use `uv run football-sync`. This incremental command refreshes the current season, match details and predictions; unchanged source partitions and model inputs are skipped. `--step 1` through `--step 4` chooses a shallower refresh, `--competitions E0 SP1` narrows its scope, and `--force` bypasses freshness checks. Run the command while the API is stopped because DuckDB has one writer; while the API is running, use the equivalent four-step refresh in Settings instead. Refresh progress persists across application restarts. Stages commit independently: after a failure, completed stages remain applied and the failed stage may have partial source updates; rerunning the incremental command resumes safely.
+Experiment tracking: `uv run mlflow ui --backend-store-uri sqlite:///mlflow.db`.
+`uv run football-sync` and the Settings refresh still work; step 4 now rebuilds the warehouse,
+retrains and publishes. DuckDB allows one writer: stop other processes holding the file first.
 
-Alternatively: create a Python 3.11+ virtual environment and run `pip install -e '.[dev]'`.
+## Model results
 
-Open http://localhost:3001 while FastAPI runs at http://127.0.0.1:8000. Network is needed for a source refresh; current CSVs and standings are checked at most every six hours, recent event lists hourly, completed event details daily, and featured player profiles weekly. Historical partitions, unavailable artwork and unchanged model inputs are reused. Settings includes the same four-step refresh depth control; API reads pause while DuckDB refreshes and resume against the updated snapshot. The navbar refresh button only invalidates frontend queries. Use `uv run football-ingest --offline data/raw` for offline replay; `--refresh` redownloads archives. `--seasons 2024 --leagues E0` is useful for a small trial. Existing valid partitions remain intact if a source fails.
+Walk-forward evaluation: each of the last four completed seasons is predicted by models trained
+only on earlier seasons (calibrated on the season before), scored on 13,061 top-flight matches.
 
-The normal sync fills featured clubs and competition badges, then reuses them on later runs. An exhaustive backfill is optional: `uv run football-sync --all-media --max-teams 100` checks a bounded batch of missing teams; repeat it to continue. Each ten-team batch is saved immediately, and provider "not found" responses are cached for 30 days. The free image API is paced, so an exhaustive one-shot run can take many minutes. The open player importer skips its large CSV rebuild when the local snapshot and importer are unchanged. `football-api` is a server and intentionally stays running until stopped.
+| Model | RPS ↓ | Log loss ↓ | Accuracy | ECE ↓ |
+|---|---|---|---|---|
+| Bookmaker closing line (benchmark) | 0.1905 | 0.954 | 54.9% | 0.011 |
+| Model + opening odds | 0.1911 | 0.956 | 54.4% | 0.004 |
+| **Ensemble (champion, no odds)** | **0.1946** | **0.967** | **53.4%** | **0.005** |
+| Logistic regression | 0.1947 | 0.968 | 53.4% | 0.005 |
+| LightGBM | 0.1949 | 0.969 | 53.4% | 0.003 |
+| Poisson + Dixon-Coles | 0.1951 | 0.969 | 53.3% | 0.004 |
+| Elo only | 0.1975 | 0.977 | 53.0% | 0.006 |
+| Base-rate guess | 0.2304 | 1.074 | 43.8% | 0.009 |
+
+The champion recovers 89% of the closing line's skill over a base-rate guess and meets the
+log-loss, RPS and calibration targets; accuracy (53.4%) is 0.1 points under its 53.5% target, well
+inside the ±0.4-point standard error on 13k matches.
+Forecasts at ≥75% confidence (9% of matches) were right 82.3% of the time. See
+[docs/MODELLING.md](docs/MODELLING.md) and [docs/DATA_MODEL.md](docs/DATA_MODEL.md).
 
 ## Scope
 
@@ -39,9 +74,9 @@ All clubs currently present across the Premier League, La Liga, Bundesliga, Seri
 
 The analytical range is 2021/22–2025/26 plus the live 2026/27 campaign. The July rollover selects five candidate completed seasons; each completed CSV must independently pass full double-round-robin coverage checks. Live rows are clearly labelled as partial and never presented as a completed season.
 
-Dashboard: one typo-tolerant platform search, three domestic analysis modes and nine focused pages: Overview, Tournaments, Analysis lab, League tables, Club lab, Shot lab, Match Centre, Players and Data quality. Match Centre search runs across the filtered data before pagination, and its detail URLs survive reloads. Every listed match opens a factual story with stored statistics, real manager/formation context when published, named goals/cards/substitutions/missed penalties and verified lineup positions and portraits on a responsive pitch. Club head-to-head reads the unified league-and-cup store. The Analysis lab slices domestic and tournament data by competition, edition, team and venue; ranks teams by seven metrics; builds a correlation matrix; analyzes first-half scoring, corners, fouls, cards and referee trends; and exports both the rankings and exact match slice.
+Dashboard: one typo-tolerant platform search, three domestic analysis modes and ten focused pages grouped as Explore (Overview, Match Centre, League tables, Tournaments), Analyze (Club lab, Players, Analysis lab, Shot lab), Model (Predictions, Model lab) and Data (Data quality, Settings). Match Centre search runs across the filtered data before pagination, and its detail URLs survive reloads. Every listed match opens a factual story with stored statistics, real manager/formation context when published, named goals/cards/substitutions/missed penalties and verified lineup positions and portraits on a responsive pitch. Club head-to-head reads the unified league-and-cup store. The Analysis lab slices domestic and tournament data by competition, edition, team and venue; ranks teams by seven metrics; builds a correlation matrix; analyzes first-half scoring, corners, fouls, cards and referee trends; and exports both the rankings and exact match slice.
 
-The predictive section trains a regularized three-outcome softmax model on leakage-safe pre-match Elo, ten-match rolling points, scoring, conceding, shots on target and rest-day features. Five previous-season matches now seed opening-week form for returning clubs, then roll out as current results arrive; Elo already carries across seasons with regression. Confidence temperature is learned from an earlier chronological calibration window; the latest 20% of match dates remain outside fitting and calibration. On the same 2,023-match holdout the updated model reaches 51.6% accuracy versus a 43.2% training-prevalence baseline and improves log loss from 1.075 to 0.994. At a 75% predicted-probability threshold, 69 holdout matches qualified and 78.3% were called correctly—but that is only 3.4% of matches, with a wide 67.2–86.4% confidence interval. These are exploratory development results, not a claim of 80% accuracy. The Predictions page shows coverage, per-league and per-outcome diagnostics, season-by-season walk-forward results, and a forecast journal that preserves issued probabilities while later filling in actual results. Available future fixtures are cached as home/draw/away probabilities; long-range forecasts use current known form and cannot anticipate intervening events. Conservative current-points projections provide title shares for all ten domestic leagues. Unchanged inputs skip retraining.
+The predictive section serves the walk-forward champion (see Model results above). The Predictions page shows coverage, per-league and per-outcome diagnostics, season-by-season walk-forward results, and a forecast journal that preserves issued probabilities while later filling in actual results; the Model Lab compares every candidate against the base rate and the closing betting line. Long-range forecasts use current known form and cannot anticipate intervening events. Conservative current-points projections provide title shares for all ten domestic leagues.
 
 OpenFootball's CC0 JSON supplies guarded full-season schedules for seven 2026/27 leagues (E0, SP1, D1, I1, F1, N1, P1). Each 12-hour cached partition must pass complete double-round-robin, date and club-reconciliation checks before replacing the previous snapshot. Belgium, Turkey and Greece have no verified current OpenFootball calendar. The optional Football-Data.co.uk weekly CSV remains a six-hour cached nearby-fixture fallback; its checked file had no future rows on 23 September 2026. Both sources' kickoff times are displayed as unverified source times, not converted to a presumed timezone. Data Quality shows future-row coverage by source.
 
@@ -65,32 +100,33 @@ The 2026/27 campaign is integrated into every match-driven page and adds the Ere
 - `src/football_analysis/tournaments.py`: no-key CC0 Champions League, Club World Cup and World Cup adapters, cache and transactional synchronization.
 - `src/football_analysis/analysis_system.py`: reusable filtering, ranking, form and correlation engine served through FastAPI.
 - `src/football_analysis/event_details.py`: explicitly capped current-event enrichment from free TheSportsDB endpoints; Match Centre prefers the normalized historical Transfermarkt context, timeline and lineup tables when available.
-- `src/football_analysis/prediction_features.py`: canonical match inputs and leakage-safe pre-match feature engineering.
-- `src/football_analysis/predictions.py`: calibrated softmax fitting, chronological evaluation, model caching and fixture forecasts.
+- `src/football_analysis/history.py`: lands 2005+ Football-Data CSVs (15 leagues, odds) for the warehouse.
+- `warehouse/`: dbt project — staging, marts and ML feature models plus data tests (see `docs/DATA_MODEL.md`).
+- `src/football_analysis/warehouse.py`: `football-build-warehouse` and the pipeline-status recorder.
+- `src/football_analysis/ml/`: feature engine, candidate models, walk-forward evaluation, MLflow training and publication to the app tables (see `docs/MODELLING.md`).
+- `src/football_analysis/orchestration/`: Dagster assets, jobs and schedules.
+- `src/football_analysis/publish.py`: incremental PostgreSQL publish and SQLite fallback (see `docs/DATABASE_DECISION.md`).
+- `src/football_analysis/predictions.py` and `prediction_features.py`: legacy softmax plus backtest helpers reused by `ml/publish.py`.
 - `frontend/`: responsive Next.js and HeroUI application using the versioned FastAPI contracts.
-- `docs/NEXTJS_READINESS.md`: completed frontend cutover and API contract status.
-- `docs/NEXTJS_MIGRATION_PLAN.md`: phased FastAPI and Next.js cutover record with validation gates.
-- `docs/SOURCE_CAPABILITY_AUDIT.md`: primary-source endpoint and dataset utilization audit.
-- `docs/SOURCES.md`: source research and constraints.
-- `docs/BACKLOG.md`: implementation tasks and next iterations.
+- `docs/`: `DATA_MODEL.md`, `MODELLING.md`, `DATABASE_DECISION.md`, `VALIDATION.md` (current checks), `BACKLOG.md` (open work), source research (`SOURCES.md`, `SOURCE_CAPABILITY_AUDIT.md`, `FUTURE_FIXTURE_SOURCES.md`, `PLAYER_DB_RESEARCH.md`) and `openapi_v1.json` (generated API contract).
 - `tests/`: data-quality, idempotency and dashboard tests.
 
 Data lives in `data/`; override with `FOOTBALL_DATA_DIR`. Raw archives and the database are excluded from version control. The lockfile pins the tested environment. No automated downloads run on page views.
 
 Optional API response caching: install the Redis extra (`uv sync --extra redis`) and set `REDIS_URL` to a Redis URL. Only catalog and overview GET JSON responses use Redis, with 300-second and 60-second TTLs respectively. Each reopened DuckDB snapshot gets a new cache generation after refresh; Redis errors fall back to DuckDB. Without `REDIS_URL`, the API uses DuckDB as before.
 
-Optional PostgreSQL match reads: install `uv sync --extra postgres`, publish a competition/season with `FOOTBALL_POSTGRES_DSN=... uv run football-publish-matches E0 2026`, then set `FOOTBALL_MATCH_READ_BACKEND=postgres` when starting the API. Republish after data refreshes. DuckDB stays the writer and default reader; unset the backend switch to roll back. See [the database decision](docs/DATABASE_DECISION.md) for partition validation and scope.
-
-PostgreSQL cutover preparation: fill `FOOTBALL_POSTGRES_DSN` in the ignored `.env` with a PostgreSQL connection string from your Supabase dashboard, then install `uv sync --extra postgres`. A Supabase project URL and API key do not replace the database connection string. With the API and sync command stopped, run `set -a; . ./.env; set +a` and `uv run football-migrate-postgres --schema football_analysis_next`. The copier creates a private schema, copies every source table, checks row counts and content, and leaves the DuckDB file intact. Repeating the command verifies the published snapshot; if the source changes, use a new schema name. For a read-only API trial, start it with `FOOTBALL_API_READ_BACKEND=postgres`; in this mode, in-app refresh is disabled with HTTP 409 because writers have not moved yet. **Do not remove DuckDB yet:** default ingestion and refresh still depend on it. The snapshot is a migration checkpoint, not the completed cutover.
-
-PostgreSQL writer pilot: after sourcing `.env`, set `FOOTBALL_STORAGE_BACKEND=postgres` to write through the private PostgreSQL schema and read it through the API; in-app refresh is enabled in this mode. Historical league CSV batches fetched during a PostgreSQL outage are queued in `data/pending_matches.sqlite3` and replayed on the next `football-ingest` run. Transfer CSVs now refresh in step 3 without DuckDB parsing. This is not the final cutover: other sources do not yet have offline queuing. Keep the existing DuckDB snapshot until those paths are verified.
-
-Local read fallback: after sourcing `.env`, run `uv run --extra postgres football-snapshot-sqlite` to copy and count-verify the private PostgreSQL schema into `data/football.sqlite3`. When `FOOTBALL_API_READ_BACKEND=postgres`, the API serves this snapshot if the PostgreSQL connection is unavailable or the DSN is unset. Re-run the snapshot command after new PostgreSQL data is written; offline writes for sources other than historical league CSVs are not yet queued. Keep the DuckDB backup until the remaining write/replay paths are migrated.
+Serving: `football-publish` compares each table's row digest with `snapshot_manifest` in the
+private PostgreSQL schema (`FOOTBALL_POSTGRES_SCHEMA`), copies only changed tables to `<table>__next`
+and swaps them in one transaction, so the Supabase free tier (500 MB) never needs a second copy.
+It then rebuilds `data/football.sqlite3` from DuckDB. With `FOOTBALL_API_READ_BACKEND=postgres`
+the API reads PostgreSQL and falls back to that SQLite file when the database is unreachable.
+See [the database decision](docs/DATABASE_DECISION.md).
 
 ## Verification
 
 ```bash
 uv run pytest -q
+./scripts/ci_warehouse.sh            # dbt models + data tests on fixture data
 cd frontend
 npm run lint
 npm run build
@@ -98,4 +134,4 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-See `docs/VALIDATION.md` for actual validation results and current coverage. Free access does not imply an unrestricted redistribution licence; retain attribution and review the source terms before distributing raw files or commercial deployment.
+See `docs/VALIDATION.md` for current validation results and coverage. Free access does not imply an unrestricted redistribution licence; retain attribution and review the source terms before distributing raw files or commercial deployment.

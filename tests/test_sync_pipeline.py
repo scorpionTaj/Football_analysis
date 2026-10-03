@@ -91,8 +91,10 @@ def test_required_result_failure_makes_football_sync_exit_nonzero(monkeypatch, t
 
 
 def test_all_four_stages_keep_running_after_optional_source_failures(monkeypatch, tmp_path):
-    from football_analysis import event_details, fixtures, ingest, media, open_fixtures, open_players, predictions, recent, reference_standings, transfers
+    import pandas as pd
+    from football_analysis import event_details, fixtures, history, ingest, media, open_fixtures, open_players, recent, reference_standings, transfers, warehouse
     from football_analysis.api import refresh
+    from football_analysis.ml import train
 
     monkeypatch.setattr(recent, "sync_recent", lambda **_kwargs: [
         {"source": "Football-Data.co.uk", "league": "E0", "status": "success"},
@@ -108,7 +110,9 @@ def test_all_four_stages_keep_running_after_optional_source_failures(monkeypatch
     monkeypatch.setattr(media, "sync_media", lambda **_kwargs: [])
     monkeypatch.setattr(event_details, "sync_event_details", lambda **_kwargs: [])
     monkeypatch.setattr(ingest, "refresh_analytics_cache", lambda **_kwargs: None)
-    monkeypatch.setattr(predictions, "sync_predictions", lambda **_kwargs: {"model_id": "test"})
+    monkeypatch.setattr(history, "fetch_history", lambda **_kwargs: [])
+    monkeypatch.setattr(warehouse, "build", lambda **_kwargs: {"status": "success"})
+    monkeypatch.setattr(train, "train", lambda **_kwargs: pd.DataFrame([{"model": "ensemble", "is_champion": True}]))
 
     progress = []
     report = run_refresh_pipeline(
@@ -119,4 +123,4 @@ def test_all_four_stages_keep_running_after_optional_source_failures(monkeypatch
     assert {row.step for row in report.outcomes} == {1, 2, 3, 4}
     assert len(report.required_failures) == 0
     assert {row.source for row in report.failures} == {"Reference standings", "Open players"}
-    assert any(row.source == "Predictions" and row.status == "success" for row in report.outcomes)
+    assert any(row.source == "Model leaderboard" and row.status == "success" for row in report.outcomes)

@@ -50,6 +50,8 @@ import type {
   OverviewResponse,
   PlayerListResponse,
   PlayerProfileResponse,
+  ModelsResponse,
+  PipelineResponse,
   PredictionsResponse,
   QualityResponse,
   RefreshRequest,
@@ -113,6 +115,10 @@ export const api = {
     request<TournamentResponse>(`/api/v1/tournaments/${competition}/${season}`),
 
   predictions: () => request<PredictionsResponse>('/api/v1/predictions'),
+
+  models: () => request<ModelsResponse>('/api/v1/models'),
+
+  pipeline: () => request<PipelineResponse>('/api/v1/pipeline'),
 
   players: (opts?: { q?: string; team?: string; position?: string; sort_by?: string; cursor?: string; limit?: number }) =>
     request<PlayerListResponse>(`/api/v1/players${params(opts || {})}`),

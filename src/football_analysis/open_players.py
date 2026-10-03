@@ -11,6 +11,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+from .sync_state import mark_fresh
 from .config import (
     DATA,
     DB,
@@ -375,11 +376,7 @@ def sync_open_players(db=DB, directory=None, refresh=False, first_season=2021):
                 "INSERT INTO external_source_metadata VALUES (?, ?, 'CC0-1.0', ?, ?, ?, ?, current_timestamp)",
                 [SOURCE, DATASET_URL, snapshot_season, data_as_of, len(profiles), len(stats)],
             )
-            con.execute("DELETE FROM source_sync_cache WHERE source=?", [SOURCE])
-            con.execute(
-                "INSERT INTO source_sync_cache VALUES (?, ?, current_timestamp)",
-                [SOURCE, fingerprint],
-            )
+            mark_fresh(con, SOURCE, fingerprint)  # local naive time, like every other source
             con.execute("COMMIT")
         except Exception:
             con.execute("ROLLBACK")

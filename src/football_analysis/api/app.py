@@ -12,6 +12,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 
 from football_analysis.api import queries
@@ -27,6 +28,8 @@ from football_analysis.api.contracts import (
     OverviewResponse,
     PlayerListResponse,
     PlayerProfileResponse,
+    ModelsResponse,
+    PipelineResponse,
     PredictionsResponse,
     QualityResponse,
     RefreshRequest,
@@ -63,12 +66,9 @@ def create_app(
     response_cache: RedisResponseCache | None = None,
 ) -> FastAPI:
     path = Path(database_path) if database_path is not None else DB
-    writing_postgres = os.environ.get("FOOTBALL_STORAGE_BACKEND") == "postgres"
-    read_backend = os.environ.get("FOOTBALL_API_READ_BACKEND", "postgres" if writing_postgres else "duckdb").lower()
+    read_backend = os.environ.get("FOOTBALL_API_READ_BACKEND", "duckdb").lower()
     if read_backend not in {"duckdb", "postgres"}:
         raise ValueError("FOOTBALL_API_READ_BACKEND must be duckdb or postgres")
-    if writing_postgres and read_backend != "postgres":
-        raise ValueError("PostgreSQL writes require PostgreSQL API reads")
     match_backend = os.environ.get("FOOTBALL_MATCH_READ_BACKEND", "duckdb").lower()
     if match_backend not in {"duckdb", "postgres"}:
         raise ValueError("FOOTBALL_MATCH_READ_BACKEND must be duckdb or postgres")
@@ -122,6 +122,7 @@ def create_app(
         docs_url="/docs",
         lifespan=lifespan,
     )
+    app.add_middleware(GZipMiddleware, minimum_size=1024)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[
@@ -283,6 +284,14 @@ def create_app(
     def predictions(request: Request):
         return with_cache(queries.predictions(require_store()), request, CACHE_STABLE)
 
+    @app.get("/api/v1/models", response_model=ModelsResponse)
+    def models(request: Request):
+        return with_cache(queries.models(require_store()), request, CACHE_STABLE)
+
+    @app.get("/api/v1/pipeline", response_model=PipelineResponse)
+    def pipeline(request: Request):
+        return with_cache(queries.pipeline(require_store()), request, CACHE_STABLE)
+
     @app.get("/api/v1/players", response_model=PlayerListResponse)
     def players(
         request: Request,
@@ -371,8 +380,6 @@ def create_app(
 
     @app.post("/api/v1/refresh", response_model=RefreshStatusResponse, status_code=202)
     def start_refresh(body: RefreshRequest):
-        if read_backend == "postgres" and not writing_postgres:
-            raise HTTPException(status_code=409, detail="PostgreSQL snapshot refresh is not available yet")
         def execute(refresh_request: RefreshRequest, progress):
             current = app.state.store
             if current is not None:

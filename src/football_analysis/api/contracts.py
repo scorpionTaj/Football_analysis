@@ -439,6 +439,64 @@ class PredictionsResponse(BaseModel):
     source: SourceMeta
 
 
+class ModelSeasonScore(BaseModel):
+    season: int
+    log_loss: float
+    rps: float
+    brier: float
+    accuracy: float
+    ece: float
+    n: int
+
+
+class ModelCalibrationPoint(BaseModel):
+    outcome: str
+    bin: int
+    predicted: float
+    observed: float
+    n: int
+
+
+class ModelRun(BaseModel):
+    model: str
+    log_loss: float
+    rps: float
+    brier: float
+    accuracy: float
+    ece: float
+    matches: int
+    independent: bool
+    is_champion: bool
+    trained_at: datetime | None = None
+    params: dict[str, Any] = Field(default_factory=dict)
+    seasons: list[ModelSeasonScore] = Field(default_factory=list)
+    calibration: list[ModelCalibrationPoint] = Field(default_factory=list)
+
+
+class ModelsResponse(BaseModel):
+    champion: str | None = None
+    targets: dict[str, float] = Field(default_factory=dict)
+    runs: list[ModelRun] = Field(default_factory=list)
+    source: SourceMeta
+
+
+class PipelineCheck(BaseModel):
+    kind: str
+    name: str
+    status: str
+    value: float | None = None
+    seconds: float | None = None
+    detail: str = ""
+
+
+class PipelineResponse(BaseModel):
+    checked_at: datetime | None = None
+    tests_passed: int = 0
+    tests_failed: int = 0
+    checks: list[PipelineCheck] = Field(default_factory=list)
+    source: SourceMeta
+
+
 class ClubSpotlight(BaseModel):
     team: TeamRef
     league: str

@@ -1,0 +1,13 @@
+version: 2
+
+models:
+  - name: ml_match_features
+    description: Leakage-safe pre-match features (football_analysis.ml.features) plus targets; fixtures have outcome = -1.
+    tests:
+      - unique_combination: {columns: [league, season, match_date, home_team, away_team]}
+    columns:
+      - name: outcome
+        tests:
+          - accepted_values: {values: [-1, 0, 1, 2], quote: false}
+      - name: elo_diff
+        tests: [not_null]
