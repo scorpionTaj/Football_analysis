@@ -1,0 +1,32 @@
+# Whole app on one host:  docker compose up -d   (or: podman compose up -d)
+# Needs ./.env (Supabase DSN etc.) and ./data (created on first run; bootstrap once with
+#   docker compose run --rm scheduler football-sync --bootstrap ).
+services:
+  api:
+    build: .
+    env_file: .env
+    environment:
+      FOOTBALL_API_READ_BACKEND: postgres      # SQLite fallback in ./data when Supabase is down
+    volumes: ["./data:/app/data"]
+    ports: ["8000:8000"]
+    restart: unless-stopped
+
+  web:
+    build: ./frontend
+    ports: ["3001:3001"]
+    depends_on: [api]
+    restart: unless-stopped
+
+  scheduler:
+    build: .
+    env_file: .env
+    environment:
+      MLFLOW_TRACKING_URI: sqlite:////app/data/mlflow.db
+    volumes: ["./data:/app/data"]
+    # Quick refresh every 6 h; every 4th run (once a day) is a full refresh.
+    command: >
+      sh -c 'n=0; while true; do
+               if [ $$((n % 4)) -eq 0 ]; then football-sync; else football-sync --quick; fi;
+               n=$$((n + 1)); sleep 21600;
+             done'
+    restart: unless-stopped

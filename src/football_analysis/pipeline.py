@@ -24,7 +24,10 @@ def run_pipeline(*, bootstrap=False, step=4, season=None, competitions=None,
         from .reference_standings import sync as sync_standings
         from .tournaments import OpenFootballTournaments, default_partitions, sync_tournaments
 
+        from .history import fetch_history
+
         tasks = (
+            ("Training history (2005+, 15 leagues)", False, lambda: fetch_history(refresh=force)),
             ("Historical league results", True, lambda: ingest(
                 FootballDataCSV(DATA / "raw", refresh=force), db=db,
                 years=seasons(),

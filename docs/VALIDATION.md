@@ -7,9 +7,9 @@ softmax model audits) are in git history.
 
 | Check | Command | Result |
 |---|---|---|
-| Python unit, API and publish tests | `uv run pytest -q` | 114 passed, 1 opt-in skip (large local snapshot) |
-| dbt models + data tests, real warehouse | `uv run football-build-warehouse` | 28/28 (6 models, 1 seed, 21 tests) |
-| dbt models + data tests, fixture data (CI) | `./scripts/ci_warehouse.sh` | 28/28 |
+| Python unit, API and publish tests | `uv run pytest -q` | 100 passed, 1 opt-in skip (legacy model/partition tests removed with that code) |
+| dbt models + data tests, real warehouse | `uv run football-build-warehouse` | 31/31 (8 models, 1 seed, 22 tests) |
+| dbt models + data tests, fixture data (CI) | `./scripts/ci_warehouse.sh` | 31/31 |
 | Dagster definitions | `dagster definitions validate -m football_analysis.orchestration` | valid |
 | Frontend | `npm run lint`, `tsc --noEmit`, `npm run build` | clean |
 | Browser flows + accessibility | `npm run test:e2e` | 17/17, including axe WCAG A/AA scans of `/`, `/matches`, `/predictions`, `/settings` with no serious or critical violations |
@@ -29,7 +29,7 @@ The local PostgreSQL publish test starts a temporary server with `initdb`; it fa
 - Model features: 115,149 rows (played matches + upcoming fixtures).
 - App tables: 25/25 dashboard league-seasons; ten live 2026/27 leagues; 335k timeline and 855k lineup rows from the Transfermarkt CC0 snapshot; 458 tracked players.
 - Football-Data.co.uk had published results up to 20 September 2026 when checked on 3 October.
-- Supabase private schema ≈ 458 MB of the 500 MB free tier; large analytical tables stay in DuckDB.
+- Supabase private schema 337 MB of the 500 MB free tier (alert above 85%); large analytical tables stay in DuckDB.
 
 ## Model (walk-forward, 13,061 top-flight matches, last four completed seasons)
 

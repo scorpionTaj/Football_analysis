@@ -84,10 +84,10 @@ text(40, 80, "Free sources → extraction → tested DuckDB warehouse → walk-f
 # ── orchestration band ───────────────────────────────────────────────────────
 out.append(f'<rect x="40" y="105" width="{W-80}" height="120" rx="16" fill="#f6f7fb" stroke="#c8ccd8"/>')
 text(56, 132, "Orchestration & triggers", 16, 700)
-box("dag", 56, 140, 560, 76, "Dagster: assets extract → warehouse → ml → serving",
-    ["hourly fixtures · 6-hourly refresh · daily details · weekly players", "one DuckDB-writing run at a time"])
+box("dag", 56, 140, 560, 76, "Schedules: systemd timers (or Dagster / compose)",
+    ["football-sync --quick every 6 h · full refresh daily 04:30", "flock: one DuckDB-writing run at a time · ntfy alert on failure"])
 box("cli", 640, 140, 420, 76, "CLI",
-    ["football-sync [--bootstrap] · football-build-warehouse", "football-train-models · football-publish"])
+    ["football-sync [--quick | --bootstrap] · football-publish", "football-build-warehouse · football-train-models"])
 box("set", 1084, 140, 330, 76, "Settings page", ["4-step refresh button → same pipeline, live status"])
 box("mlfui", 1438, 140, 330, 76, "Developer UIs", ["dagster dev (lineage, runs) · mlflow ui (experiments)"])
 text(1800, 175, "Every trigger runs the same steps; step 4 = dbt build", 14, 400, MUTED)
@@ -119,7 +119,7 @@ for key, t, ls, h in src:
 ext = [
     ("hist", "history.py", ["lands 2005+ CSVs untouched", "→ data/raw/yyYY/league.csv"], 92, "fd"),
     ("ing", "ingest.py", ["validated complete seasons", "partition swap · SHA-256 audit"], 92, None),
-    ("rec", "recent.py · fixtures.py", ["open_fixtures.py · current season", "results + reconciled fixtures"], 92, "ofx"),
+    ("rec", "recent.py · fixtures.py", ["open_fixtures.py · fixtures + early", "provisional scores before Football-Data"], 92, "ofx"),
     ("tour", "tournaments.py", ["UCL / World Cup / Club WC", "stages · scores · goal events"], 92, "oft"),
     ("opl", "open_players.py · transfers.py", ["profiles · season stats", "match context · timelines · lineups"], 92, "tmk"),
     ("med", "players · media · event_details", ["reference_standings.py", "capped enrichment + artwork"], 92, "tsd"),
@@ -146,8 +146,8 @@ text(1094, TOP + 80, "dbt build · warehouse/", 15, 700, a_wh)
 box("stg", 1094, TOP + 96, 246, 74, "staging", ["stg_fd__results · stg_app__fixtures"], a_wh)
 box("int", 1094, TOP + 200, 246, 60, "intermediate", ["int_team_matches"], a_wh)
 box("mrt", 1094, TOP + 290, 246, 74, "marts", ["fct_match (113k) · mart_team_season"], a_wh)
-box("ftr", 1094, TOP + 394, 246, 92, "ml.ml_match_features", ["Elo · pi-ratings · EWMA form", "rest · league base rates · odds"], a_wh)
-box("tst", 1094, TOP + 516, 246, 150, "28 nodes · data tests", ["unique / not-null keys", "double round-robin", "odds overround sanity", "no future results", "one match per team per day"], a_wh, "#fbf8ff", dashed=True)
+box("ftr", 1094, TOP + 394, 246, 92, "ml.ml_match_features + elo", ["Elo · pi-ratings · EWMA form", "one Elo for app and model"], a_wh)
+box("tst", 1094, TOP + 516, 246, 150, "31 nodes · data tests", ["unique / not-null keys", "double round-robin", "odds overround sanity", "one match per team per day", "Elo SQL = Python engine"], a_wh, "#fbf8ff", dashed=True)
 text(1094, TOP + 700, "Failing test ⇒ build fails ⇒", 13, 600, MUTED)
 text(1094, TOP + 718, "nothing is retrained or published", 13, 600, MUTED)
 
@@ -164,7 +164,7 @@ arrow("tst", "pst", "l", "r", dashed=True)
 # modelling
 box("cand", 1406, TOP + 60, 328, 128, "8 candidate models", ["base-rate · Elo-only · logistic regression", "LightGBM · Poisson + Dixon-Coles", "ensemble (champion pool)", "market-blend · closing line (benchmarks)"], a_ml)
 box("wf", 1406, TOP + 216, 328, 92, "Walk-forward evaluation", ["train ≤ S−2 · calibrate S−1 · test S", "RPS · log loss · Brier · ECE · accuracy"], a_ml)
-box("sel", 1406, TOP + 336, 328, 92, "Champion selection", ["best RPS without odds", "targets: LL ≤ .975 · RPS ≤ .200 · ECE ≤ .02"], a_ml)
+box("sel", 1406, TOP + 336, 328, 92, "Champion selection", ["best RPS without odds (full run weekly)", "routine runs: champion refit ~15 s"], a_ml)
 box("mlf", 1406, TOP + 456, 328, 92, "MLflow", ["params · per-season metrics", "calibration bins · git SHA"], a_ml, "#ffffff", store=True)
 box("outp", 1406, TOP + 586, 328, 110, "Model outputs", ["model_runs · match_predictions", "forecast_history (journal on change)", "ml.backtest_predictions"], a_ml, "#ffffff", store=True)
 text(1406, TOP + 730, "Champion today: ensemble", 14, 700, a_ml)
@@ -184,8 +184,8 @@ box("cpy", 1786, TOP + 180, 348, 92, "2 · COPY changed → table__next", ["row 
 box("swp", 1786, TOP + 300, 348, 92, "3 · One-transaction swap", ["drop old · rename · rebuild views", "update manifest (readers never see a mix)"], a_srv)
 box("pg", 1786, TOP + 430, 348, 110, "PostgreSQL · Supabase", ["private schema (no anon access)", "app tables + mart_team_season", "+ model_runs + pipeline_status"], a_srv, "#ffffff", store=True)
 box("sq", 1786, TOP + 580, 348, 100, "SQLite fallback", ["data/football.sqlite3", "rebuilt from DuckDB, atomic rename"], a_srv, "#ffffff", store=True)
-text(1786, TOP + 720, "Only changed tables are copied: fits the", 13, 400, MUTED)
-text(1786, TOP + 738, "500 MB Supabase free tier with no 2nd copy", 13, 400, MUTED)
+text(1786, TOP + 720, "Only changed tables are copied · 337 of 500 MB", 13, 400, MUTED)
+text(1786, TOP + 738, "ntfy alert above 85% of the Supabase quota", 13, 400, MUTED)
 
 route([(1050, TOP + 290), (1062, TOP + 290), (1062, TOP + 48), (1760, TOP + 48), (1760, TOP + 106), (1784, TOP + 106)], color=a_srv, label="served tables (app + marts + model runs)", at=(1100, TOP + 52))
 arrow("dig", "cpy", "b", "t")
@@ -209,7 +209,7 @@ arrow("web", "user", "b", "t")
 out.append(f'<rect x="40" y="{BOT+20}" width="{W-80}" height="250" rx="16" fill="#f6f7fb" stroke="#c8ccd8"/>')
 text(56, BOT + 48, "Quality gates & CI (GitHub Actions on every push)", 16, 700)
 qa = [
-    ("pytest", ["114 tests: adapters, API contracts,", "leakage, models, publish on a", "temporary local PostgreSQL"]),
+    ("pytest", ["adapters · API contracts · leakage", "models · provisional results", "publish + parity on temp PostgreSQL"]),
     ("dbt on fixture data", ["scripts/ci_warehouse.sh", "2 Premier League seasons", "all models + data tests"]),
     ("Dagster definitions", ["dagster definitions validate", "assets · jobs · schedules load"]),
     ("Frontend", ["eslint · tsc · next build", "Playwright e2e (17 flows)", "axe WCAG A/AA scans"]),

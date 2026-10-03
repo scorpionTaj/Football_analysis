@@ -1,0 +1,13 @@
+.git
+.venv
+data
+mlruns
+mlflow.db
+.dagster
+.env
+frontend
+warehouse/target
+warehouse/logs
+warehouse/.user.yml
+**/__pycache__
+.pytest_cache

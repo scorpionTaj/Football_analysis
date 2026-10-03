@@ -11,25 +11,44 @@ No paid API or key is required.
 
 ## Quick start
 
+First run (works in bash, zsh and fish; commands read `.env` themselves):
+
 ```bash
 uv sync --extra dev --extra de --extra ml
-uv run football-fetch-history                 # land 2005+ CSVs (once; ~6 min, courteous pacing)
-uv run football-build-warehouse                # dbt build: models + 28 data tests
-uv run football-train-models                  # leaderboard + champion + forecasts
-uv run football-publish                       # PostgreSQL + SQLite fallback (reads .env itself)
-FOOTBALL_API_READ_BACKEND=postgres uv run football-api
+uv run football-sync --bootstrap        # all sources + 2005+ history once (~15 min), then warehouse, models, publish
+uv run football-api                      # http://127.0.0.1:8000 (reads Supabase, SQLite fallback)
 npm --prefix frontend run dev -- --port 3001
 ```
 
-Orchestrated instead of by hand (UI at http://localhost:3000, schedules mirror the old cadence):
+Day to day, one command does everything (extract → dbt build → champion refit → publish):
+
+| Command | What it runs | Time |
+|---|---|---|
+| `uv run football-sync --quick` | current results + fixtures, warehouse, forecasts, publish | ~2 min |
+| `uv run football-sync` | all sources (standings, cups, players, media, event details) + the same | ~10 min |
+| `uv run football-train-models` | full 8-model walk-forward leaderboard (auto-runs weekly anyway) | ~3 min |
+
+Automatic schedule (installed as systemd **user** timers; copies in `scripts/systemd/`):
+quick refresh every 6 hours, full refresh daily at 04:30, missed runs catch up at boot, runs never overlap.
 
 ```bash
-cp dagster.yaml .dagster/ && DAGSTER_HOME=$PWD/.dagster uv run dagster dev -m football_analysis.orchestration
+systemctl --user list-timers 'football-*'
+journalctl --user -u football-sync-quick.service -n 50
 ```
 
-Experiment tracking: `uv run mlflow ui --backend-store-uri sqlite:///mlflow.db`.
-`uv run football-sync` and the Settings refresh still work; step 4 now rebuilds the warehouse,
-retrains and publishes. DuckDB allows one writer: stop other processes holding the file first.
+Failure alerts: set `NTFY_TOPIC` in `.env` and subscribe to that topic in the [ntfy](https://ntfy.sh) app;
+a failed or crashed refresh, or Supabase above 85% of its quota, sends a notification.
+
+Run everything in containers instead (API, web, scheduler; data stays in `./data`):
+
+```bash
+docker compose up -d --build       # or: podman compose up -d --build
+```
+
+Other tools: `DAGSTER_HOME=$PWD/.dagster uv run dagster dev -m football_analysis.orchestration`
+(asset lineage, runs, schedules at http://localhost:3000) and
+`uv run mlflow ui --backend-store-uri sqlite:///mlflow.db` (experiments). DuckDB allows one writer;
+the API reads Supabase, so refreshes never conflict with it.
 
 ## Model results
 
@@ -51,7 +70,7 @@ The champion recovers 89% of the closing line's skill over a base-rate guess and
 log-loss, RPS and calibration targets; accuracy (53.4%) is 0.1 points under its 53.5% target, well
 inside the ±0.4-point standard error on 13k matches.
 Forecasts at ≥75% confidence (9% of matches) were right 82.3% of the time. See
-[docs/MODELLING.md](docs/MODELLING.md) and [docs/DATA_MODEL.md](docs/DATA_MODEL.md).
+[docs/MODELLING.md](docs/MODELLING.md).
 
 ## Scope
 
@@ -86,14 +105,15 @@ The 2026/27 campaign is integrated into every match-driven page and adds the Ere
 - `src/football_analysis/analysis_system.py`: reusable filtering, ranking, form and correlation engine served through FastAPI.
 - `src/football_analysis/event_details.py`: explicitly capped current-event enrichment from free TheSportsDB endpoints; Match Centre prefers the normalized historical Transfermarkt context, timeline and lineup tables when available.
 - `src/football_analysis/history.py`: lands 2005+ Football-Data CSVs (15 leagues, odds) for the warehouse.
-- `warehouse/`: dbt project — staging, marts and ML feature models plus data tests (see `docs/DATA_MODEL.md`).
+- `warehouse/`: dbt project — staging, marts and ML models plus data tests (`uv run football-build-warehouse`; `dbt docs generate` for lineage).
 - `src/football_analysis/warehouse.py`: `football-build-warehouse` and the pipeline-status recorder.
 - `src/football_analysis/ml/`: feature engine, candidate models, walk-forward evaluation, MLflow training and publication to the app tables (see `docs/MODELLING.md`).
 - `src/football_analysis/orchestration/`: Dagster assets, jobs and schedules.
-- `src/football_analysis/publish.py`: incremental PostgreSQL publish and SQLite fallback (see `docs/DATABASE_DECISION.md`).
-- `src/football_analysis/predictions.py` and `prediction_features.py`: legacy softmax plus backtest helpers reused by `ml/publish.py`.
+- `src/football_analysis/publish.py`: incremental PostgreSQL publish (only changed tables, one-transaction swap, size alert) and SQLite fallback.
+- `src/football_analysis/pg.py`: shared PostgreSQL helpers (TLS for Supabase, private schema names, row digests).
+- `scripts/systemd/`, `Dockerfile`, `frontend/Dockerfile`, `compose.yaml`: scheduled refreshes and container deployment.
 - `frontend/`: responsive Next.js and HeroUI application using the versioned FastAPI contracts.
-- `docs/`: `DATA_MODEL.md`, `MODELLING.md`, `DATABASE_DECISION.md`, `VALIDATION.md` (current checks), `BACKLOG.md` (open work), source research (`SOURCES.md`, `SOURCE_CAPABILITY_AUDIT.md`, `FUTURE_FIXTURE_SOURCES.md`, `PLAYER_DB_RESEARCH.md`), `openapi_v1.json` (generated API contract) and `architecture.svg`/`.png` (full pipeline diagram).
+- `docs/`: `MODELLING.md`, `VALIDATION.md` (current checks), `BACKLOG.md` (open work), `openapi_v1.json` (generated API contract) and `architecture.svg`/`.png` (full pipeline diagram).
 - `tests/`: data-quality, idempotency and dashboard tests.
 
 Data lives in `data/`; override with `FOOTBALL_DATA_DIR`. Raw archives and the database are excluded from version control. The lockfile pins the tested environment. No automated downloads run on page views.
@@ -105,7 +125,7 @@ private PostgreSQL schema (`FOOTBALL_POSTGRES_SCHEMA`), copies only changed tabl
 and swaps them in one transaction, so the Supabase free tier (500 MB) never needs a second copy.
 It then rebuilds `data/football.sqlite3` from DuckDB. With `FOOTBALL_API_READ_BACKEND=postgres`
 the API reads PostgreSQL and falls back to that SQLite file when the database is unreachable.
-See [the database decision](docs/DATABASE_DECISION.md).
+DuckDB is the only writer and computes everything; PostgreSQL only serves.
 
 ## Verification
 

@@ -4212,6 +4212,11 @@
             "type": "boolean",
             "title": "Force Download",
             "default": false
+          },
+          "quick": {
+            "type": "boolean",
+            "title": "Quick",
+            "default": false
           }
         },
         "type": "object",

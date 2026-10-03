@@ -3,6 +3,8 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   agentRules: false,
   distDir: process.env.NEXT_DIST_DIR || ".next",
+  // Container builds bundle only the files the server needs (see frontend/Dockerfile).
+  output: process.env.NEXT_OUTPUT === "standalone" ? "standalone" : undefined,
   experimental: {
     // The compiler API is reliable across the Node versions used by local and CI builds.
     useTypeScriptCli: false,

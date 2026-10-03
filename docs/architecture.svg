@@ -6,13 +6,13 @@
 <rect x="40" y="105" width="2520" height="120" rx="16" fill="#f6f7fb" stroke="#c8ccd8"/>
 <text x="56" y="132" font-size="16" font-weight="700" fill="#1f2433" text-anchor="start">Orchestration &amp; triggers</text>
 <rect x="56" y="140" width="560" height="76" rx="10" fill="#ffffff" stroke="#8a90a3" stroke-width="2"/>
-<text x="70" y="164" font-size="15" font-weight="700" fill="#1f2433" text-anchor="start">Dagster: assets extract → warehouse → ml → serving</text>
-<text x="70" y="184" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">hourly fixtures · 6-hourly refresh · daily details · weekly players</text>
-<text x="70" y="202" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">one DuckDB-writing run at a time</text>
+<text x="70" y="164" font-size="15" font-weight="700" fill="#1f2433" text-anchor="start">Schedules: systemd timers (or Dagster / compose)</text>
+<text x="70" y="184" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">football-sync --quick every 6 h · full refresh daily 04:30</text>
+<text x="70" y="202" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">flock: one DuckDB-writing run at a time · ntfy alert on failure</text>
 <rect x="640" y="140" width="420" height="76" rx="10" fill="#ffffff" stroke="#8a90a3" stroke-width="2"/>
 <text x="654" y="164" font-size="15" font-weight="700" fill="#1f2433" text-anchor="start">CLI</text>
-<text x="654" y="184" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">football-sync [--bootstrap] · football-build-warehouse</text>
-<text x="654" y="202" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">football-train-models · football-publish</text>
+<text x="654" y="184" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">football-sync [--quick | --bootstrap] · football-publish</text>
+<text x="654" y="202" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">football-build-warehouse · football-train-models</text>
 <rect x="1084" y="140" width="330" height="76" rx="10" fill="#ffffff" stroke="#8a90a3" stroke-width="2"/>
 <text x="1098" y="164" font-size="15" font-weight="700" fill="#1f2433" text-anchor="start">Settings page</text>
 <text x="1098" y="184" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">4-step refresh button → same pipeline, live status</text>
@@ -76,8 +76,8 @@
 <text x="430" y="482" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">partition swap · SHA-256 audit</text>
 <rect x="416" y="530" width="318" height="92" rx="10" fill="#ffffff" stroke="#d06c3f" stroke-width="2"/>
 <text x="430" y="554" font-size="15" font-weight="700" fill="#1f2433" text-anchor="start">recent.py · fixtures.py</text>
-<text x="430" y="574" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">open_fixtures.py · current season</text>
-<text x="430" y="592" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">results + reconciled fixtures</text>
+<text x="430" y="574" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">open_fixtures.py · fixtures + early</text>
+<text x="430" y="592" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">provisional scores before Football-Data</text>
 <rect x="416" y="640" width="318" height="92" rx="10" fill="#ffffff" stroke="#d06c3f" stroke-width="2"/>
 <text x="430" y="664" font-size="15" font-weight="700" fill="#1f2433" text-anchor="start">tournaments.py</text>
 <text x="430" y="684" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">UCL / World Cup / Club WC</text>
@@ -134,16 +134,16 @@
 <text x="1108" y="564" font-size="15" font-weight="700" fill="#1f2433" text-anchor="start">marts</text>
 <text x="1108" y="584" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">fct_match (113k) · mart_team_season</text>
 <rect x="1094" y="644" width="246" height="92" rx="10" fill="#ffffff" stroke="#9b6ae0" stroke-width="2"/>
-<text x="1108" y="668" font-size="15" font-weight="700" fill="#1f2433" text-anchor="start">ml.ml_match_features</text>
+<text x="1108" y="668" font-size="15" font-weight="700" fill="#1f2433" text-anchor="start">ml.ml_match_features + elo</text>
 <text x="1108" y="688" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">Elo · pi-ratings · EWMA form</text>
-<text x="1108" y="706" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">rest · league base rates · odds</text>
+<text x="1108" y="706" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">one Elo for app and model</text>
 <rect x="1094" y="766" width="246" height="150" rx="10" fill="#fbf8ff" stroke="#9b6ae0" stroke-width="2" stroke-dasharray="6 4"/>
-<text x="1108" y="790" font-size="15" font-weight="700" fill="#1f2433" text-anchor="start">28 nodes · data tests</text>
+<text x="1108" y="790" font-size="15" font-weight="700" fill="#1f2433" text-anchor="start">31 nodes · data tests</text>
 <text x="1108" y="810" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">unique / not-null keys</text>
 <text x="1108" y="828" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">double round-robin</text>
 <text x="1108" y="846" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">odds overround sanity</text>
-<text x="1108" y="864" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">no future results</text>
-<text x="1108" y="882" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">one match per team per day</text>
+<text x="1108" y="864" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">one match per team per day</text>
+<text x="1108" y="882" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">Elo SQL = Python engine</text>
 <text x="1094" y="950" font-size="13" font-weight="600" fill="#5a6072" text-anchor="start">Failing test ⇒ build fails ⇒</text>
 <text x="1094" y="968" font-size="13" font-weight="600" fill="#5a6072" text-anchor="start">nothing is retrained or published</text>
 <path d="M734,356.0 C762.0,356.0 762.0,356.0 790,356.0" fill="none" stroke="#8a90a3" stroke-width="2" marker-end="url(#arrow)"/>
@@ -170,8 +170,8 @@
 <text x="1420" y="528" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">RPS · log loss · Brier · ECE · accuracy</text>
 <rect x="1406" y="586" width="328" height="92" rx="10" fill="#ffffff" stroke="#33a06f" stroke-width="2"/>
 <text x="1420" y="610" font-size="15" font-weight="700" fill="#1f2433" text-anchor="start">Champion selection</text>
-<text x="1420" y="630" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">best RPS without odds</text>
-<text x="1420" y="648" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">targets: LL ≤ .975 · RPS ≤ .200 · ECE ≤ .02</text>
+<text x="1420" y="630" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">best RPS without odds (full run weekly)</text>
+<text x="1420" y="648" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">routine runs: champion refit ~15 s</text>
 <path d="M1406,716 v72 a164.0,10 0 0 0 328,0 v-72" fill="#ffffff" stroke="#33a06f" stroke-width="2"/>
 <ellipse cx="1570.0" cy="716" rx="164.0" ry="10" fill="#ffffff" stroke="#33a06f" stroke-width="2"/>
 <text x="1420" y="744" font-size="15" font-weight="700" fill="#1f2433" text-anchor="start">MLflow</text>
@@ -216,8 +216,8 @@
 <text x="1800" y="868" font-size="15" font-weight="700" fill="#1f2433" text-anchor="start">SQLite fallback</text>
 <text x="1800" y="888" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">data/football.sqlite3</text>
 <text x="1800" y="906" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">rebuilt from DuckDB, atomic rename</text>
-<text x="1786" y="970" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">Only changed tables are copied: fits the</text>
-<text x="1786" y="988" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">500 MB Supabase free tier with no 2nd copy</text>
+<text x="1786" y="970" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">Only changed tables are copied · 337 of 500 MB</text>
+<text x="1786" y="988" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">ntfy alert above 85% of the Supabase quota</text>
 <path d="M1050,540 L1062,540 L1062,298 L1760,298 L1760,356 L1784,356" fill="none" stroke="#c2553a" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
 <rect x="1096" y="288" width="288" height="20" rx="4" fill="#ffffff"/>
 <text x="1100" y="302" font-size="12" font-weight="700" fill="#c2553a" text-anchor="start">served tables (app + marts + model runs)</text>
@@ -259,9 +259,9 @@
 <text x="56" y="1138" font-size="16" font-weight="700" fill="#1f2433" text-anchor="start">Quality gates &amp; CI (GitHub Actions on every push)</text>
 <rect x="56" y="1154" width="480" height="110" rx="10" fill="#ffffff" stroke="#7a8094" stroke-width="2"/>
 <text x="70" y="1178" font-size="15" font-weight="700" fill="#1f2433" text-anchor="start">pytest</text>
-<text x="70" y="1198" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">114 tests: adapters, API contracts,</text>
-<text x="70" y="1216" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">leakage, models, publish on a</text>
-<text x="70" y="1234" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">temporary local PostgreSQL</text>
+<text x="70" y="1198" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">adapters · API contracts · leakage</text>
+<text x="70" y="1216" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">models · provisional results</text>
+<text x="70" y="1234" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">publish + parity on temp PostgreSQL</text>
 <rect x="556" y="1154" width="480" height="110" rx="10" fill="#ffffff" stroke="#7a8094" stroke-width="2"/>
 <text x="570" y="1178" font-size="15" font-weight="700" fill="#1f2433" text-anchor="start">dbt on fixture data</text>
 <text x="570" y="1198" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">scripts/ci_warehouse.sh</text>

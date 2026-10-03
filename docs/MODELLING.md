@@ -53,6 +53,13 @@ that results-only features cannot see.
 
 ## Tracking and serving
 
+Two modes. `football-train-models` runs the full walk-forward leaderboard (~3 min). Routine refreshes
+(`football-sync`, the Settings button, Dagster) call `ml.train.forecast()`, which refits only the stored
+champion and re-scores fixtures in ~15 s, and falls back to the full leaderboard when the stored one is
+missing or more than 7 days old. Provisional OpenFootball scores (`fct_match.is_provisional`) count as
+results, so form and Elo move as soon as a score is known.
+
+
 `football-train-models` logs one parent MLflow run per leaderboard with a nested run per model: params,
 overall and per-season metrics, calibration bins, the git SHA and the leaderboard table. It then refits the
 champion on all seasons before the current one, writes `ml.model_runs` / `ml.current_predictions` /

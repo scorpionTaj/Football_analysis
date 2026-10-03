@@ -56,7 +56,7 @@ def train(db=DB, test_seasons=None, tracking_uri=None):
     import mlflow
 
     os.environ.setdefault("MLFLOW_DISABLE_AGENT_HINT", "1")
-    mlflow.set_tracking_uri(tracking_uri or f"sqlite:///{ROOT / 'mlflow.db'}")
+    mlflow.set_tracking_uri(tracking_uri or os.environ.get("MLFLOW_TRACKING_URI", f"sqlite:///{ROOT / 'mlflow.db'}"))
     mlflow.set_experiment(EXPERIMENT)
     frame = load_features(db)
     completed = sorted(frame.loc[frame.outcome >= 0, "season"].unique())
