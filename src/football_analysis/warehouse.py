@@ -20,3 +20,12 @@ def build(db: Path = DB, select: str | None = None) -> dict:
     if result.returncode:
         raise RuntimeError(f"dbt build failed: {summary or result.stdout[-2000:]}")
     return {"status": "success", "detail": summary.split("Done.")[-1].strip()}
+
+
+def main():
+    import argparse
+    import json
+
+    parser = argparse.ArgumentParser(description="dbt build (models + data tests) on the DuckDB warehouse")
+    parser.add_argument("--select", help="dbt node selection, e.g. fct_match+")
+    print(json.dumps(build(select=parser.parse_args().select)))
