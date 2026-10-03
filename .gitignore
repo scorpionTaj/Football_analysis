@@ -8,3 +8,9 @@ data/
 .env
 frontend/test-results/
 frontend/playwright-report/
+warehouse/target/
+warehouse/logs/
+warehouse/dbt_packages/
+mlruns/
+mlflow.db
+.dagster/
