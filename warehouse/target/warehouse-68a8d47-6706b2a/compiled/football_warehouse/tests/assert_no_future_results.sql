@@ -1,0 +1,1 @@
+select * from "football"."marts"."fct_match" where match_date > current_date

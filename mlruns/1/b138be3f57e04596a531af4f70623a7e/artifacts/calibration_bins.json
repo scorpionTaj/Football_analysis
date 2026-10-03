@@ -1,0 +1,165 @@
+{
+  "bins": [
+    {
+      "outcome": "Home",
+      "bin": 0,
+      "predicted": 0.08115664303170754,
+      "observed": 0.06666666666666667,
+      "n": 270
+    },
+    {
+      "outcome": "Home",
+      "bin": 1,
+      "predicted": 0.15530545737590162,
+      "observed": 0.12714776632302405,
+      "n": 1164
+    },
+    {
+      "outcome": "Home",
+      "bin": 2,
+      "predicted": 0.2544136612431727,
+      "observed": 0.22947976878612716,
+      "n": 1730
+    },
+    {
+      "outcome": "Home",
+      "bin": 3,
+      "predicted": 0.35228117325158814,
+      "observed": 0.33109972408356325,
+      "n": 2537
+    },
+    {
+      "outcome": "Home",
+      "bin": 4,
+      "predicted": 0.4475664014337447,
+      "observed": 0.45037037037037037,
+      "n": 2700
+    },
+    {
+      "outcome": "Home",
+      "bin": 5,
+      "predicted": 0.5467511349415796,
+      "observed": 0.5629405840886204,
+      "n": 1986
+    },
+    {
+      "outcome": "Home",
+      "bin": 6,
+      "predicted": 0.6483020241795826,
+      "observed": 0.6592356687898089,
+      "n": 1256
+    },
+    {
+      "outcome": "Home",
+      "bin": 7,
+      "predicted": 0.7472001919983944,
+      "observed": 0.7873015873015873,
+      "n": 945
+    },
+    {
+      "outcome": "Home",
+      "bin": 8,
+      "predicted": 0.838289246220139,
+      "observed": 0.8688888888888889,
+      "n": 450
+    },
+    {
+      "outcome": "Home",
+      "bin": 9,
+      "predicted": 0.915791416575581,
+      "observed": 1.0,
+      "n": 23
+    },
+    {
+      "outcome": "Draw",
+      "bin": 0,
+      "predicted": 0.08291713700071716,
+      "observed": 0.0650887573964497,
+      "n": 169
+    },
+    {
+      "outcome": "Draw",
+      "bin": 1,
+      "predicted": 0.1614188302968787,
+      "observed": 0.15133665609424557,
+      "n": 2207
+    },
+    {
+      "outcome": "Draw",
+      "bin": 2,
+      "predicted": 0.25904363248030976,
+      "observed": 0.27009429726088907,
+      "n": 8908
+    },
+    {
+      "outcome": "Draw",
+      "bin": 3,
+      "predicted": 0.3147997180153217,
+      "observed": 0.3091216216216216,
+      "n": 1776
+    },
+    {
+      "outcome": "Away",
+      "bin": 0,
+      "predicted": 0.07014363720184327,
+      "observed": 0.04087193460490463,
+      "n": 1101
+    },
+    {
+      "outcome": "Away",
+      "bin": 1,
+      "predicted": 0.15362792343778675,
+      "observed": 0.13781055900621117,
+      "n": 2576
+    },
+    {
+      "outcome": "Away",
+      "bin": 2,
+      "predicted": 0.25010812882189437,
+      "observed": 0.22720609791849897,
+      "n": 3411
+    },
+    {
+      "outcome": "Away",
+      "bin": 3,
+      "predicted": 0.3445725620312312,
+      "observed": 0.3502396166134185,
+      "n": 2504
+    },
+    {
+      "outcome": "Away",
+      "bin": 4,
+      "predicted": 0.4445686361769662,
+      "observed": 0.472,
+      "n": 1500
+    },
+    {
+      "outcome": "Away",
+      "bin": 5,
+      "predicted": 0.5483540617535565,
+      "observed": 0.5677618069815195,
+      "n": 974
+    },
+    {
+      "outcome": "Away",
+      "bin": 6,
+      "predicted": 0.6457053067085438,
+      "observed": 0.6884422110552764,
+      "n": 597
+    },
+    {
+      "outcome": "Away",
+      "bin": 7,
+      "predicted": 0.739883457295005,
+      "observed": 0.7803468208092486,
+      "n": 346
+    },
+    {
+      "outcome": "Away",
+      "bin": 8,
+      "predicted": 0.8233028791080337,
+      "observed": 0.8461538461538461,
+      "n": 52
+    }
+  ]
+}
