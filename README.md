@@ -7,39 +7,7 @@ No paid API or key is required.
 
 ## Architecture
 
-```mermaid
-flowchart TD
-    A["Sources<br/>Football-Data CSVs — 15 leagues incl. 2nd divisions, 2005+, with odds<br/>OpenFootball fixtures/tournaments · Transfermarkt CC0 · TheSportsDB (capped)"]
-    B["Python extractors<br/>football_analysis.*.sync_*<br/>Dagster group: extract"]
-    C["DuckDB<br/>data/football.duckdb<br/>single writer · compute warehouse"]
-
-    C1["main.*<br/>raw app tables"]
-    C2["staging.*<br/>typed sources · dbt views<br/>Dagster group: warehouse"]
-    C3["marts.*<br/>fct_match · mart_team_season · …<br/>dbt tables · 28 data tests"]
-    C4["ml.*<br/>ml_match_features · model_runs · predictions"]
-
-    D["football-train-models<br/>walk-forward leaderboard → MLflow → champion<br/>Dagster group: ml"]
-    E["football-publish<br/>changed tables swapped atomically<br/>Dagster group: serving"]
-
-    F["PostgreSQL<br/>Supabase · private schema"]
-    G["FastAPI<br/>/api/v1"]
-    H["Next.js<br/>frontend/"]
-    I["SQLite<br/>data/football.sqlite3<br/>automatic read fallback when PostgreSQL is unreachable"]
-
-    A --> B
-    B --> C
-    C --> C1
-    C --> C2
-    C2 --> C3
-    C3 --> C4
-    C4 --> D
-    D --> E
-    E --> F
-    F --> G
-    G --> H
-    C -. "read fallback" .-> I
-    I -. "when PostgreSQL unreachable" .-> G
-```
+![architecture_preview](docs/architecture-preview.png)
 
 ## Quick start
 
@@ -68,16 +36,16 @@ retrains and publishes. DuckDB allows one writer: stop other processes holding t
 Walk-forward evaluation: each of the last four completed seasons is predicted by models trained
 only on earlier seasons (calibrated on the season before), scored on 13,061 top-flight matches.
 
-| Model | RPS ↓ | Log loss ↓ | Accuracy | ECE ↓ |
-|---|---|---|---|---|
-| Bookmaker closing line (benchmark) | 0.1905 | 0.954 | 54.9% | 0.011 |
-| Model + opening odds | 0.1911 | 0.956 | 54.4% | 0.004 |
-| **Ensemble (champion, no odds)** | **0.1946** | **0.967** | **53.4%** | **0.005** |
-| Logistic regression | 0.1947 | 0.968 | 53.4% | 0.005 |
-| LightGBM | 0.1949 | 0.969 | 53.4% | 0.003 |
-| Poisson + Dixon-Coles | 0.1951 | 0.969 | 53.3% | 0.004 |
-| Elo only | 0.1975 | 0.977 | 53.0% | 0.006 |
-| Base-rate guess | 0.2304 | 1.074 | 43.8% | 0.009 |
+| Model                              | RPS ↓      | Log loss ↓ | Accuracy  | ECE ↓     |
+| ---------------------------------- | ---------- | ---------- | --------- | --------- |
+| Bookmaker closing line (benchmark) | 0.1905     | 0.954      | 54.9%     | 0.011     |
+| Model + opening odds               | 0.1911     | 0.956      | 54.4%     | 0.004     |
+| **Ensemble (champion, no odds)**   | **0.1946** | **0.967**  | **53.4%** | **0.005** |
+| Logistic regression                | 0.1947     | 0.968      | 53.4%     | 0.005     |
+| LightGBM                           | 0.1949     | 0.969      | 53.4%     | 0.003     |
+| Poisson + Dixon-Coles              | 0.1951     | 0.969      | 53.3%     | 0.004     |
+| Elo only                           | 0.1975     | 0.977      | 53.0%     | 0.006     |
+| Base-rate guess                    | 0.2304     | 1.074      | 43.8%     | 0.009     |
 
 The champion recovers 89% of the closing line's skill over a base-rate guess and meets the
 log-loss, RPS and calibration targets; accuracy (53.4%) is 0.1 points under its 53.5% target, well
