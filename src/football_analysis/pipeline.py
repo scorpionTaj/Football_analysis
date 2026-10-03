@@ -77,6 +77,23 @@ def run_pipeline(*, bootstrap=False, step=4, season=None, competitions=None,
     return report
 
 
+def notify(title: str, message: str, priority: str = "high") -> bool:
+    """Phone/desktop alert via ntfy (https://ntfy.sh). Silent no-op unless NTFY_TOPIC is set."""
+    import os
+
+    import requests
+
+    topic = os.environ.get("NTFY_TOPIC")
+    if not topic:
+        return False
+    try:
+        requests.post(f"{os.environ.get('NTFY_SERVER', 'https://ntfy.sh')}/{topic}", data=message.encode(),
+                      headers={"Title": title, "Priority": priority, "Tags": "soccer,warning"}, timeout=10)
+        return True
+    except requests.RequestException:
+        return False  # an alert must never break the refresh itself
+
+
 def main():
     parser = argparse.ArgumentParser(description="Refresh football data with one resumable command")
     parser.add_argument("--bootstrap", action="store_true", help="Include historical leagues, cups and player snapshots")
@@ -98,12 +115,19 @@ def main():
             all_media=args.all_media, max_teams=args.max_teams, quick=args.quick,
         )
         if report.required_failures:
+            notify("Football refresh failed",
+                   "\n".join(report.message(row) for row in report.required_failures)[:3500])
             raise SystemExit(1)
     except duckdb.ConnectionException as exc:
         if "different configuration" not in str(exc) and "being used" not in str(exc):
+            notify("Football refresh crashed", f"{type(exc).__name__}: {exc}"[:3500])
             raise
+        notify("Football refresh skipped", "DuckDB is open in another process (football-api on DuckDB?).", "default")
         parser.exit(2, "Database is already open for API reads. Stop football-api, "
                        "or refresh through Settings instead.\n")
+    except Exception as exc:
+        notify("Football refresh crashed", f"{type(exc).__name__}: {exc}"[:3500])
+        raise
 
 
 if __name__ == "__main__":
