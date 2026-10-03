@@ -218,7 +218,7 @@ class Stacked(Model):
     """
     name = "stacked"
 
-    def __init__(self, make_members, folds=3, C=1.0):
+    def __init__(self, make_members, folds=6, C=1.0):
         self.make_members, self.folds, self.C = make_members, folds, C
 
     @staticmethod
