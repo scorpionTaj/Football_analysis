@@ -187,6 +187,12 @@ CREATE TABLE IF NOT EXISTS open_player_stats (
  fetched_at TIMESTAMP NOT NULL,
  PRIMARY KEY(source, player_id, season, competition_id)
 );
+CREATE TABLE IF NOT EXISTS api_football_squads (
+ source VARCHAR NOT NULL, team_id INTEGER NOT NULL, team VARCHAR NOT NULL, provider_team VARCHAR,
+ player_id INTEGER NOT NULL, player VARCHAR NOT NULL, age INTEGER, number INTEGER, position VARCHAR,
+ photo_url VARCHAR, source_url VARCHAR NOT NULL, fetched_at TIMESTAMP NOT NULL,
+ PRIMARY KEY(source, team_id, player_id)
+);
 CREATE TABLE IF NOT EXISTS external_source_metadata (
  source VARCHAR PRIMARY KEY, dataset_url VARCHAR NOT NULL,
  licence VARCHAR, snapshot_season INTEGER, data_as_of DATE,

@@ -47,5 +47,11 @@ landing); two broken closing-price rows (quarantined); provider club-name varian
 - The open player snapshot stops before 2026/27 squad changes (upstream updates paused 6 July 2026).
 - TheSportsDB event statistics, timelines and lineups remain explicitly capped samples.
 - Full future fixture calendars are not claimed where no complete permitted source exists.
+- Fixture-source check (3 October 2026): Greece imports from `openfootball/europe` (CC0 Football.TXT, 182 regular-season
+  matches, 147 future, all 14 clubs reconciled). Belgium's CC0 file has all 306 pairings but only rounds 1–7 dated, so the
+  date gate rejects it until the Pro League dates are added upstream. Turkey: no OpenFootball 2026/27 file; FixtureDownload
+  has one but its terms allow personal, non-commercial use only, so it is not used.
+- API-Football squads (optional, `API_FOOTBALL_KEY`): featured clubs only (~12 requests per full refresh, stop at the reserve),
+  stored in `api_football_squads` with source URL and fetch time; not yet served by the API.
 - Result-derived tables exclude administrative deductions and competition-specific tiebreak rules.
 - Free access is not a redistribution licence: keep attribution and review terms before publishing raw files.

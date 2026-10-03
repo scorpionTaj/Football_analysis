@@ -61,6 +61,10 @@ def run_pipeline(*, bootstrap=False, step=4, season=None, competitions=None,
     current = run_refresh_pipeline(db, request, progress)
     if current is not None:
         report.outcomes.extend(current.outcomes)
+    if not quick:  # full refresh only; a no-op without API_FOOTBALL_KEY
+        from .api_football import sync_squads
+
+        report.attempt(step, "API-Football squads", lambda: sync_squads(db=db))
     if all_media:
         from .media import discover_missing_clubs, sync_media
 
