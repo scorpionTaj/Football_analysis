@@ -26,7 +26,7 @@ Day to day, one command does everything (extract → dbt build → champion refi
 |---|---|---|
 | `uv run football-sync --quick` | current results + fixtures, warehouse, forecasts, publish | ~2 min |
 | `uv run football-sync` | all sources (standings, cups, players, media, event details) + the same | ~10 min |
-| `uv run football-train-models` | full 8-model walk-forward leaderboard (auto-runs weekly anyway) | ~3 min |
+| `uv run football-train-models` | full 9-model walk-forward leaderboard (auto-runs weekly anyway) | ~10 min |
 
 Automatic schedule (installed as systemd **user** timers; copies in `scripts/systemd/`):
 quick refresh every 6 hours, full refresh daily at 04:30, missed runs catch up at boot, runs never overlap.
@@ -60,6 +60,7 @@ only on earlier seasons (calibrated on the season before), scored on 13,061 top-
 | Bookmaker closing line (benchmark)     | 0.1905           | 0.954           | 54.9%           | 0.011           |
 | Model + opening odds                   | 0.1911           | 0.956           | 54.4%           | 0.004           |
 | **Ensemble (champion, no odds)** | **0.1946** | **0.967** | **53.4%** | **0.005** |
+| Stacked (out-of-fold meta-learner)     | 0.1948           | 0.968           | 53.6%           | 0.004           |
 | Logistic regression                    | 0.1947           | 0.968           | 53.4%           | 0.005           |
 | LightGBM                               | 0.1949           | 0.969           | 53.4%           | 0.003           |
 | Poisson + Dixon-Coles                  | 0.1951           | 0.969           | 53.3%           | 0.004           |
