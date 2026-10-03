@@ -96,25 +96,34 @@ def train(db=DB, test_seasons=None, tracking_uri=None):
 
 
 def _publish(db, frame, board, champion, results, current):
-    """Refit the champion on everything before the current season and score fixtures/current season."""
+    """Refit the champion on everything before the current season, score fixtures and
+    the current season, and hand the result to the app's prediction tables."""
+    from ..ingest import connect
+    from .features import FEATURES
+    from .publish import publish_to_app
+
     model = _candidate(champion)
     played = frame[frame.outcome >= 0]
     last_completed = played.loc[played.season < current, "season"].max()
-    model.fit(played[played.season < last_completed], played[played.season == last_completed])
+    train_rows = played[played.season < last_completed]
+    model.fit(train_rows, played[played.season == last_completed])
     target = frame[(frame.season >= current) & (frame.tier == 1)]
     p = model.predict_proba(target)
     predictions = target[["league", "season", "match_date", "home_team", "away_team", "outcome"]].assign(
         model=champion, home_probability=p[:, 0], draw_probability=p[:, 1], away_probability=p[:, 2],
-        predicted_result=np.array(["Home", "Draw", "Away"])[p.argmax(1)],
         is_fixture=target.outcome < 0, issued_at=datetime.now().replace(microsecond=0),
     )
     oos = pd.concat([pred for pred, _ in results.values()], ignore_index=True)
-    with duckdb.connect(str(db)) as con:
+    with connect(db) as con:
         con.execute("CREATE SCHEMA IF NOT EXISTS ml")
         for table, data in (("model_runs", board), ("current_predictions", predictions), ("backtest_predictions", oos)):
             con.register("incoming", data)
             con.execute(f"CREATE OR REPLACE TABLE ml.{table} AS SELECT * FROM incoming")
             con.unregister("incoming")
+        actual = con.sql("SELECT league, season, match_date, home_team, away_team, home_goals, away_goals "
+                         "FROM marts.fct_match WHERE season >= ?", params=[current - 1]).df()
+        print(json.dumps(publish_to_app(con, champion, board, oos, predictions, actual,
+                                        len(train_rows), len(FEATURES))), flush=True)
 
 
 def main():
