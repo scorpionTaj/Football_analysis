@@ -228,10 +228,10 @@ def run_refresh_pipeline(database: Path, request: RefreshRequest, progress: Prog
                     report.add(1, source, row, required=source == "Football-Data.co.uk")
             except Exception as exc:
                 report.add(1, "Football-Data.co.uk", {"status": "failed", "detail": str(exc)}, required=True)
-            from football_analysis.open_fixtures import LEAGUE_FILES
-            # Only leagues OpenFootball publishes; B1/T1/G1 have no calendar and are not a failure.
+            from football_analysis.open_fixtures import TEAMS
+            # Only leagues OpenFootball publishes; Turkey has no calendar and is not a failure.
             open_reports = report.attempt(1, "OpenFootball fixtures", lambda: sync_open_fixtures(
-                db=database, season=season, leagues=[code for code in domestic if code in LEAGUE_FILES],
+                db=database, season=season, leagues=[code for code in domestic if code in TEAMS],
                 refresh=request.force_download,
             )) or []
             fixture_report = report.attempt(1, "Weekly fixtures", lambda: sync_fixtures(
