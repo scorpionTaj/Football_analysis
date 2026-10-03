@@ -108,6 +108,14 @@ def publish_postgres(dsn: str, schema: str, db: Path = DB) -> dict:
                     cursor.execute(view)
                 target.commit()
             report["changed"] = {name: count for name, (count, _) in staged.items()}
+            size = cursor.execute("SELECT pg_database_size(current_database())").fetchone()[0]
+            report["database_mb"] = round(size / 1e6)
+    quota_mb = float(os.environ.get("FOOTBALL_POSTGRES_QUOTA_MB", 500))  # Supabase free tier
+    if report["database_mb"] > 0.85 * quota_mb:
+        from .pipeline import notify
+
+        notify("Supabase database nearly full",
+               f"{report['database_mb']} MB of {quota_mb:.0f} MB used. Trim old event_lineups or upgrade the plan.")
     return report
 
 
