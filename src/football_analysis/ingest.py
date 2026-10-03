@@ -45,6 +45,22 @@ def connect(db=DB):
     return con
 
 
+def _warehouse_elo(con, matches):
+    """Elo from the model's own engine (ml.ml_elo_ratings, built by dbt), limited to the
+    league-seasons the dashboard shows, so screen and model never disagree."""
+    exists = con.execute("SELECT count(*) FROM information_schema.tables "
+                         "WHERE table_schema = 'ml' AND table_name = 'ml_elo_ratings'").fetchone()[0]
+    if not exists or matches.empty:
+        return None
+    con.register("dashboard_scope", matches[["league", "season"]].drop_duplicates())
+    try:
+        return con.sql("SELECT e.league, e.season, e.match_date, e.team, e.opponent, e.venue, "
+                       "e.pre_elo, e.post_elo, e.elo_change FROM ml.ml_elo_ratings e "
+                       "JOIN dashboard_scope USING (league, season)").df()
+    finally:
+        con.unregister("dashboard_scope")
+
+
 def refresh_analytics(con):
     """Rebuild persisted analytics from the committed match store atomically."""
     matches = con.sql("SELECT * FROM matches").df()
@@ -59,7 +75,9 @@ def refresh_analytics(con):
                 ["league", "season", "home_team", "away_team"], keep="last",
             )
     team_matches = team_match_rows(matches)
-    elo = elo_history(matches)
+    elo = _warehouse_elo(con, matches)
+    if elo is None:  # before the first dbt build: legacy per-league engine
+        elo = elo_history(matches)
     shots = team_shot_efficiency(team_matches)
     con.register("incoming_elo", elo)
     con.register("incoming_shots", shots)

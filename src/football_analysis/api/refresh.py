@@ -311,9 +311,10 @@ def run_refresh_pipeline(database: Path, request: RefreshRequest, progress: Prog
         from football_analysis.ml.train import forecast
         from football_analysis.warehouse import build
 
-        report.attempt(4, "Analytics cache", lambda: refresh_analytics_cache(db=database), required=True)
         report.attempt(4, "Training history", lambda: fetch_history(years=[season]))
         report.attempt(4, "Warehouse (dbt build)", lambda: build(db=database), required=True)
+        # After dbt, so the dashboard's Elo comes from the model's engine (ml.ml_elo_ratings).
+        report.attempt(4, "Analytics cache", lambda: refresh_analytics_cache(db=database), required=True)
         report.attempt(4, "Model leaderboard", lambda: {
             "status": "success", "champion": str(forecast(db=database).query("is_champion").model.iloc[0]),
         }, required=True)

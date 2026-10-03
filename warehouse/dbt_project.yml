@@ -10,6 +10,11 @@ macro-paths: ["macros"]
 target-path: target
 clean-targets: [target, dbt_packages]
 
+vars:
+  # Must match football_analysis.ml.features.Params (checked by assert_elo_post_equals_next_pre).
+  elo_k: 20
+  elo_home: 65
+
 models:
   football_warehouse:
     staging:
