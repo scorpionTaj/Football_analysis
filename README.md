@@ -99,7 +99,7 @@ The 2026/27 campaign is integrated into every match-driven page and adds the Ere
 - `src/football_analysis/publish.py`: incremental PostgreSQL publish and SQLite fallback (see `docs/DATABASE_DECISION.md`).
 - `src/football_analysis/predictions.py` and `prediction_features.py`: legacy softmax plus backtest helpers reused by `ml/publish.py`.
 - `frontend/`: responsive Next.js and HeroUI application using the versioned FastAPI contracts.
-- `docs/`: `DATA_MODEL.md`, `MODELLING.md`, `DATABASE_DECISION.md`, `VALIDATION.md` (current checks), `BACKLOG.md` (open work), source research (`SOURCES.md`, `SOURCE_CAPABILITY_AUDIT.md`, `FUTURE_FIXTURE_SOURCES.md`, `PLAYER_DB_RESEARCH.md`) `openapi_v1.json` (generated API contract) and `architecture.svg`/`.png` (full pipeline diagram).
+- `docs/`: `DATA_MODEL.md`, `MODELLING.md`, `DATABASE_DECISION.md`, `VALIDATION.md` (current checks), `BACKLOG.md` (open work), source research (`SOURCES.md`, `SOURCE_CAPABILITY_AUDIT.md`, `FUTURE_FIXTURE_SOURCES.md`, `PLAYER_DB_RESEARCH.md`), `openapi_v1.json` (generated API contract) and `architecture.svg`/`.png` (full pipeline diagram).
 - `tests/`: data-quality, idempotency and dashboard tests.
 
 Data lives in `data/`; override with `FOOTBALL_DATA_DIR`. Raw archives and the database are excluded from version control. The lockfile pins the tested environment. No automated downloads run on page views.
