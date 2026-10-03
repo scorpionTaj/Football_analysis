@@ -17,9 +17,51 @@ def build(db: Path = DB, select: str | None = None) -> dict:
                "--profiles-dir", str(PROJECT), *(["--select", select] if select else [])]
     result = subprocess.run(command, env=env, capture_output=True, text=True)
     summary = next((line for line in reversed(result.stdout.splitlines()) if "Done." in line), "")
+    record_status(db)  # also after failures: the health page should show what broke
     if result.returncode:
         raise RuntimeError(f"dbt build failed: {summary or result.stdout[-2000:]}")
     return {"status": "success", "detail": summary.split("Done.")[-1].strip()}
+
+
+# Source tables with a load timestamp, and the column holding it.
+FRESHNESS = {"recent_matches": "fetched_at", "recent_events": "fetched_at", "tournament_matches": "fetched_at",
+             "open_players": "fetched_at", "team_media": "fetched_at", "ingestion_runs": "fetched_at",
+             "prediction_models": "trained_at"}
+LAYER_TABLES = {"marts": ["fct_match", "mart_team_season"], "ml": ["ml_match_features", "model_runs"]}
+
+
+def record_status(db: Path = DB) -> int:
+    """Write dbt results, layer row counts and source freshness to main.pipeline_status."""
+    import json
+    from datetime import datetime
+
+    import duckdb
+
+    rows, now = [], datetime.now().replace(microsecond=0)
+    results = PROJECT / "target" / "run_results.json"
+    if results.exists():
+        for item in json.loads(results.read_text())["results"]:
+            kind, _, name = item["unique_id"].split(".", 2)
+            rows.append(("dbt_" + kind, name.split(".")[-1], item["status"],
+                         float(item["failures"] or 0), round(item["execution_time"], 3), (item["message"] or "")[:200]))
+    with duckdb.connect(str(db)) as con:
+        tables = {f"{s}.{t}" for s, t in con.execute(
+            "SELECT table_schema, table_name FROM information_schema.tables").fetchall()}
+        for schema, names in LAYER_TABLES.items():
+            for name in names:
+                if f"{schema}.{name}" in tables:
+                    count = con.execute(f"SELECT count(*) FROM {schema}.{name}").fetchone()[0]
+                    rows.append(("layer_rows", f"{schema}.{name}", "ok", float(count), None, ""))
+        for name, column in FRESHNESS.items():
+            if f"main.{name}" in tables:
+                latest = con.execute(f"SELECT max({column}) FROM main.{name}").fetchone()[0]
+                hours = (now - latest).total_seconds() / 3600 if latest else None
+                rows.append(("freshness", name, "ok" if latest else "empty", hours, None,
+                             latest.isoformat() if latest else ""))
+        con.execute("CREATE OR REPLACE TABLE main.pipeline_status (kind VARCHAR, name VARCHAR, status VARCHAR, "
+                    "value DOUBLE, seconds DOUBLE, detail VARCHAR, checked_at TIMESTAMP)")
+        con.executemany("INSERT INTO main.pipeline_status VALUES (?, ?, ?, ?, ?, ?, ?)", [(*r, now) for r in rows])
+    return len(rows)
 
 
 def main():

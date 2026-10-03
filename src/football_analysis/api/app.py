@@ -29,6 +29,7 @@ from football_analysis.api.contracts import (
     PlayerListResponse,
     PlayerProfileResponse,
     ModelsResponse,
+    PipelineResponse,
     PredictionsResponse,
     QualityResponse,
     RefreshRequest,
@@ -286,6 +287,10 @@ def create_app(
     @app.get("/api/v1/models", response_model=ModelsResponse)
     def models(request: Request):
         return with_cache(queries.models(require_store()), request, CACHE_STABLE)
+
+    @app.get("/api/v1/pipeline", response_model=PipelineResponse)
+    def pipeline(request: Request):
+        return with_cache(queries.pipeline(require_store()), request, CACHE_STABLE)
 
     @app.get("/api/v1/players", response_model=PlayerListResponse)
     def players(

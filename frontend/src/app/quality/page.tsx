@@ -7,6 +7,7 @@ import { queryKeys } from '@/lib/api/query-keys';
 import { SourceBadge } from '@/components/ui/source-badge';
 import { LoadingSkeleton, ErrorMessage } from '@/components/ui/loading';
 import { PageHeader } from '@/components/ui/page-header';
+import { PipelineHealth } from '@/components/pipeline-health';
 import { usePagination } from '@/components/ui/pagination';
 import { ShieldCheck, Database, Info, RefreshCw, FileCheck } from 'lucide-react';
 
@@ -354,6 +355,8 @@ export default function QualityPage() {
   return (
     <div className="space-y-6">
       <PageHeader icon={ShieldCheck} eyebrow="Trust and provenance" title="Data Quality & Observability" description="See coverage, freshness, source constraints and ingestion evidence before relying on an analysis." />
+
+      <PipelineHealth />
 
       <Suspense fallback={<LoadingSkeleton lines={10} />}>
         <QualityContent />

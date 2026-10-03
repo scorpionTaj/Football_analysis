@@ -504,6 +504,23 @@ export interface ModelsResponse {
   source: SourceMeta;
 }
 
+export interface PipelineCheck {
+  kind: 'dbt_model' | 'dbt_test' | 'dbt_seed' | 'layer_rows' | 'freshness' | string;
+  name: string;
+  status: string;
+  value: number | null;
+  seconds: number | null;
+  detail: string;
+}
+
+export interface PipelineResponse {
+  checked_at: string | null;
+  tests_passed: number;
+  tests_failed: number;
+  checks: PipelineCheck[];
+  source: SourceMeta;
+}
+
 export interface QualityCell {
   competition: string;
   season: number;

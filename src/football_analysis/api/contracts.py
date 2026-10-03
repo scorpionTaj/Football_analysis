@@ -480,6 +480,23 @@ class ModelsResponse(BaseModel):
     source: SourceMeta
 
 
+class PipelineCheck(BaseModel):
+    kind: str
+    name: str
+    status: str
+    value: float | None = None
+    seconds: float | None = None
+    detail: str = ""
+
+
+class PipelineResponse(BaseModel):
+    checked_at: datetime | None = None
+    tests_passed: int = 0
+    tests_failed: int = 0
+    checks: list[PipelineCheck] = Field(default_factory=list)
+    source: SourceMeta
+
+
 class ClubSpotlight(BaseModel):
     team: TeamRef
     league: str

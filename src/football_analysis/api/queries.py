@@ -51,6 +51,8 @@ from football_analysis.api.contracts import (
     PlayerSummary,
     ModelRun,
     ModelsResponse,
+    PipelineCheck,
+    PipelineResponse,
     PredictionsResponse,
     QualityCell,
     QualityResponse,
@@ -1652,6 +1654,26 @@ def models(store: ReadOnlyStore) -> ModelsResponse:
     trained = runs[0].trained_at if runs else None
     return ModelsResponse(champion=champion, targets=TARGETS, runs=runs,
                           source=_source("model-leaderboard", "walk-forward", trained))
+
+
+def pipeline(store: ReadOnlyStore) -> PipelineResponse:
+    """Latest warehouse build: dbt node results, layer sizes and source freshness."""
+    if not _has(store, "pipeline_status"):
+        return PipelineResponse(source=_source("pipeline", "empty"))
+    frame = store.query("SELECT * FROM pipeline_status ORDER BY kind, name")
+    checks = [PipelineCheck(
+        kind=row.kind, name=row.name, status=row.status,
+        value=None if pd.isna(row.value) else float(row.value),
+        seconds=None if pd.isna(row.seconds) else float(row.seconds),
+        detail=row.detail or "",
+    ) for row in frame.itertuples(index=False)]
+    tests = [c for c in checks if c.kind == "dbt_test"]
+    checked = _as_datetime(frame.checked_at.max()) if not frame.empty else None
+    return PipelineResponse(
+        checked_at=checked, tests_passed=sum(c.status == "pass" for c in tests),
+        tests_failed=sum(c.status in ("fail", "error") for c in tests), checks=checks,
+        source=_source("dbt + warehouse", "latest build", checked),
+    )
 
 
 def overview(
