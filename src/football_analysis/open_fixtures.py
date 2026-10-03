@@ -21,6 +21,7 @@ from .teams import team_key
 
 
 SOURCE = "OpenFootball fixtures (CC0)"
+PROVISIONAL_SOURCE = "OpenFootball results (CC0, provisional)"
 BASE_URL = "https://raw.githubusercontent.com/openfootball/football.json/master"
 LEAGUE_FILES = {
     "E0": "en.1.json", "SP1": "es.1.json", "D1": "de.1.json",
@@ -107,6 +108,7 @@ def normalize_open_schedule(raw: bytes, league: str, season: int) -> pd.DataFram
             "match_date": match_date, "home_team": home, "away_team": away,
             "home_key": home_key, "away_key": away_key,
             "kickoff_time": time, "scored": scored,
+            "home_goals": int(final[0]) if scored else None, "away_goals": int(final[1]) if scored else None,
         })
     if len(teams) != teams_expected or len(pairs) != matches_expected:
         raise ValueError("Fixture schedule is not a complete double round robin")
@@ -209,10 +211,29 @@ def sync_open_fixtures(
                         "referee": None, "attendance": None,
                     })
                 incoming = pd.DataFrame(rows, columns=EVENT_COLUMNS)
+                # Scores OpenFootball already has but Football-Data has not published yet. They
+                # carry no statistics and are replaced when the full Football-Data row arrives.
+                published = {(h, a) for h, a in con.execute(
+                    "SELECT home_team, away_team FROM recent_matches WHERE league=? AND season=? AND source<>?",
+                    [league, season, PROVISIONAL_SOURCE]).fetchall()}
+                provisional = pd.DataFrame([{
+                    "league": league, "season": season, "match_date": row.match_date,
+                    "home_team": known[row.home_key], "away_team": known[row.away_key],
+                    "home_goals": row.home_goals, "away_goals": row.away_goals,
+                    "source": PROVISIONAL_SOURCE, "fetched_at": now,
+                } for row in full[full.scored & (full.match_date <= today)].itertuples(index=False)
+                    if (known[row.home_key], known[row.away_key]) not in published],
+                    columns=["league", "season", "match_date", "home_team", "away_team",
+                             "home_goals", "away_goals", "source", "fetched_at"])
+                con.register("incoming_provisional", provisional)
                 con.register("incoming_open_fixtures", incoming)
                 con.execute("BEGIN")
                 try:
                     con.execute("DELETE FROM recent_events WHERE source=? AND league=? AND season=?", [SOURCE, league, season])
+                    con.execute("DELETE FROM recent_matches WHERE source=? AND league=? AND season=?",
+                                [PROVISIONAL_SOURCE, league, season])
+                    con.execute("INSERT INTO recent_matches (league, season, match_date, home_team, away_team, "
+                                "home_goals, away_goals, source, fetched_at) SELECT * FROM incoming_provisional")
                     con.execute(
                         f"INSERT INTO recent_events ({', '.join(EVENT_COLUMNS)}) "
                         f"SELECT {', '.join(EVENT_COLUMNS)} FROM incoming_open_fixtures"
@@ -224,7 +245,8 @@ def sync_open_fixtures(
                     raise
                 finally:
                     con.unregister("incoming_open_fixtures")
-                reports.append({"league": league, "status": "success", "rows": len(rows)})
+                    con.unregister("incoming_provisional")
+                reports.append({"league": league, "status": "success", "rows": len(rows), "provisional_results": len(provisional)})
             except (requests.RequestException, ValueError, UnicodeError, OSError, json.JSONDecodeError) as exc:
                 reports.append({"league": league, "status": "unavailable", "detail": str(exc)})
     return reports

@@ -5,7 +5,7 @@ import pytest
 
 from football_analysis.ingest import connect
 from football_analysis.open_fixtures import (
-    ALIASES, SOURCE, normalize_open_schedule, sync_open_fixtures,
+    ALIASES, PROVISIONAL_SOURCE, SOURCE, normalize_open_schedule, sync_open_fixtures,
 )
 from football_analysis.teams import team_key
 
@@ -72,7 +72,7 @@ def test_full_schedule_import_is_atomic_and_searchable(tmp_path):
     report = sync_open_fixtures(
         db, season=2026, leagues=["E0"], adapter=StaticAdapter(full), today=today,
     )
-    assert report == [{"league": "E0", "status": "success", "rows": expected}]
+    assert report == [{"league": "E0", "status": "success", "rows": expected, "provisional_results": 0}]
     with connect(db) as con:
         assert con.execute("SELECT count(*) FROM recent_events WHERE source=?", [SOURCE]).fetchone()[0] == expected
     bad = json.dumps({"matches": []}).encode()
@@ -83,3 +83,32 @@ def test_full_schedule_import_is_atomic_and_searchable(tmp_path):
     assert report[0]["status"] == "unavailable"
     with connect(db) as con:
         assert con.execute("SELECT count(*) FROM recent_events WHERE source=?", [SOURCE]).fetchone()[0] == expected
+
+
+def test_scored_matches_become_provisional_results_until_football_data_has_them(tmp_path):
+    db = tmp_path / "provisional.duckdb"
+    today = date(2026, 9, 23)
+    teams = [f"Team {index}" for index in range(20)]
+    document = json.loads(schedule(teams))
+    played = [m for m in document["matches"] if m["date"] < str(today)]
+    for match in played:
+        match["score"] = {"ft": [2, 1]}
+    with connect(db) as con:  # Football-Data already published the first played match
+        for rank, team in enumerate(teams, 1):  # every club is already known, as in real data
+            con.execute("INSERT INTO reference_standings (source, league, season, rank, team) VALUES ('t', 'E0', 2026, ?, ?)",
+                        [rank, team])
+        con.execute(
+            "INSERT INTO recent_matches (league, season, match_date, home_team, away_team, "
+            "home_goals, away_goals, source, fetched_at) VALUES ('E0', 2026, ?, ?, ?, 3, 3, "
+            "'Football-Data.co.uk', current_timestamp)",
+            [played[0]["date"], played[0]["team1"], played[0]["team2"]],
+        )
+    report = sync_open_fixtures(db, season=2026, leagues=["E0"],
+                                adapter=StaticAdapter(json.dumps(document).encode()), today=today)
+    assert report[0]["provisional_results"] == len(played) - 1
+    with connect(db) as con:
+        rows = con.execute("SELECT source, home_goals, away_goals FROM recent_matches WHERE home_team=? AND away_team=?",
+                           [played[0]["team1"], played[0]["team2"]]).fetchall()
+        assert rows == [("Football-Data.co.uk", 3, 3)]  # the published row is never overwritten
+        assert con.execute("SELECT count(*) FROM recent_matches WHERE source=?",
+                           [PROVISIONAL_SOURCE]).fetchone()[0] == len(played) - 1

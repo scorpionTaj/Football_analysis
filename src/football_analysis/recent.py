@@ -215,7 +215,12 @@ def sync_recent(db=DB, year=None, leagues=None, refresh=False, event_adapter=Non
                 con.register("incoming_recent", frame)
                 con.execute("BEGIN")
                 try:
-                    con.execute("DELETE FROM recent_matches WHERE league=? AND season=?", [league, year])
+                    # Replace this source's partition and any provisional rows it now covers.
+                    con.execute(
+                        "DELETE FROM recent_matches r WHERE league=? AND season=? AND (source=? OR EXISTS ("
+                        "SELECT 1 FROM incoming_recent i WHERE i.home_team=r.home_team AND i.away_team=r.away_team))",
+                        [league, year, SOURCE_CSV],
+                    )
                     con.execute(
                         """INSERT INTO recent_matches (
                             league, season, match_date, home_team, away_team,

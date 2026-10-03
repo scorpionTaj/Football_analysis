@@ -1,7 +1,18 @@
 -- One row per played domestic match, 2005+, with margin-free market probabilities.
-with results as (
-    select r.*, l.league_name, l.country, l.tier, l.in_dashboard
+with provisional as (
+    select p.*
+    from {{ ref('stg_app__provisional_results') }} p
+    anti join {{ ref('stg_fd__results') }} r using (league, season, home_team, away_team)
+),
+
+results as (
+    select r.*, false as is_provisional, l.league_name, l.country, l.tier, l.in_dashboard
     from {{ ref('stg_fd__results') }} r
+    join {{ ref('leagues') }} l using (league)
+    union all by name
+    select p.*, true as is_provisional, l.league_name, l.country, l.tier, l.in_dashboard,
+           'openfootball' as source_file
+    from provisional p
     join {{ ref('leagues') }} l using (league)
 ),
 
@@ -44,5 +55,5 @@ select
     (1 / odds_close_home) / close_overround as close_p_home,
     (1 / odds_close_draw) / close_overround as close_p_draw,
     (1 / odds_close_away) / close_overround as close_p_away,
-    source_file
+    is_provisional, source_file
 from priced
