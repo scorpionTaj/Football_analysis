@@ -132,8 +132,8 @@ def warehouse(context: dg.AssetExecutionContext, dbt: DbtCliResource):
 @dg.asset(deps=[dg.AssetKey(["ml", "ml_match_features"])], group_name="ml", op_tags=WRITER,
           description="Walk-forward leaderboard tracked in MLflow; champion published to the app tables.")
 def champion_model():
-    from ..ml.train import train
-    board = train(db=DB)
+    from ..ml.train import forecast
+    board = forecast(db=DB)  # full 8-model leaderboard at most weekly; champion refit otherwise
     champion = board[board.is_champion].iloc[0]
     return dg.MaterializeResult(metadata={
         "champion": str(champion.model),

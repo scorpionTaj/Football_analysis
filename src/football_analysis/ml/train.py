@@ -92,12 +92,12 @@ def train(db=DB, test_seasons=None, tracking_uri=None):
                             float(board.loc[board.model == champion, "log_loss"].iloc[0] - market.log_loss),
                             **{k: float(v) for k, v in gaps.items()}})
         mlflow.log_table(board.drop(columns=["bins", "seasons", "params"]), "leaderboard.json")
-    _publish(db, frame, board, champion, results, current)
+    _publish(db, frame, board, champion, pd.concat([pred for pred, _ in results.values()], ignore_index=True), current)
     print(board.drop(columns=["bins", "seasons", "params", "run_id"]).to_string(index=False))
     return board
 
 
-def _publish(db, frame, board, champion, results, current):
+def _publish(db, frame, board, champion, oos, current):
     """Refit the champion on everything before the current season, score fixtures and
     the current season, and hand the result to the app's prediction tables."""
     from ..ingest import connect
@@ -115,7 +115,6 @@ def _publish(db, frame, board, champion, results, current):
         model=champion, home_probability=p[:, 0], draw_probability=p[:, 1], away_probability=p[:, 2],
         is_fixture=target.outcome < 0, issued_at=datetime.now().replace(microsecond=0),
     )
-    oos = pd.concat([pred for pred, _ in results.values()], ignore_index=True)
     with connect(db) as con:
         con.execute("CREATE SCHEMA IF NOT EXISTS ml")
         for table, data in (("model_runs", board), ("current_predictions", predictions), ("backtest_predictions", oos)):
@@ -128,11 +127,38 @@ def _publish(db, frame, board, champion, results, current):
                                         len(train_rows), len(FEATURES))), flush=True)
 
 
+def forecast(db=DB, max_age_days=7):
+    """Routine refresh: refit only the current champion and re-score fixtures (seconds).
+
+    Reuses the stored leaderboard and backtest; runs the full 8-model comparison instead
+    when none exists or it is older than `max_age_days`.
+    """
+    with duckdb.connect(str(db), read_only=True) as con:
+        tables = {r[0] for r in con.execute(
+            "SELECT table_name FROM information_schema.tables WHERE table_schema = 'ml'").fetchall()}
+        if not {"model_runs", "backtest_predictions"} <= tables:
+            return train(db=db)
+        board = con.sql("SELECT * FROM ml.model_runs").df()
+        oos = con.sql("SELECT * FROM ml.backtest_predictions").df()
+    trained = pd.to_datetime(board.trained_at).max()
+    if board.empty or datetime.now() - trained > pd.Timedelta(days=max_age_days):
+        return train(db=db)
+    champion = board[board.is_champion].iloc[0].model
+    _publish(db, load_features(db), board, champion, oos, current_season())
+    print(json.dumps({"mode": "champion refit", "champion": champion, "leaderboard_from": str(trained)}), flush=True)
+    return board
+
+
 def main():
     parser = argparse.ArgumentParser(description="Walk-forward model leaderboard with MLflow tracking")
     parser.add_argument("--test-seasons", nargs="+", type=int)
+    parser.add_argument("--quick", action="store_true",
+                        help="Refit only the champion if the leaderboard is under 7 days old")
     args = parser.parse_args()
-    train(test_seasons=args.test_seasons)
+    if args.quick:
+        forecast()
+    else:
+        train(test_seasons=args.test_seasons)
 
 
 if __name__ == "__main__":

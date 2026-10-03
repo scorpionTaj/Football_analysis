@@ -112,7 +112,7 @@ def test_all_four_stages_keep_running_after_optional_source_failures(monkeypatch
     monkeypatch.setattr(ingest, "refresh_analytics_cache", lambda **_kwargs: None)
     monkeypatch.setattr(history, "fetch_history", lambda **_kwargs: [])
     monkeypatch.setattr(warehouse, "build", lambda **_kwargs: {"status": "success"})
-    monkeypatch.setattr(train, "train", lambda **_kwargs: pd.DataFrame([{"model": "ensemble", "is_champion": True}]))
+    monkeypatch.setattr(train, "forecast", lambda **_kwargs: pd.DataFrame([{"model": "ensemble", "is_champion": True}]))
 
     progress = []
     report = run_refresh_pipeline(
