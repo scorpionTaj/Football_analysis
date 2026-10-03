@@ -463,6 +463,47 @@ export interface PredictionsResponse {
   source: SourceMeta;
 }
 
+export interface ModelSeasonScore {
+  season: number;
+  log_loss: number;
+  rps: number;
+  brier: number;
+  accuracy: number;
+  ece: number;
+  n: number;
+}
+
+export interface ModelCalibrationPoint {
+  outcome: 'Home' | 'Draw' | 'Away';
+  bin: number;
+  predicted: number;
+  observed: number;
+  n: number;
+}
+
+export interface ModelRun {
+  model: string;
+  log_loss: number;
+  rps: number;
+  brier: number;
+  accuracy: number;
+  ece: number;
+  matches: number;
+  independent: boolean;
+  is_champion: boolean;
+  trained_at: string | null;
+  params: Record<string, number | string>;
+  seasons: ModelSeasonScore[];
+  calibration: ModelCalibrationPoint[];
+}
+
+export interface ModelsResponse {
+  champion: string | null;
+  targets: Record<string, number>;
+  runs: ModelRun[];
+  source: SourceMeta;
+}
+
 export interface QualityCell {
   competition: string;
   season: number;

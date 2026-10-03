@@ -12,6 +12,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 
 from football_analysis.api import queries
@@ -120,6 +121,7 @@ def create_app(
         docs_url="/docs",
         lifespan=lifespan,
     )
+    app.add_middleware(GZipMiddleware, minimum_size=1024)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[

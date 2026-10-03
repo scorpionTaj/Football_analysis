@@ -1631,7 +1631,7 @@ def predictions(store: ReadOnlyStore) -> PredictionsResponse:
 
 def models(store: ReadOnlyStore) -> ModelsResponse:
     """Walk-forward leaderboard of every candidate model (written by football-train-models)."""
-    from football_analysis.ml.train import TARGETS
+    from football_analysis.ml import TARGETS
 
     if not _has(store, "model_runs"):
         return ModelsResponse(targets=TARGETS, source=_source("model-leaderboard", "empty"))
@@ -1777,7 +1777,8 @@ def overview(
         spotlight=spotlight,
         performance_over_time=analysis_data.rankings,
         elo_trajectory=analysis_data.elo_ratings,
-        forecasts=preds.forecasts,
+        # Only this competition's next fixtures; the full slate lives on /predictions.
+        forecasts=[f for f in preds.forecasts if f.competition == competition][:20],
         source=_source(_store_source(store), "overview"),
     )
 

@@ -20,7 +20,7 @@ from .evaluate import calibration_bins, score, walk_forward
 from .models import candidates
 
 EXPERIMENT = "match-outcome"
-TARGETS = {"log_loss": 0.975, "rps": 0.200, "accuracy": 0.535, "ece": 0.02}
+from . import TARGETS
 INDEPENDENT = {"elo_logit", "logreg", "lightgbm", "poisson_dixon_coles", "ensemble"}
 
 

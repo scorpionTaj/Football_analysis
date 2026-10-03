@@ -18,6 +18,7 @@ export const queryKeys = {
   tournament: (competition: string, season: number) =>
     ['tournament', competition, season] as const,
   predictions: ['predictions'] as const,
+  models: ['models'] as const,
   players: (filters: Record<string, unknown>) =>
     ['players', filters] as const,
   player: (id: string) => ['player', id] as const,

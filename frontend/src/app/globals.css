@@ -30,6 +30,22 @@
   --color-rosewater: var(--rosewater);
 }
 
+/* Chart series tokens (validated with the dataviz palette checker: lightness band,
+   CVD separation and contrast pass on the dark #1e1e2e and light #eff1f5 surfaces).
+   Fixed order: series-1 blue, series-2 orange, series-3 violet, series-4 green. */
+:root {
+  --series-1: #4f86ea;
+  --series-2: #d06c3f;
+  --series-3: #9b6ae0;
+  --series-4: #33a06f;
+}
+[data-theme="latte"], [data-theme="github-light"] {
+  --series-1: #1e66f5;
+  --series-2: #d0541a;
+  --series-3: #8839ef;
+  --series-4: #2c8a3e;
+}
+
 /* 1. Catppuccin Mocha (Dark Default) */
 :root, [data-theme="mocha"] {
   --crust: #11111b;
