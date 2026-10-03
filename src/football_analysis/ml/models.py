@@ -207,6 +207,55 @@ class Ensemble(Model):
         return {f"w_{m.name}": round(float(w), 4) for m, w in zip(self.members, self.weights)}
 
 
+class Stacked(Model):
+    """Out-of-fold stacking: a multinomial logistic meta-learner on member log-probabilities.
+
+    Meta-features come only from the training window: for each of its last `folds` seasons s,
+    fresh members train on seasons < s-1, calibrate on s-1 and predict s (time-ordered, so no
+    member ever sees the season it predicts). Members are then refitted on the whole window;
+    `calib` is used, as for every model, only for member early stopping/temperature and the
+    final temperature of the stack.
+    """
+    name = "stacked"
+
+    def __init__(self, make_members, folds=6, C=1.0):
+        self.make_members, self.folds, self.C = make_members, folds, C
+
+    @staticmethod
+    def _meta_X(probs):
+        return np.hstack([np.log(np.clip(p, EPS, 1)) for p in probs])
+
+    def _fit(self, train, calib):
+        seasons = sorted(train.season.unique())
+        meta_X, meta_y = [], []
+        for season in seasons[-self.folds:]:
+            fit_rows, fold_calib = train[train.season < season - 1], train[train.season == season - 1]
+            held_out = train[train.season == season]
+            if fit_rows.empty or fold_calib.empty:
+                continue
+            members = [m.fit(fit_rows, fold_calib) for m in self.make_members()]
+            meta_X.append(self._meta_X([m.predict_proba(held_out) for m in members]))
+            meta_y.append(held_out.outcome.to_numpy())
+        if not meta_X:
+            raise ValueError("stacking needs at least three seasons in the training window")
+        self.meta = make_pipeline(StandardScaler(), LogisticRegression(C=self.C, max_iter=2000))
+        self.meta.fit(np.vstack(meta_X), np.concatenate(meta_y))
+        self.members = [m.fit(train, calib) for m in self.make_members()]
+
+    def _raw(self, frame):
+        return self.meta.predict_proba(self._meta_X([m.predict_proba(frame) for m in self.members]))
+
+    def params(self):
+        coef = self.meta[-1].coef_
+        return {**super().params(), "folds": self.folds, "C": self.C,
+                **{f"coef_{m.name}": round(float(np.abs(coef[:, 3 * i:3 * i + 3]).sum()), 4)
+                   for i, m in enumerate(self.members)}}
+
+
+def _members():
+    return [Logit("logreg", FEATURES), LightGBM(), PoissonGoals()]
+
+
 def candidates():
     """Fresh, unfitted instances of every model in the leaderboard."""
     return [
@@ -215,7 +264,8 @@ def candidates():
         Logit("logreg", FEATURES),
         LightGBM(),
         PoissonGoals(),
-        Ensemble([Logit("logreg", FEATURES), LightGBM(), PoissonGoals()]),
+        Ensemble(_members()),
+        Stacked(_members),
         Logit("market_blend", (*FEATURES, *MARKET_FEATURES)),
         MarketClosing(),
     ]

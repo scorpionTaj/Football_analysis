@@ -21,6 +21,7 @@ const NAMES: Record<string, string> = {
   lightgbm: 'LightGBM',
   poisson_dixon_coles: 'Poisson + Dixon-Coles',
   ensemble: 'Ensemble',
+  stacked: 'Stacked (meta-learner)',
   market_blend: 'Model + opening odds',
   market_closing: 'Bookmaker closing line',
 };
