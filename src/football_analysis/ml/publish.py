@@ -94,7 +94,17 @@ def publish_to_app(con, champion, board, oos, current, played, train_matches, fe
     con.register("incoming_history", history)
     con.execute("BEGIN")
     try:
-        con.execute("INSERT OR IGNORE INTO forecast_history SELECT * FROM incoming_history")
+        # Journal a forecast only when it is new or moved by at least one percentage point;
+        # retraining on unchanged inputs must not grow the journal.
+        con.execute("""
+            INSERT OR IGNORE INTO forecast_history
+            SELECT h.* FROM incoming_history h
+            WHERE NOT EXISTS (
+                SELECT 1 FROM forecast_history f
+                WHERE f.actual_result IS NULL AND f.league = h.league AND f.season = h.season
+                  AND f.match_date = h.match_date AND f.home_team = h.home_team AND f.away_team = h.away_team
+                  AND abs(f.home_probability - h.home_probability) < 0.01
+                  AND abs(f.away_probability - h.away_probability) < 0.01)""")
         con.execute("DELETE FROM match_predictions")
         con.execute("DELETE FROM prediction_models")
         con.execute("INSERT INTO prediction_models SELECT * FROM incoming_model")
