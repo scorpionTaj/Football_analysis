@@ -7,9 +7,9 @@ softmax model audits) are in git history.
 
 | Check | Command | Result |
 |---|---|---|
-| Python unit, API and publish tests | `uv run pytest -q` | 100 passed, 1 opt-in skip (legacy model/partition tests removed with that code) |
-| dbt models + data tests, real warehouse | `uv run football-build-warehouse` | 31/31 (8 models, 1 seed, 22 tests) |
-| dbt models + data tests, fixture data (CI) | `./scripts/ci_warehouse.sh` | 31/31 |
+| Python unit, API and publish tests | `uv run pytest -q` | 100 passed, 1 opt-in skip (API tests build the serving marts with dbt) |
+| dbt models + data tests, real warehouse | `uv run football-build-warehouse` | 118 nodes (29 models, 1 seed, 88 tests); 1 warn: 898 tournament goal events spell the club differently from the match record |
+| dbt models + data tests, fixture data (CI) | `./scripts/ci_warehouse.sh` | 118/118 |
 | Dagster definitions | `dagster definitions validate -m football_analysis.orchestration` | valid |
 | Frontend | `npm run lint`, `tsc --noEmit`, `npm run build` | clean |
 | Browser flows + accessibility | `npm run test:e2e` | 25/25, including axe WCAG A/AA scans of `/`, `/matches`, `/predictions`, `/settings`, `/models`, `/quality` in light and dark mode with no serious or critical violations |
@@ -20,6 +20,7 @@ The local PostgreSQL publish test starts a temporary server with `initdb`; it fa
 
 - `football-sync` (step 4) ran extract, dbt build, retraining and publishing with no failed sources. "Degraded" only reflects OpenFootball having no 2026/27 calendar for Belgium and Turkey.
 - `football-publish` swapped only changed tables into Supabase (first run 26 s; unchanged tables skipped by row digest) and rebuilt the SQLite fallback (30 tables, ~1.39 M rows).
+- API parity after moving queries onto the marts: 35 routes (catalog, teams, matches, tournaments, players, transfers, match detail, analysis, quality, overview…) returned identical JSON from the raw-table and mart queries on the real DuckDB snapshot.
 - The API served `/api/v1/predictions` from Supabase, and from `data/football.sqlite3` when given an unreachable DSN.
 - Retraining with unchanged inputs leaves `forecast_history` unchanged (journal only grows when probabilities move ≥ 1 point).
 
@@ -38,6 +39,7 @@ Champion ensemble: log loss 0.9670, RPS 0.1946, accuracy 53.4%, ECE 0.005. Bookm
 
 ## Known data issues handled by tests
 
+Two federation-awarded cup results whose goal events exceed the official score (DFB-Pokal 2021 Münster–Wolfsburg, Copa del Rey 2023 Arosa–Granada; listed exceptions);
 Ligue 1 2019/20 abandoned at 279 matches (documented exception); one Latin-1 source file (re-encoded on
 landing); two broken closing-price rows (quarantined); provider club-name variants (reconciled by canonical key).
 

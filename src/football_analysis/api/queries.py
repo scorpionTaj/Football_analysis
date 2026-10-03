@@ -224,20 +224,20 @@ def catalog(store: ReadOnlyStore) -> CatalogResponse:
     completed = set(seasons())
     media_map = _competition_media_map(store)
     rows = []
-    if _has(store, "matches"):
+    if _has(store, "mart_dashboard_match"):
         rows.append(store.query(
             "SELECT league AS competition, season, count(*) AS match_count, max(match_date) AS latest_match "
-            "FROM matches GROUP BY 1, 2"
+            "FROM mart_dashboard_match GROUP BY 1, 2"
         ))
     if _has(store, "recent_matches"):
         rows.append(store.query(
             "SELECT league AS competition, season, count(*) AS match_count, max(match_date) AS latest_match "
             "FROM recent_matches GROUP BY 1, 2"
         ))
-    if _has(store, "tournament_matches"):
+    if _has(store, "fct_tournament_match"):
         rows.append(store.query(
             "SELECT competition, season, count(*) AS match_count, max(match_date) AS latest_match "
-            "FROM tournament_matches GROUP BY 1, 2"
+            "FROM fct_tournament_match GROUP BY 1, 2"
         ))
     coverage = pd.concat(rows, ignore_index=True) if rows else pd.DataFrame(
         columns=["competition", "season", "match_count", "latest_match"]
@@ -294,14 +294,14 @@ def catalog(store: ReadOnlyStore) -> CatalogResponse:
 
 
 def list_teams(store: ReadOnlyStore, competition: str | None, season: int | None) -> TeamListResponse:
-    if not (_has(store, "team_seasons") or _has(store, "recent_matches") or _has(store, "tournament_matches")):
+    if not (_has(store, "mart_dashboard_team_season") or _has(store, "recent_matches") or _has(store, "fct_tournament_match")):
         return TeamListResponse(teams=[], source=_source(_store_source(store), "empty"))
 
     # Unified query combining historical team_seasons, live recent_matches, and tournament_matches
     q = """
     WITH all_season_teams AS (
         -- Historical team_seasons
-        SELECT league, season, team, played, points FROM team_seasons
+        SELECT league, season, team, played, points FROM mart_dashboard_team_season
         UNION ALL
         -- Recent matches (both completed and scheduled)
         SELECT
@@ -319,7 +319,7 @@ def list_teams(store: ReadOnlyStore, competition: str | None, season: int | None
                    CASE WHEN away_goals > home_goals THEN 3 WHEN away_goals = home_goals THEN 1 ELSE 0 END AS points
             FROM recent_matches
         ) m
-        WHERE NOT EXISTS (SELECT 1 FROM team_seasons ts WHERE ts.league = m.league AND ts.season = m.season)
+        WHERE NOT EXISTS (SELECT 1 FROM mart_dashboard_team_season ts WHERE ts.league = m.league AND ts.season = m.season)
         GROUP BY m.league, m.season, m.team
         UNION ALL
         -- Tournament matches
@@ -332,13 +332,13 @@ def list_teams(store: ReadOnlyStore, competition: str | None, season: int | None
         FROM (
             SELECT competition, season, home_team AS team, home_goals, away_goals,
                    CASE WHEN home_goals > away_goals THEN 3 WHEN home_goals = away_goals THEN 1 ELSE 0 END AS points
-            FROM tournament_matches
+            FROM fct_tournament_match
             UNION ALL
             SELECT competition, season, away_team AS team, home_goals, away_goals,
                    CASE WHEN away_goals > home_goals THEN 3 WHEN away_goals = home_goals THEN 1 ELSE 0 END AS points
-            FROM tournament_matches
+            FROM fct_tournament_match
         ) t
-        WHERE NOT EXISTS (SELECT 1 FROM team_seasons ts WHERE ts.league = t.competition AND ts.season = t.season)
+        WHERE NOT EXISTS (SELECT 1 FROM mart_dashboard_team_season ts WHERE ts.league = t.competition AND ts.season = t.season)
         GROUP BY t.competition, t.season, t.team
     )
     SELECT league, season, team, played, points FROM all_season_teams WHERE 1=1
@@ -362,15 +362,15 @@ def list_teams(store: ReadOnlyStore, competition: str | None, season: int | None
         fallback_q = """
         SELECT DISTINCT league, ? AS season, team, 0 AS played, 0 AS points
         FROM (
-            SELECT league, team FROM team_seasons WHERE league = ?
+            SELECT league, team FROM mart_dashboard_team_season WHERE league = ?
             UNION
             SELECT league, home_team AS team FROM recent_matches WHERE league = ?
             UNION
             SELECT league, away_team AS team FROM recent_matches WHERE league = ?
             UNION
-            SELECT competition AS league, home_team AS team FROM tournament_matches WHERE competition = ?
+            SELECT competition AS league, home_team AS team FROM fct_tournament_match WHERE competition = ?
             UNION
-            SELECT competition AS league, away_team AS team FROM tournament_matches WHERE competition = ?
+            SELECT competition AS league, away_team AS team FROM fct_tournament_match WHERE competition = ?
         )
         ORDER BY team
         """
@@ -562,14 +562,14 @@ def list_matches(
 def load_match_source_rows(store: ReadOnlyStore) -> pd.DataFrame:
     """Load the four source feeds before shared match reconciliation and filtering."""
     frames = []
-    if _has(store, "matches"):
+    if _has(store, "mart_dashboard_match"):
         frames.append(store.query(
             "SELECT league AS competition, season, match_date, home_team, away_team, "
             "home_goals, away_goals, home_shots, away_shots, home_sot, away_sot, "
             "half_time_home_goals, half_time_away_goals, home_corners, away_corners, "
             "home_fouls, away_fouls, home_yellows, away_yellows, home_reds, away_reds, "
             "referee, CAST(NULL AS VARCHAR) AS kickoff_time, CAST(NULL AS VARCHAR) AS stage, "
-            "CAST(NULL AS VARCHAR) AS venue, 'football-data.co.uk' AS source FROM matches "
+            "CAST(NULL AS VARCHAR) AS venue, 'football-data.co.uk' AS source FROM mart_dashboard_match "
             "ORDER BY league, season, match_date, home_team, away_team"
         ))
     if _has(store, "recent_matches"):
@@ -582,7 +582,7 @@ def load_match_source_rows(store: ReadOnlyStore) -> pd.DataFrame:
             "CAST(NULL AS VARCHAR) AS venue, source FROM recent_matches "
             "ORDER BY league, season, match_date, home_team, away_team"
         ))
-    if _has(store, "tournament_matches"):
+    if _has(store, "fct_tournament_match"):
         frames.append(store.query(
             "SELECT competition, season, match_date, home_team, away_team, "
             "home_goals, away_goals, CAST(NULL AS INTEGER) AS home_shots, "
@@ -594,7 +594,7 @@ def load_match_source_rows(store: ReadOnlyStore) -> pd.DataFrame:
             "CAST(NULL AS INTEGER) AS away_yellows, CAST(NULL AS INTEGER) AS home_reds, "
             "CAST(NULL AS INTEGER) AS away_reds, CAST(NULL AS VARCHAR) AS referee, "
             "CAST(NULL AS VARCHAR) AS kickoff_time, stage, venue, source "
-            "FROM tournament_matches "
+            "FROM fct_tournament_match "
             "ORDER BY competition, season, match_date, home_team, away_team"
         ))
     if _has(store, "recent_events"):
@@ -635,7 +635,7 @@ def shot_analysis(
 ) -> ShotAnalysisResponse:
     """Expose nullable shot analysis only after the 95% coverage gate."""
     frames = []
-    for table in ("matches", "recent_matches"):
+    for table in ("mart_dashboard_match", "recent_matches"):
         if _has(store, table):
             frames.append(store.query(
                 f"SELECT league AS competition, season, home_shots, away_shots, home_sot, away_sot FROM {table}"
@@ -716,8 +716,8 @@ def list_event_details(
     counts: dict[str, dict[str, int]] = {}
     for table, key in (
         ("event_statistics", "statistics_count"),
-        ("event_timeline", "timeline_count"),
-        ("event_lineups", "lineup_count"),
+        ("fct_match_timeline_event", "timeline_count"),
+        ("fct_match_lineup", "lineup_count"),
     ):
         if _has(store, table):
             count_frame = store.query(f"SELECT event_id, count(*) AS count FROM {table} GROUP BY event_id")
@@ -760,13 +760,13 @@ def event_detail(store: ReadOnlyStore, event_id: str) -> EventDetailResponse | N
         [str(event_id)],
     ) if _has(store, "event_statistics") else pd.DataFrame()
     timeline = store.query(
-        "SELECT * FROM event_timeline WHERE event_id = ? ORDER BY try_cast(minute AS INTEGER) NULLS LAST, timeline_id",
+        "SELECT * FROM fct_match_timeline_event WHERE event_id = ? ORDER BY try_cast(minute AS INTEGER) NULLS LAST, timeline_id",
         [str(event_id)],
-    ) if _has(store, "event_timeline") else pd.DataFrame()
+    ) if _has(store, "fct_match_timeline_event") else pd.DataFrame()
     lineups = store.query(
-        "SELECT * FROM event_lineups WHERE event_id = ? ORDER BY is_home DESC, is_substitute, team, player",
+        "SELECT * FROM fct_match_lineup WHERE event_id = ? ORDER BY is_home DESC, is_substitute, team, player",
         [str(event_id)],
-    ) if _has(store, "event_lineups") else pd.DataFrame()
+    ) if _has(store, "fct_match_lineup") else pd.DataFrame()
     return EventDetailResponse(
         event=summary,
         statistics=[EventStatistic(
@@ -807,10 +807,10 @@ def _present(value) -> str | None:
 
 
 def _stored_timeline(store: ReadOnlyStore, event_id: str, source: str) -> list[EventTimelineItem]:
-    if not _has(store, "event_timeline"):
+    if not _has(store, "fct_match_timeline_event"):
         return []
     rows = store.query(
-        "SELECT * FROM event_timeline WHERE source = ? AND event_id = ? "
+        "SELECT * FROM fct_match_timeline_event WHERE source = ? AND event_id = ? "
         "ORDER BY try_cast(minute AS INTEGER) NULLS LAST, timeline_id",
         [source, str(event_id)],
     )
@@ -826,10 +826,10 @@ def _stored_timeline(store: ReadOnlyStore, event_id: str, source: str) -> list[E
 
 
 def _stored_lineups(store: ReadOnlyStore, event_id: str, source: str) -> list[EventLineupItem]:
-    if not _has(store, "event_lineups"):
+    if not _has(store, "fct_match_lineup"):
         return []
     rows = store.query(
-        "SELECT * FROM event_lineups WHERE source = ? AND event_id = ? "
+        "SELECT * FROM fct_match_lineup WHERE source = ? AND event_id = ? "
         "ORDER BY is_home DESC, is_substitute, team, position, player",
         [source, str(event_id)],
     )
@@ -918,9 +918,9 @@ def match_centre_detail(
         return None
 
     context = None
-    if _has(store, "match_contexts"):
+    if _has(store, "fct_match_context"):
         candidates = store.query(
-            "SELECT * FROM match_contexts WHERE match_date = ? ORDER BY fetched_at DESC",
+            "SELECT * FROM fct_match_context WHERE match_date = ? ORDER BY fetched_at DESC",
             [wanted_date],
         )
         for row in candidates.itertuples(index=False):
@@ -966,9 +966,9 @@ def match_centre_detail(
         if context_event_id else []
     )
     timeline = transfermarkt_timeline or (list(provider_detail.timeline) if provider_detail else [])
-    if not timeline and competition in TOURNAMENTS and _has(store, "tournament_goals"):
+    if not timeline and competition in TOURNAMENTS and _has(store, "fct_tournament_goal"):
         goals = store.query(
-            "SELECT * FROM tournament_goals WHERE competition = ? AND season = ? AND match_date = ?",
+            "SELECT * FROM fct_tournament_goal WHERE competition = ? AND season = ? AND match_date = ?",
             [competition, season, wanted_date],
         )
         media = _team_media_map(store)
@@ -1068,8 +1068,8 @@ def match_centre_detail(
 
 def _load_analysis_matches(store: ReadOnlyStore) -> pd.DataFrame:
     parts = []
-    if _has(store, "team_matches"):
-        parts.append(store.query("SELECT * FROM team_matches"))
+    if _has(store, "mart_dashboard_team_match"):
+        parts.append(store.query("SELECT * FROM mart_dashboard_team_match"))
     if _has(store, "recent_matches"):
         recent = store.query(
             "SELECT league, season, match_date, home_team, away_team, home_goals, away_goals, "
@@ -1093,8 +1093,8 @@ def _load_analysis_matches(store: ReadOnlyStore) -> pd.DataFrame:
                 expanded.gf > expanded.ga, 3, np.where(expanded.gf == expanded.ga, 1, 0)
             )
             parts.append(expanded)
-    if _has(store, "tournament_matches"):
-        tourney = store.query("SELECT * FROM tournament_matches")
+    if _has(store, "fct_tournament_match"):
+        tourney = store.query("SELECT * FROM fct_tournament_match")
         if not tourney.empty:
             parts.append(tournament_team_matches(tourney))
     if not parts:
@@ -1122,9 +1122,9 @@ def _resolve_teams(frame: pd.DataFrame, requested: list[str]) -> list[str]:
 
 
 def _factor_summary(store: ReadOnlyStore, filters: AnalysisFilters) -> MatchFactorSummary:
-    if not _has(store, "matches"):
+    if not _has(store, "mart_dashboard_match"):
         return MatchFactorSummary()
-    fixtures = store.query("SELECT * FROM matches")
+    fixtures = store.query("SELECT * FROM mart_dashboard_match")
     if _has(store, "recent_matches"):
         recent = store.query("SELECT * FROM recent_matches")
         if not recent.empty:
@@ -1319,14 +1319,14 @@ def standings(
 
 def tournament(store: ReadOnlyStore, competition: str, season: int) -> TournamentResponse:
     name = TOURNAMENTS.get(competition, COMPETITIONS.get(competition, competition))
-    if not _has(store, "tournament_matches"):
+    if not _has(store, "fct_tournament_match"):
         return TournamentResponse(
             competition=competition, name=name, season=season,
             stages=[], matches=[], scorers=[],
             source=_source("openfootball", "empty"),
         )
     matches = store.query(
-        "SELECT * FROM tournament_matches WHERE competition = ? AND season = ?",
+        "SELECT * FROM fct_tournament_match WHERE competition = ? AND season = ?",
         [competition, season],
     )
     matches = matches.sort_values(["match_date", "home_team", "away_team"], kind="stable")
@@ -1349,9 +1349,9 @@ def tournament(store: ReadOnlyStore, competition: str, season: int) -> Tournamen
             status=row.status,
         ))
     scorers = []
-    if _has(store, "tournament_goals"):
+    if _has(store, "fct_tournament_goal"):
         goals = store.query(
-            "SELECT * FROM tournament_goals WHERE competition = ? AND season = ?",
+            "SELECT * FROM fct_tournament_goal WHERE competition = ? AND season = ?",
             [competition, season],
         )
         goals = goals.sort_values(["match_date", "player", "team", "minute"], kind="stable")
@@ -1383,14 +1383,14 @@ def list_players(
     limit: int = 50,
 ) -> PlayerListResponse:
     limit = max(1, min(int(limit), 200))
-    if not _has(store, "open_players"):
+    if not _has(store, "dim_player"):
         return PlayerListResponse(
             players=[], page=PageMeta(next_cursor=None, limit=limit, returned=0),
             source=_source("transfermarkt-open", "empty"),
         )
     frame = store.query(
         "SELECT source, player_id, team, player, position, nationality, date_born, "
-        "data_as_of, image_url, market_value_eur FROM open_players"
+        "data_as_of, image_url, market_value_eur FROM dim_player"
     )
     media = _team_media_map(store)
     facet_names = sorted(frame.team.dropna().unique(), key=lambda value: (display_team(value) or value).casefold())
@@ -1461,16 +1461,16 @@ def list_players(
 
 
 def get_player(store: ReadOnlyStore, player_id: str) -> PlayerProfileResponse | None:
-    if not _has(store, "open_players"):
+    if not _has(store, "dim_player"):
         return None
-    frame = store.query("SELECT * FROM open_players WHERE player_id = ?", [player_id])
+    frame = store.query("SELECT * FROM dim_player WHERE player_id = ?", [player_id])
     if frame.empty:
         return None
     row = frame.iloc[0]
     stats: list[PlayerStat] = []
-    if _has(store, "open_player_stats"):
+    if _has(store, "fct_player_competition_season"):
         stat_frame = store.query(
-            "SELECT * FROM open_player_stats WHERE player_id = ?",
+            "SELECT * FROM fct_player_competition_season WHERE player_id = ?",
             [player_id],
         )
         stat_frame = stat_frame.sort_values(["season", "competition"], ascending=[False, True], kind="stable")
@@ -1688,9 +1688,9 @@ def overview(
 
     tm_map = _team_media_map(store)
     comp_years = set(seasons() + ([current_season()] if current_season() not in seasons() else []))
-    if _has(store, "tournament_matches") and competition in TOURNAMENTS:
+    if _has(store, "fct_tournament_match") and competition in TOURNAMENTS:
         try:
-            t_years = store.query("SELECT DISTINCT season FROM tournament_matches WHERE competition = ?", [competition])["season"].tolist()
+            t_years = store.query("SELECT DISTINCT season FROM fct_tournament_match WHERE competition = ?", [competition])["season"].tolist()
             comp_years.update(t_years)
         except Exception:
             pass
@@ -1741,7 +1741,7 @@ def overview(
     FROM (
         SELECT league, season, match_date, home_team, away_team, home_goals, away_goals, referee, source FROM recent_matches WHERE home_goals IS NOT NULL
         UNION ALL
-        SELECT league, season, match_date, home_team, away_team, home_goals, away_goals, referee, 'football-data.co.uk' AS source FROM matches WHERE home_goals IS NOT NULL
+        SELECT league, season, match_date, home_team, away_team, home_goals, away_goals, referee, 'football-data.co.uk' AS source FROM mart_dashboard_match WHERE home_goals IS NOT NULL
     )
     ORDER BY match_date DESC
     """
@@ -1814,14 +1814,14 @@ def list_transfers(
     limit: int = 50,
 ) -> TransferListResponse:
     limit = max(1, min(int(limit), 200))
-    if not _has(store, "transfers"):
+    if not _has(store, "fct_transfer"):
         return TransferListResponse(
             transfers=[], total_count=0,
             page=PageMeta(next_cursor=None, limit=limit, returned=0),
             source=_source("transfermarkt-open", "empty"),
         )
 
-    sql = "SELECT * FROM transfers WHERE 1=1"
+    sql = "SELECT * FROM fct_transfer WHERE 1=1"
     params = []
     if season is not None:
         try:
@@ -1881,11 +1881,11 @@ def quality(store: ReadOnlyStore) -> QualityResponse:
 
     completed = seasons()
     live = current_season()
-    match_count = row_count("matches")
+    match_count = row_count("mart_dashboard_match")
     recent_count = row_count("recent_matches")
     fixtures = pd.DataFrame()
-    if _has(store, "matches"):
-        fixtures = store.query("SELECT league, season, home_shots, away_shots, home_sot, away_sot, home_corners FROM matches")
+    if _has(store, "mart_dashboard_match"):
+        fixtures = store.query("SELECT league, season, home_shots, away_shots, home_sot, away_sot, home_corners FROM mart_dashboard_match")
     if _has(store, "recent_matches"):
         recent = store.query("SELECT league, season, home_shots, away_shots, home_sot, away_sot, home_corners FROM recent_matches")
         fixtures = pd.concat([fixtures, recent], ignore_index=True) if not recent.empty else fixtures
@@ -1930,32 +1930,32 @@ def quality(store: ReadOnlyStore) -> QualityResponse:
         stamps["analytics"] = _as_datetime(store.scalar("SELECT max(refreshed_at) FROM analytics_metadata"))
     if _has(store, "ingestion_runs"):
         stamps["ingestion"] = _as_datetime(store.scalar("SELECT max(fetched_at) FROM ingestion_runs"))
-    if _has(store, "open_players"):
-        stamps["players"] = _as_datetime(store.scalar("SELECT max(fetched_at) FROM open_players"))
-    if _has(store, "match_contexts"):
-        stamps["match_contexts"] = _as_datetime(store.scalar("SELECT max(fetched_at) FROM match_contexts"))
+    if _has(store, "dim_player"):
+        stamps["players"] = _as_datetime(store.scalar("SELECT max(fetched_at) FROM dim_player"))
+    if _has(store, "fct_match_context"):
+        stamps["match_contexts"] = _as_datetime(store.scalar("SELECT max(fetched_at) FROM fct_match_context"))
     if _has(store, "reference_standings"):
         stamps["reference"] = _as_datetime(store.scalar("SELECT max(fetched_at) FROM reference_standings"))
     if _has(store, "recent_matches"):
         stamps["recent"] = _as_datetime(store.scalar("SELECT max(fetched_at) FROM recent_matches"))
     if _has(store, "team_media"):
         stamps["media"] = _as_datetime(store.scalar("SELECT max(fetched_at) FROM team_media"))
-    if _has(store, "tournament_matches"):
-        stamps["tournaments"] = _as_datetime(store.scalar("SELECT max(fetched_at) FROM tournament_matches"))
+    if _has(store, "fct_tournament_match"):
+        stamps["tournaments"] = _as_datetime(store.scalar("SELECT max(fetched_at) FROM fct_tournament_match"))
     if _has(store, "event_statistics"):
         stamps["event_details"] = _as_datetime(store.scalar("SELECT max(fetched_at) FROM event_statistics"))
     if _has(store, "prediction_models"):
         stamps["predictions"] = _as_datetime(store.scalar("SELECT max(trained_at) FROM prediction_models"))
 
     reference_rows = row_count("reference_standings")
-    tracked_players = row_count("open_players")
-    player_stat_rows = row_count("open_player_stats")
+    tracked_players = row_count("dim_player")
+    player_stat_rows = row_count("fct_player_competition_season")
     artwork_rows = row_count("team_media") + row_count("competition_media")
-    tournament_match_count = row_count("tournament_matches")
-    tournament_goal_count = row_count("tournament_goals")
+    tournament_match_count = row_count("fct_tournament_match")
+    tournament_goal_count = row_count("fct_tournament_goal")
     event_stat_count = row_count("event_statistics")
-    timeline_count = row_count("event_timeline")
-    lineup_count = row_count("event_lineups")
+    timeline_count = row_count("fct_match_timeline_event")
+    lineup_count = row_count("fct_match_lineup")
     prediction_count = row_count("match_predictions")
     fixture_counts = {league: {"full_schedule": 0, "weekly_window": 0, "next_listed": 0, "latest_fetched_at": None}
                       for league in RECENT_LEAGUES}
@@ -1978,23 +1978,23 @@ def quality(store: ReadOnlyStore) -> QualityResponse:
     fixture_coverage = [FixtureCoverageRow(competition=league, **counts)
                         for league, counts in fixture_counts.items()]
     recent_competitions = int(fixtures.loc[fixtures.season == live, "league"].nunique()) if not fixtures.empty else 0
-    player_clubs = int(store.scalar("SELECT count(DISTINCT team) FROM open_players") or 0) if _has(store, "open_players") else 0
+    player_clubs = int(store.scalar("SELECT count(DISTINCT team) FROM dim_player") or 0) if _has(store, "dim_player") else 0
     tournament_teams = 0
     tournament_breakdown: dict[str, int] = {}
-    if _has(store, "tournament_matches"):
+    if _has(store, "fct_tournament_match"):
         tournament_teams = int(store.scalar(
-            "SELECT count(DISTINCT team) FROM (SELECT home_team AS team FROM tournament_matches UNION SELECT away_team FROM tournament_matches)"
+            "SELECT count(DISTINCT team) FROM (SELECT home_team AS team FROM fct_tournament_match UNION SELECT away_team FROM fct_tournament_match)"
         ) or 0)
-        breakdown = store.query("SELECT competition, count(*) AS matches FROM tournament_matches GROUP BY competition")
+        breakdown = store.query("SELECT competition, count(*) AS matches FROM fct_tournament_match GROUP BY competition")
         tournament_breakdown = {str(row.competition): int(row.matches) for row in breakdown.itertuples(index=False)}
     context_rich = int(fixtures.home_corners.notna().sum()) if not fixtures.empty and "home_corners" in fixtures else 0
-    match_context_rows = row_count("match_contexts")
+    match_context_rows = row_count("fct_match_context")
     formation_rows = int(store.scalar(
-        "SELECT count(*) FROM match_contexts WHERE home_formation <> '' OR away_formation <> ''"
-    ) or 0) if _has(store, "match_contexts") else 0
+        "SELECT count(*) FROM fct_match_context WHERE home_formation <> '' OR away_formation <> ''"
+    ) or 0) if _has(store, "fct_match_context") else 0
     coach_rows = int(store.scalar(
-        "SELECT count(*) FROM match_contexts WHERE home_coach <> '' OR away_coach <> ''"
-    ) or 0) if _has(store, "match_contexts") else 0
+        "SELECT count(*) FROM fct_match_context WHERE home_coach <> '' OR away_coach <> ''"
+    ) or 0) if _has(store, "fct_match_context") else 0
     shots = shot_analysis(store)
     caps = [
         "TheSportsDB free standings and player feeds are explicitly capped.",

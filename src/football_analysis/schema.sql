@@ -187,11 +187,11 @@ CREATE TABLE IF NOT EXISTS open_player_stats (
  fetched_at TIMESTAMP NOT NULL,
  PRIMARY KEY(source, player_id, season, competition_id)
 );
-CREATE TABLE IF NOT EXISTS api_football_squads (
- source VARCHAR NOT NULL, team_id INTEGER NOT NULL, team VARCHAR NOT NULL, provider_team VARCHAR,
- player_id INTEGER NOT NULL, player VARCHAR NOT NULL, age INTEGER, number INTEGER, position VARCHAR,
- photo_url VARCHAR, source_url VARCHAR NOT NULL, fetched_at TIMESTAMP NOT NULL,
- PRIMARY KEY(source, team_id, player_id)
+CREATE TABLE IF NOT EXISTS transfers (
+ transfer_id VARCHAR, player_id VARCHAR, player_name VARCHAR, transfer_date DATE,
+ transfer_season VARCHAR, season INTEGER, from_club_id VARCHAR, from_club_name VARCHAR,
+ to_club_id VARCHAR, to_club_name VARCHAR, transfer_fee DOUBLE,
+ market_value_eur BIGINT, from_competition VARCHAR, to_competition VARCHAR, image_url VARCHAR
 );
 CREATE TABLE IF NOT EXISTS external_source_metadata (
  source VARCHAR PRIMARY KEY, dataset_url VARCHAR NOT NULL,

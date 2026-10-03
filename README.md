@@ -106,7 +106,7 @@ The 2026/27 campaign is integrated into every match-driven page and adds the Ere
 - `src/football_analysis/analysis_system.py`: reusable filtering, ranking, form and correlation engine served through FastAPI.
 - `src/football_analysis/event_details.py`: explicitly capped current-event enrichment from free TheSportsDB endpoints; Match Centre prefers the normalized historical Transfermarkt context, timeline and lineup tables when available.
 - `src/football_analysis/history.py`: lands 2005+ Football-Data CSVs (15 leagues, odds) for the warehouse.
-- `warehouse/`: dbt project — staging, marts and ML models plus data tests (`uv run football-build-warehouse`; `dbt docs generate` for lineage).
+- `warehouse/`: dbt project — staging views over every raw table, marts and ML models plus data tests (`uv run football-build-warehouse`; `dbt docs generate` for lineage). The API reads the `tag:serving` marts (each with a documented grain in `models/marts/_serving.yml`): `mart_dashboard_*` (validated five-season window), `fct_tournament_match/goal`, `fct_match_context`, `fct_match_timeline_event`, `fct_match_lineup`, `dim_player`, `fct_player_competition_season` and `fct_transfer`.
 - `src/football_analysis/warehouse.py`: `football-build-warehouse` and the pipeline-status recorder.
 - `src/football_analysis/ml/`: feature engine, candidate models, walk-forward evaluation, MLflow training and publication to the app tables (see `docs/MODELLING.md`).
 - `src/football_analysis/orchestration/`: Dagster assets, jobs and schedules.
@@ -121,7 +121,7 @@ Data lives in `data/`; override with `FOOTBALL_DATA_DIR`. Raw archives and the d
 
 Optional API response caching: install the Redis extra (`uv sync --extra redis`) and set `REDIS_URL` to a Redis URL. Only catalog and overview GET JSON responses use Redis, with 300-second and 60-second TTLs respectively. Each reopened DuckDB snapshot gets a new cache generation after refresh; Redis errors fall back to DuckDB. Without `REDIS_URL`, the API uses DuckDB as before.
 
-Serving: `football-publish` compares each table's row digest with `snapshot_manifest` in the
+Serving: `football-publish` publishes only what the API reads (the serving marts plus live app tables listed in `publish.py`); raw tables behind the marts stay in DuckDB, and a table that stops being served is dropped from PostgreSQL before new ones are copied. It compares each table's row digest with `snapshot_manifest` in the
 private PostgreSQL schema (`FOOTBALL_POSTGRES_SCHEMA`), copies only changed tables to `<table>__next`
 and swaps them in one transaction, so the Supabase free tier (500 MB) never needs a second copy.
 It then rebuilds `data/football.sqlite3` from DuckDB. With `FOOTBALL_API_READ_BACKEND=postgres`
