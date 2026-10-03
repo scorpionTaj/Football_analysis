@@ -37,9 +37,8 @@ def test_features_ignore_same_day_and_future_results():
 
 
 def test_every_candidate_returns_valid_probabilities():
-    frame = build_features(_league())
-    train, calib, test = (frame[frame.season == s] for s in (2019, 2020, 2021))
-    train = pd.concat([frame[frame.season == 2018], train])
+    frame = build_features(_league(seasons=6))  # stacking needs out-of-fold seasons inside train
+    train, calib, test = frame[frame.season <= 2021], frame[frame.season == 2022], frame[frame.season == 2023]
     for model in candidates():
         if model.name == "market_blend":  # synthetic data has no opening odds
             continue
@@ -54,3 +53,26 @@ def test_rps_rewards_ordered_closeness():
     y = np.array([0])
     assert rps(np.array([[0.0, 1.0, 0.0]]), y) < rps(np.array([[0.0, 0.0, 1.0]]), y)
     assert rps(np.array([[1.0, 0.0, 0.0]]), y) == 0
+
+
+def test_stacking_meta_features_never_see_their_own_season():
+    from football_analysis.ml.models import Stacked
+
+    seen = []
+
+    class Spy:
+        name = "spy"
+
+        def fit(self, train, calib):
+            self.trained = set(train.season) | set(calib.season)
+            return self
+
+        def predict_proba(self, frame):
+            seen.append((self.trained, set(frame.season)))
+            return np.full((len(frame), 3), 1 / 3)
+
+    frame = build_features(_league(seasons=6))
+    Stacked(lambda: [Spy()]).fit(frame[frame.season <= 2021], frame[frame.season == 2022])
+    out_of_fold = seen[:2]  # the two fold predictions; later calls score calib with refitted members
+    assert out_of_fold and all(not (trained & predicted) for trained, predicted in out_of_fold)
+    assert all(max(trained) < min(predicted) for trained, predicted in out_of_fold)

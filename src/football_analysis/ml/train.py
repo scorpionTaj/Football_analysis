@@ -21,7 +21,7 @@ from .models import candidates
 
 EXPERIMENT = "match-outcome"
 from . import TARGETS
-INDEPENDENT = {"elo_logit", "logreg", "lightgbm", "poisson_dixon_coles", "ensemble"}
+INDEPENDENT = {"elo_logit", "logreg", "lightgbm", "poisson_dixon_coles", "ensemble", "stacked"}
 
 
 def load_features(db=DB):
@@ -52,16 +52,25 @@ def leaderboard(frame, test_seasons):
     return results
 
 
-def train(db=DB, test_seasons=None, tracking_uri=None):
+def _mlflow(tracking_uri=None):
     import mlflow
 
     os.environ.setdefault("MLFLOW_DISABLE_AGENT_HINT", "1")
     mlflow.set_tracking_uri(tracking_uri or os.environ.get("MLFLOW_TRACKING_URI", f"sqlite:///{ROOT / 'mlflow.db'}"))
     mlflow.set_experiment(EXPERIMENT)
-    frame = load_features(db)
+    return mlflow
+
+
+def _test_seasons(frame):
     completed = sorted(frame.loc[frame.outcome >= 0, "season"].unique())
+    return [s for s in completed if s < current_season()][-4:]
+
+
+def train(db=DB, test_seasons=None, tracking_uri=None):
+    mlflow = _mlflow(tracking_uri)
+    frame = load_features(db)
     current = current_season()
-    test_seasons = test_seasons or [s for s in completed if s < current][-4:]
+    test_seasons = test_seasons or _test_seasons(frame)
     results = leaderboard(frame, test_seasons)
 
     rows, sha, stamp = [], _git_sha(), datetime.now().replace(microsecond=0)
@@ -154,9 +163,17 @@ def main():
     parser.add_argument("--test-seasons", nargs="+", type=int)
     parser.add_argument("--quick", action="store_true",
                         help="Refit only the champion if the leaderboard is under 7 days old")
+    parser.add_argument("--tune", action="store_true",
+                        help="Time-series CV search for logistic regression and LightGBM (before the test seasons)")
     args = parser.parse_args()
     if args.quick:
         forecast()
+    elif args.tune:
+        from .tune import tune
+
+        _mlflow()
+        frame = load_features()
+        print(json.dumps(tune(frame, min(args.test_seasons or _test_seasons(frame))), indent=1))
     else:
         train(test_seasons=args.test_seasons)
 
