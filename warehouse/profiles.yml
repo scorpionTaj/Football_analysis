@@ -3,5 +3,6 @@ football_warehouse:
   outputs:
     dev:
       type: duckdb
-      path: "{{ env_var('FOOTBALL_DATA_DIR', '../data') }}/football.duckdb"
+      # FOOTBALL_DUCKDB overrides the database file; raw CSVs always come from FOOTBALL_DATA_DIR.
+      path: "{{ env_var('FOOTBALL_DUCKDB', env_var('FOOTBALL_DATA_DIR', '../data') ~ '/football.duckdb') }}"
       threads: 1

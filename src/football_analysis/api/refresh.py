@@ -303,11 +303,15 @@ def run_refresh_pipeline(database: Path, request: RefreshRequest, progress: Prog
 
     if request.target_step >= 4:
         progress(4, "Models and validation", "Rebuilding analytical caches and calibrated forecasts.")
+        from football_analysis.history import fetch_history
         from football_analysis.ingest import refresh_analytics_cache
-        from football_analysis.predictions import sync_predictions
+        from football_analysis.ml.train import train
+        from football_analysis.warehouse import build
 
         report.attempt(4, "Analytics cache", lambda: refresh_analytics_cache(db=database), required=True)
-        report.attempt(4, "Predictions", lambda: sync_predictions(
-            db=database, force=request.force_download,
-        ), required=True)
+        report.attempt(4, "Training history", lambda: fetch_history(years=[season]))
+        report.attempt(4, "Warehouse (dbt build)", lambda: build(db=database), required=True)
+        report.attempt(4, "Model leaderboard", lambda: {
+            "status": "success", "champion": str(train(db=database).query("is_champion").model.iloc[0]),
+        }, required=True)
     return report

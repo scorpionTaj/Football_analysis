@@ -19,3 +19,13 @@ sources:
           error_after: {count: 48, period: hour}
       - name: tournament_matches
       - name: ingestion_runs
+
+  - name: landing
+    description: Untouched files landed by `football-fetch-history` / `football-sync`.
+    tables:
+      - name: football_data_csv
+        description: Every Football-Data season CSV, data/raw/<yyYY>/<league>.csv (2005+).
+        config:
+          external_location: >-
+            read_csv('{{ env_var("FOOTBALL_DATA_DIR", "../data") }}/raw/[0-9][0-9][0-9][0-9]/*.csv', union_by_name = true,
+            all_varchar = true, header = true, filename = true, null_padding = true)

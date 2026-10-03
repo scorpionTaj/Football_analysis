@@ -1,12 +1,7 @@
 -- Every landed Football-Data CSV (2005+, first and second divisions), typed.
 -- Raw files are read directly: the landing zone is the raw layer for this source.
 with raw as (
-    select *
-    from read_csv(
-        '{{ var("raw_dir") }}/[0-9][0-9][0-9][0-9]/*.csv',
-        union_by_name = true, all_varchar = true, header = true,
-        filename = true, null_padding = true
-    )
+    select * from {{ source('landing', 'football_data_csv') }}
 ),
 
 typed as (

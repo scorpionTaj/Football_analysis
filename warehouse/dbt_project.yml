@@ -10,10 +10,6 @@ macro-paths: ["macros"]
 target-path: target
 clean-targets: [target, dbt_packages]
 
-vars:
-  # Landing zone of untouched Football-Data CSVs: <raw_dir>/<yyYY>/<league>.csv
-  raw_dir: "{{ env_var('FOOTBALL_DATA_DIR', '../data') }}/raw"
-
 models:
   football_warehouse:
     staging:
