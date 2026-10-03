@@ -112,6 +112,7 @@ export function MarketSection() {
             <div className="flex items-center gap-2">
               <Shield size={14} className="text-subtext0" />
               <select
+                aria-label="Transfer competition"
                 value={transferComp}
                 onChange={(e) => {
                   setTransferComp(e.target.value);
@@ -131,6 +132,7 @@ export function MarketSection() {
             <div className="flex items-center gap-2">
               <Calendar size={14} className="text-subtext0" />
               <select
+                aria-label="Transfer season"
                 value={transferSeason}
                 onChange={(e) => {
                   const val = e.target.value === 'all' ? 'all' : Number(e.target.value);

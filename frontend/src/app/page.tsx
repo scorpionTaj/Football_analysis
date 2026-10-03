@@ -363,9 +363,10 @@ function OverviewContent() {
           <div className="flex flex-wrap items-center gap-4">
             {/* Season Selector */}
             <div className="flex items-center gap-2">
-              <Calendar size={14} className="text-subtext0" />
-              <span className="text-xs font-semibold text-subtext0 uppercase tracking-wide">Season:</span>
+              <Calendar size={14} className="text-subtext0" aria-hidden="true" />
+              <label htmlFor="overview-season" className="text-xs font-semibold text-subtext0 uppercase tracking-wide">Season:</label>
               <select
+                id="overview-season"
                 value={selectedSeason}
                 onChange={(e) => setSelectedSeason(Number(e.target.value))}
                 className="px-3 py-1.5 rounded-lg bg-mantle border border-surface1 text-xs font-medium text-text focus:outline-none focus:border-blue cursor-pointer"
@@ -381,9 +382,10 @@ function OverviewContent() {
 
             {/* Club Spotlight Selector */}
             <div className="flex items-center gap-2">
-              <Shield size={14} className="text-subtext0" />
-              <span className="text-xs font-semibold text-subtext0 uppercase tracking-wide">Club:</span>
+              <Shield size={14} className="text-subtext0" aria-hidden="true" />
+              <label htmlFor="overview-club" className="text-xs font-semibold text-subtext0 uppercase tracking-wide">Club:</label>
               <select
+                id="overview-club"
                 value={activeClub}
                 onChange={(e) => setSelectedClub(e.target.value)}
                 className="px-3 py-1.5 rounded-lg bg-mantle border border-surface1 text-xs font-medium text-text focus:outline-none focus:border-blue cursor-pointer max-w-[220px] truncate"
@@ -734,7 +736,7 @@ function OverviewContent() {
               onClick={() => setChartView('trend')}
               className={`px-3 py-1.5 rounded-lg font-semibold transition-colors cursor-pointer ${
                 chartView === 'trend'
-                  ? 'bg-surface1 text-blue shadow-sm'
+                  ? 'bg-base text-blue shadow-sm'
                   : 'text-subtext0 hover:text-text'
               }`}
             >
@@ -744,7 +746,7 @@ function OverviewContent() {
               onClick={() => setChartView('matrix')}
               className={`px-3 py-1.5 rounded-lg font-semibold transition-colors cursor-pointer ${
                 chartView === 'matrix'
-                  ? 'bg-surface1 text-blue shadow-sm'
+                  ? 'bg-base text-blue shadow-sm'
                   : 'text-subtext0 hover:text-text'
               }`}
             >
@@ -754,7 +756,7 @@ function OverviewContent() {
               onClick={() => setChartView('scatter')}
               className={`px-3 py-1.5 rounded-lg font-semibold transition-colors cursor-pointer ${
                 chartView === 'scatter'
-                  ? 'bg-surface1 text-blue shadow-sm'
+                  ? 'bg-base text-blue shadow-sm'
                   : 'text-subtext0 hover:text-text'
               }`}
             >
@@ -764,7 +766,7 @@ function OverviewContent() {
               onClick={() => setChartView('elo')}
               className={`px-3 py-1.5 rounded-lg font-semibold transition-colors cursor-pointer ${
                 chartView === 'elo'
-                  ? 'bg-surface1 text-blue shadow-sm'
+                  ? 'bg-base text-blue shadow-sm'
                   : 'text-subtext0 hover:text-text'
               }`}
             >

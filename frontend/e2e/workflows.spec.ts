@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 
 const source = { source: 'test fixture', coverage: 'published window', freshness: null };
@@ -237,3 +238,16 @@ test('full-season forecasts stay browsable without rendering the whole calendar'
   await page.getByLabel('League').selectOption('SP1');
   await expect(page.getByText('Showing 25 of 25 forecasts')).toBeVisible();
 });
+
+for (const path of ['/', '/matches', '/predictions', '/settings']) {
+  test(`no serious accessibility violations on ${path}`, async ({ page }) => {
+    await mockApi(page);
+    await page.goto(path);
+    await expect(page.locator('h1').first()).toBeVisible();
+    const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+    const serious = results.violations
+      .filter((v) => v.impact === 'serious' || v.impact === 'critical')
+      .map((v) => `${v.id}: ${v.nodes.slice(0, 4).map((n) => `${n.html.slice(0, 120)} [${n.any[0]?.message?.slice(0, 90) ?? ''}]`).join(' | ')}`);
+    expect(serious).toEqual([]);
+  });
+}
