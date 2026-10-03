@@ -18,6 +18,21 @@ sources:
           warn_after: {count: 6, period: hour}
           error_after: {count: 48, period: hour}
       - name: tournament_matches
+        description: Cup, continental and international results (football_analysis.tournaments, open_players).
+      - name: tournament_goals
+        description: Goal events for tournament matches (OpenFootball World Cup, Transfermarkt CC0 cups).
+      - name: match_contexts
+        description: Transfermarkt CC0 game records (managers, formations, venue, referee).
+      - name: event_timeline
+        description: Goals, cards and substitutions per match (Transfermarkt CC0 plus a capped TheSportsDB sample).
+      - name: event_lineups
+        description: Starting and bench players per match (Transfermarkt CC0 plus a capped TheSportsDB sample).
+      - name: open_players
+        description: Tracked first-team players from the Transfermarkt CC0 snapshot.
+      - name: open_player_stats
+        description: Per player, season and competition appearance totals from the same snapshot.
+      - name: transfers
+        description: Transfers touching the ten dashboard leagues since 2021 (Transfermarkt CC0).
       - name: ingestion_runs
 
   - name: landing

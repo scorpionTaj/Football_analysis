@@ -21,6 +21,7 @@ from football_analysis.api.db import PostgresReadOnlyStore, ReadOnlyStore
 from football_analysis.ingest import connect
 from football_analysis.pg import connect as pg_connect, schema_name
 from football_analysis.publish import build_sqlite_fallback, publish_postgres
+from test_api import build_marts
 
 
 @pytest.fixture(scope="module")
@@ -83,6 +84,7 @@ def match_db(tmp_path):
                 ('fixture-new', 'SP1', 2024, ?, 'Barcelona', 'Valencia', 'fixture', 'fixture', current_timestamp),
                 ('completed-fixture', 'SP1', 2024, ?, 'Barcelona', 'Real Madrid', 'fixture', 'fixture', current_timestamp)
         """, [future + timedelta(days=5), future, future])
+    build_marts(path)
     return path
 
 
@@ -100,20 +102,31 @@ def test_publish_swaps_only_changed_tables(match_db, postgres_server, tmp_path):
     schema = "publish_test_" + uuid.uuid4().hex
     try:
         first = publish_postgres(postgres_server, schema, match_db)
-        assert "matches" in first["changed"] and not first["unchanged"]
+        assert "mart_dashboard_match" in first["changed"] and not first["unchanged"]
+        assert "matches" not in first["changed"]  # raw tables behind the marts stay in DuckDB
         assert publish_postgres(postgres_server, schema, match_db)["changed"] == {}
         with connect(match_db) as con:
             con.execute("UPDATE matches SET home_goals = 9 WHERE league = 'SP1' AND season = 2024 "
                         "AND home_team = (SELECT min(home_team) FROM matches WHERE league = 'SP1')")
-        assert set(publish_postgres(postgres_server, schema, match_db)["changed"]) == {"matches"}
+        build_marts(match_db)
+        assert set(publish_postgres(postgres_server, schema, match_db)["changed"]) == {
+            "mart_dashboard_match", "mart_dashboard_team_match", "mart_dashboard_team_season"}
         with PostgresReadOnlyStore(postgres_server, schema) as store:
-            assert store.scalar("SELECT max(home_goals) FROM matches") == 9
-            assert store.scalar("SELECT count(*) FROM team_seasons") > 0  # views rebuilt after swap
+            assert store.scalar("SELECT max(home_goals) FROM mart_dashboard_match") == 9
+            assert store.scalar("SELECT count(*) FROM mart_dashboard_team_season") > 0
+        # A table that is no longer served is dropped from PostgreSQL and the manifest.
+        with pg_connect(postgres_server, autocommit=True) as conn:
+            conn.execute(f'CREATE TABLE "{schema}".event_lineups (x int)')
+            conn.execute(f"INSERT INTO \"{schema}\".snapshot_manifest VALUES ('event_lineups', 0, 0, 0, 'old')")
+        assert publish_postgres(postgres_server, schema, match_db)["retired"] == ["event_lineups"]
+        with PostgresReadOnlyStore(postgres_server, schema) as store:
+            assert "event_lineups" not in store.tables()
         local = tmp_path / "fallback.sqlite3"
         counts = build_sqlite_fallback(match_db, local)
+        assert "matches" not in counts
         with SQLiteReadOnlyStore(local) as store:
-            assert store.scalar("SELECT count(*) FROM matches") == counts["matches"]
-            assert store.scalar("SELECT count(*) FROM team_seasons") > 0
+            assert store.scalar("SELECT count(*) FROM mart_dashboard_match") == counts["mart_dashboard_match"]
+            assert store.scalar("SELECT count(*) FROM mart_dashboard_team_season") > 0
     finally:
         with pg_connect(postgres_server, autocommit=True) as conn:
             conn.execute(f"DROP SCHEMA IF EXISTS {schema} CASCADE")
@@ -124,7 +137,7 @@ def test_sqlite_read_fallback_preserves_api_data(match_db, postgres_server, monk
 
     local = match_db.with_suffix(".sqlite3")
     counts = build_sqlite_fallback(match_db, local)
-    assert counts["matches"] == 3
+    assert counts["mart_dashboard_match"] == 3
     monkeypatch.setenv("FOOTBALL_API_READ_BACKEND", "postgres")
     monkeypatch.delenv("FOOTBALL_POSTGRES_DSN", raising=False)
     app = create_app(match_db)
@@ -228,8 +241,8 @@ def test_full_local_snapshot_against_temporary_postgres(postgres_server, monkeyp
     counts = publish_postgres(postgres_server, schema, DB)["changed"]
     assert sum(counts.values()) > 0
     with PostgresReadOnlyStore(postgres_server, schema) as store:
-        assert store.scalar("SELECT count(*) FROM matches") == counts["matches"]
-        assert store.scalar("SELECT count(*) FROM event_lineups") == counts["event_lineups"]
+        assert store.scalar("SELECT count(*) FROM mart_dashboard_match") == counts["mart_dashboard_match"]
+        assert store.scalar("SELECT count(*) FROM fct_match_lineup") == counts["fct_match_lineup"]
     duck_app = create_app(DB)
     monkeypatch.setenv("FOOTBALL_API_READ_BACKEND", "postgres")
     monkeypatch.setenv("FOOTBALL_POSTGRES_DSN", postgres_server)

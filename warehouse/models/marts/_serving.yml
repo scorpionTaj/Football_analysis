@@ -1,0 +1,184 @@
+version: 2
+
+# Marts the API reads (tag: serving). Each is published to PostgreSQL/SQLite under its own name
+# (football_analysis.publish.WAREHOUSE_TABLES); the raw app tables behind them are no longer published.
+
+models:
+  - name: mart_dashboard_match
+    description: >
+      Grain: one row per (league, season, home_team, away_team). The dashboard's validated window only:
+      the top five leagues, the last five completed seasons, each a complete double round robin.
+      fct_match covers 2005+ and second divisions; this mart deliberately does not.
+    config: {tags: [serving]}
+    tests:
+      - unique_combination: {columns: [league, season, home_team, away_team]}
+    columns:
+      - name: league
+        tests:
+          - not_null
+          - accepted_values: {values: ['E0', 'SP1', 'D1', 'I1', 'F1']}
+      - name: season
+        tests: [not_null]
+      - name: match_date
+        tests: [not_null]
+      - name: home_goals
+        tests: [not_null, non_negative]
+      - name: away_goals
+        tests: [not_null, non_negative]
+
+  - name: mart_dashboard_team_match
+    description: "Grain: one row per (dashboard match, team): each match from both sides."
+    config: {tags: [serving]}
+    tests:
+      - unique_combination: {columns: [league, season, team, opponent, venue]}
+    columns:
+      - name: venue
+        tests:
+          - accepted_values: {values: ['Home', 'Away']}
+      - name: points
+        tests:
+          - accepted_values: {values: [0, 1, 3], quote: false}
+
+  - name: mart_dashboard_team_season
+    description: "Grain: one row per (league, season, team) in the dashboard window; table reconstructed from results."
+    config: {tags: [serving]}
+    tests:
+      - unique_combination: {columns: [league, season, team]}
+    columns:
+      - name: played
+        tests: [not_null]
+      - name: clean_sheets
+        tests: [non_negative]
+
+  - name: fct_tournament_match
+    description: >
+      Grain: one row per (competition, season, match_date, home_team, away_team). Cups, continental and
+      international tournaments; season is the start year (calendar year for World Cup, Euros, etc.).
+      Rows from different providers are kept separately (provider club spellings differ).
+    config: {tags: [serving]}
+    tests:
+      - unique_combination: {columns: [competition, season, match_date, home_team, away_team]}
+    columns:
+      - name: competition
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['UCL', 'UEL', 'UECL', 'USC', 'FAC', 'EFL', 'GBCS', 'CDR', 'SUC', 'DFB', 'CIT', 'NLP',
+                       'EURO', 'COPA', 'AFCON', 'ASIAN', 'CWC', 'WC']
+      - name: match_date
+        tests: [not_null]
+      - name: home_goals
+        tests: [not_null, non_negative]
+      - name: away_goals
+        tests: [not_null, non_negative]
+      - name: home_penalties
+        tests: [non_negative]
+      - name: away_penalties
+        tests: [non_negative]
+      - name: status
+        tests:
+          - accepted_values: {values: ['FINISHED', 'FT', 'PEN', 'AET'], config: {severity: warn}}
+      - name: source
+        tests: [not_null]
+
+  - name: fct_tournament_goal
+    description: >
+      Grain: one goal event per (competition, season, match_date, team, player, minute). `team` is the
+      provider's club spelling, which may differ from fct_tournament_match (warn-level test).
+    config: {tags: [serving]}
+    tests:
+      - unique_combination: {columns: [competition, season, match_date, team, player, minute]}
+    columns:
+      - name: player
+        tests: [not_null]
+      - name: penalty
+        tests: [not_null]
+      - name: own_goal
+        tests: [not_null]
+
+  - name: fct_match_context
+    description: "Grain: one row per (source, match_id): managers, formations, venue, attendance and referee."
+    config: {tags: [serving]}
+    tests:
+      - unique_combination: {columns: [source, match_id]}
+    columns:
+      - name: match_date
+        tests: [not_null]
+      - name: attendance
+        tests: [non_negative]
+
+  - name: fct_match_timeline_event
+    description: "Grain: one row per (source, timeline_id): a goal, card or substitution in a match (event_id)."
+    config: {tags: [serving]}
+    tests:
+      - unique_combination: {columns: [source, timeline_id]}
+    columns:
+      - name: event_id
+        tests: [not_null]
+      - name: event_type
+        tests:
+          - accepted_values:
+              values: ['Goal', 'Penalty shootout goal', 'Missed penalty', 'Yellow card', 'Second yellow card',
+                       'Red card', 'Card', 'Substitution', 'subst', 'Var']
+              config: {severity: warn}
+
+  - name: fct_match_lineup
+    description: "Grain: one row per (source, lineup_id): a player named in a match squad (event_id)."
+    config: {tags: [serving]}
+    tests:
+      - unique_combination: {columns: [source, lineup_id]}
+    columns:
+      - name: event_id
+        tests: [not_null]
+
+  - name: dim_player
+    description: "Grain: one row per (source, player_id): a tracked player at the snapshot date (data_as_of)."
+    config: {tags: [serving]}
+    tests:
+      - unique_combination: {columns: [source, player_id]}
+    columns:
+      - name: player_id
+        tests: [not_null]
+      - name: position
+        tests:
+          - accepted_values: {values: ['Goalkeeper', 'Defender', 'Midfield', 'Attack', 'Missing']}
+      - name: market_value_eur
+        tests: [non_negative]
+      - name: height_cm
+        tests: [non_negative]
+
+  - name: fct_player_competition_season
+    description: "Grain: one row per (source, player_id, season, competition_id): a player's totals in one competition."
+    config: {tags: [serving]}
+    tests:
+      - unique_combination: {columns: [source, player_id, season, competition_id]}
+    columns:
+      - name: player_id
+        tests:
+          - not_null
+          - relationships: {to: ref('dim_player'), field: player_id}
+      - name: appearances
+        tests: [not_null, non_negative]
+      - name: goals
+        tests: [not_null, non_negative]
+      - name: assists
+        tests: [not_null, non_negative]
+      - name: minutes_played
+        tests: [not_null, non_negative]
+      - name: yellow_cards
+        tests: [non_negative]
+      - name: red_cards
+        tests: [non_negative]
+
+  - name: fct_transfer
+    description: "Grain: one row per transfer_id (player, date, from club, to club)."
+    config: {tags: [serving]}
+    columns:
+      - name: transfer_id
+        tests: [unique, not_null]
+      - name: transfer_date
+        tests: [not_null]
+      - name: transfer_fee
+        tests: [non_negative]
+      - name: market_value_eur
+        tests: [non_negative]

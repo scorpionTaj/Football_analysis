@@ -1,4 +1,8 @@
 from datetime import date, datetime, timedelta
+from pathlib import Path
+import os
+import shutil
+import tempfile
 import time
 
 import pandas as pd
@@ -8,7 +12,53 @@ from football_analysis.api.app import create_app
 from football_analysis.ingest import connect
 
 
+WAREHOUSE = Path(__file__).resolve().parents[1] / "warehouse"
+_DBT_WORK = Path(tempfile.gettempdir()) / "football-test-dbt"  # fixed so dbt can reuse its parse
+
+
+def build_marts(path):
+    """dbt run of the marts the API reads (tag:serving) against a test database, in-process.
+
+    dbt keeps its DuckDB handle open inside this process, so it works on a copy that is then
+    checkpointed and copied back; the caller's file stays free for read-only connections.
+    """
+    # dbt loads any .env it finds above the working directory (on import and on invoke); restore the
+    # environment afterwards so tests never pick up a real FOOTBALL_POSTGRES_DSN.
+    saved = dict(os.environ)
+    from dbt.cli.main import dbtRunner
+
+    work = Path(tempfile.mkdtemp()) / "dbt.duckdb"
+    shutil.copyfile(path, work)
+    os.environ["FOOTBALL_DUCKDB"] = str(work)
+    try:
+        result = dbtRunner().invoke([
+            "run", "--project-dir", str(WAREHOUSE), "--profiles-dir", str(WAREHOUSE), "--select", "+tag:serving",
+            "--target-path", str(_DBT_WORK / "target"), "--log-path", str(_DBT_WORK / "logs"), "--quiet",
+            "--no-send-anonymous-usage-stats",
+        ])
+    finally:
+        os.environ.clear()
+        os.environ.update(saved)
+    assert result.success, result.exception
+    with connect(work) as con:
+        con.execute("CHECKPOINT")  # fold dbt's WAL into the file before copying it back
+    shutil.copyfile(work, path)
+
+
+_seeded = None
+
+
 def seed(path):
+    """Seed the raw app tables and build the marts once, then copy that database per test."""
+    global _seeded
+    if _seeded is None:
+        _seeded = Path(tempfile.mkdtemp()) / "seed.duckdb"
+        _seed_raw(_seeded)
+        build_marts(_seeded)
+    shutil.copyfile(_seeded, path)
+
+
+def _seed_raw(path):
     with connect(path) as con:
         con.execute("""
             INSERT INTO matches (

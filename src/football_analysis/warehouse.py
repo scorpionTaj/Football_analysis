@@ -23,7 +23,8 @@ def build(db: Path = DB, select: str | None = None) -> dict:
     return {"status": "success", "detail": summary.split("Done.")[-1].strip()}
 
 
-LAYER_TABLES = {"marts": ["fct_match", "mart_team_season"], "ml": ["ml_match_features", "model_runs"]}
+LAYER_TABLES = {"marts": ["fct_match", "mart_team_season", "mart_dashboard_match", "fct_tournament_match",
+                          "fct_tournament_goal", "dim_player", "fct_match_lineup"], "ml": ["ml_match_features", "model_runs"]}
 
 
 def record_status(db: Path = DB) -> int:
