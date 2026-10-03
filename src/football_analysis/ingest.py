@@ -16,6 +16,7 @@ def _store_batch(con, league, year, batch):
         "SELECT count(*) FROM matches WHERE league=? AND season=?", [league, year],
     ).fetchone()[0]
     if cached_fingerprint(con, key) == batch.digest and existing_count == count:
+        mark_fresh(con, key, batch.digest)  # record the successful check, not only changes
         return False
     con.register("incoming", batch.frame)
     con.execute("BEGIN")

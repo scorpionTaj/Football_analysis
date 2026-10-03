@@ -23,10 +23,6 @@ def build(db: Path = DB, select: str | None = None) -> dict:
     return {"status": "success", "detail": summary.split("Done.")[-1].strip()}
 
 
-# Source tables with a load timestamp, and the column holding it.
-FRESHNESS = {"recent_matches": "fetched_at", "recent_events": "fetched_at", "tournament_matches": "fetched_at",
-             "open_players": "fetched_at", "team_media": "fetched_at", "ingestion_runs": "fetched_at",
-             "prediction_models": "trained_at"}
 LAYER_TABLES = {"marts": ["fct_match", "mart_team_season"], "ml": ["ml_match_features", "model_runs"]}
 
 
@@ -52,12 +48,13 @@ def record_status(db: Path = DB) -> int:
                 if f"{schema}.{name}" in tables:
                     count = con.execute(f"SELECT count(*) FROM {schema}.{name}").fetchone()[0]
                     rows.append(("layer_rows", f"{schema}.{name}", "ok", float(count), None, ""))
-        for name, column in FRESHNESS.items():
-            if f"main.{name}" in tables:
-                latest = con.execute(f"SELECT max({column}) FROM main.{name}").fetchone()[0]
-                hours = (now - latest).total_seconds() / 3600 if latest else None
-                rows.append(("freshness", name, "ok" if latest else "empty", hours, None,
-                             latest.isoformat() if latest else ""))
+        # Freshness = last successful check per source family (unchanged data still counts as checked).
+        if "main.source_sync_cache" in tables:
+            for name, latest in con.execute(
+                    "SELECT split_part(source, ':', 1), max(synced_at) FROM main.source_sync_cache "
+                    # completed seasons are immutable (bootstrap-only); prediction-model is the retired softmax key
+                    "WHERE split_part(source, ':', 1) NOT IN ('historical-matches', 'prediction-model') GROUP BY 1").fetchall():
+                rows.append(("freshness", name, "ok", (now - latest).total_seconds() / 3600, None, latest.isoformat()))
         con.execute("CREATE OR REPLACE TABLE main.pipeline_status (kind VARCHAR, name VARCHAR, status VARCHAR, "
                     "value DOUBLE, seconds DOUBLE, detail VARCHAR, checked_at TIMESTAMP)")
         con.executemany("INSERT INTO main.pipeline_status VALUES (?, ?, ?, ?, ?, ?, ?)", [(*r, now) for r in rows])
