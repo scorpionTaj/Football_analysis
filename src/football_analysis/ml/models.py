@@ -31,6 +31,13 @@ def _temper(p, t):
     return e / e.sum(axis=1, keepdims=True)
 
 
+def recency_weights(train, half_life):
+    """Older seasons count less (weight halves every `half_life` seasons); football drifts."""
+    if not half_life:
+        return None
+    return (0.5 ** ((train.season.max() - train.season) / half_life)).to_numpy()
+
+
 def fit_temperature(p, y):
     return float(minimize_scalar(lambda t: log_loss(_temper(p, t), y), bounds=(0.5, 2.5), method="bounded").x)
 
@@ -81,24 +88,26 @@ class MarketClosing(Model):
 
 
 class Logit(Model):
-    def __init__(self, name="logreg", features=FEATURES, C=0.05):
-        self.name, self.features, self.C = name, tuple(features), C
+    def __init__(self, name="logreg", features=FEATURES, C=0.05, half_life=4):
+        self.name, self.features, self.C, self.half_life = name, tuple(features), C, half_life
 
     def _fit(self, train, calib):
         self.pipe = make_pipeline(StandardScaler(), LogisticRegression(C=self.C, max_iter=2000))
-        self.pipe.fit(self._X(train), train.outcome)
+        self.pipe.fit(self._X(train), train.outcome,
+                      logisticregression__sample_weight=recency_weights(train, self.half_life))
 
     def _raw(self, frame):
         return self.pipe.predict_proba(self._X(frame))
 
     def params(self):
-        return {**super().params(), "C": self.C, "n_features": len(self.features)}
+        return {**super().params(), "C": self.C, "n_features": len(self.features), "half_life": self.half_life}
 
 
 class LightGBM(Model):
     name = "lightgbm"
 
-    def __init__(self, **overrides):
+    def __init__(self, half_life=6, **overrides):
+        self.half_life = half_life
         self.config = dict(objective="multiclass", num_class=3, learning_rate=0.03, n_estimators=2000,
                            num_leaves=15, min_child_samples=200, subsample=0.8, subsample_freq=1,
                            colsample_bytree=0.7, reg_lambda=5.0, verbose=-1)
@@ -108,7 +117,8 @@ class LightGBM(Model):
         import lightgbm as lgb
 
         self.model = lgb.LGBMClassifier(**self.config)
-        self.model.fit(self._X(train), train.outcome, eval_X=self._X(calib), eval_y=calib.outcome,
+        self.model.fit(self._X(train), train.outcome, sample_weight=recency_weights(train, self.half_life),
+                       eval_X=self._X(calib), eval_y=calib.outcome,
                        callbacks=[lgb.early_stopping(100, verbose=False)])
 
     def _raw(self, frame):

@@ -28,7 +28,8 @@ so same-day results never leak into each other (tested in `tests/test_ml.py` and
 
 Base-rate guess · Elo-only logistic · multinomial logistic regression · LightGBM (early stopping) ·
 Poisson goals with a Dixon-Coles low-score correction (also gives scorelines and over/under) ·
-ensemble (convex blend with weights fitted on the calibration season) · model + opening odds ·
+ensemble (convex blend with weights fitted on the calibration season); logistic regression and LightGBM
+use recency-weighted training · model + opening odds ·
 bookmaker closing line (benchmark only). Each model gets temperature calibration on the calibration season.
 
 ## Evaluation (`football_analysis/ml/evaluate.py`)
@@ -38,8 +39,12 @@ last four completed seasons, top flights only, matches with closing odds, so eve
 same 13,061 matches. Metrics: ranked probability score (primary), log loss, Brier score, accuracy and
 expected calibration error. The champion is the independent model (no odds) with the lowest RPS.
 
-Acceptance targets (`football_analysis.ml.TARGETS`): log loss ≤ 0.975 ✅ 0.9675 · RPS ≤ 0.200 ✅ 0.1947 ·
-ECE ≤ 0.02 ✅ 0.0038 · accuracy ≥ 53.5% ✗ 53.3%.
+Acceptance targets (`football_analysis.ml.TARGETS`): log loss ≤ 0.975 ✅ 0.9670 · RPS ≤ 0.200 ✅ 0.1946 ·
+ECE ≤ 0.02 ✅ 0.0048 · accuracy ≥ 53.5% ✗ 53.4% (standard error ≈ ±0.44 points, so not distinguishable).
+
+Tuning record: recency-weighted training (weight halves every 4 seasons for logistic regression, 6 for
+LightGBM) gave the only consistent gain. Elo K (15/20/28), form half-life (4/6/10) and between-season
+regression (0.65/0.8) all landed within ±0.0001 RPS of each other, i.e. the features are at a plateau.
 
 Honest reading: accuracy is a poor target for three-way outcomes (draws are rarely the most likely result).
 The champion closes 89% of the gap between a base-rate guess and the closing line. The remaining ~0.013 log
