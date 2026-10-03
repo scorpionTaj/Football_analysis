@@ -63,12 +63,9 @@ def create_app(
     response_cache: RedisResponseCache | None = None,
 ) -> FastAPI:
     path = Path(database_path) if database_path is not None else DB
-    writing_postgres = os.environ.get("FOOTBALL_STORAGE_BACKEND") == "postgres"
-    read_backend = os.environ.get("FOOTBALL_API_READ_BACKEND", "postgres" if writing_postgres else "duckdb").lower()
+    read_backend = os.environ.get("FOOTBALL_API_READ_BACKEND", "duckdb").lower()
     if read_backend not in {"duckdb", "postgres"}:
         raise ValueError("FOOTBALL_API_READ_BACKEND must be duckdb or postgres")
-    if writing_postgres and read_backend != "postgres":
-        raise ValueError("PostgreSQL writes require PostgreSQL API reads")
     match_backend = os.environ.get("FOOTBALL_MATCH_READ_BACKEND", "duckdb").lower()
     if match_backend not in {"duckdb", "postgres"}:
         raise ValueError("FOOTBALL_MATCH_READ_BACKEND must be duckdb or postgres")
@@ -371,8 +368,6 @@ def create_app(
 
     @app.post("/api/v1/refresh", response_model=RefreshStatusResponse, status_code=202)
     def start_refresh(body: RefreshRequest):
-        if read_backend == "postgres" and not writing_postgres:
-            raise HTTPException(status_code=409, detail="PostgreSQL snapshot refresh is not available yet")
         def execute(refresh_request: RefreshRequest, progress):
             current = app.state.store
             if current is not None:

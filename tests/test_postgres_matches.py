@@ -23,7 +23,7 @@ from football_analysis.api.postgres_matches import Partition, PartitionUnavailab
 from football_analysis.api.queries import list_matches, load_match_source_rows
 from football_analysis.ingest import connect
 from football_analysis.postgres_snapshot import copy_snapshot
-from football_analysis.postgres_write import PostgresWriteStore
+from football_analysis.publish import build_sqlite_fallback, publish_postgres
 from football_analysis.sqlite_snapshot import refresh_local_snapshot
 
 
@@ -114,67 +114,29 @@ def _body(response):
     return body
 
 
-def test_postgres_ingest_writes_verified_snapshot(match_db, postgres_server, monkeypatch, tmp_path):
-    from football_analysis.adapters import Batch
-    from football_analysis.ingest import ingest
-    from football_analysis.api.db import PostgresReadOnlyStore
-    from football_analysis.transfers import sync_transfers
+def test_publish_swaps_only_changed_tables(match_db, postgres_server, tmp_path):
+    from football_analysis.api.db import SQLiteReadOnlyStore
 
-    schema = "ingest_test_" + uuid.uuid4().hex
-    copy_snapshot(match_db, postgres_server, schema)
+    schema = "publish_test_" + uuid.uuid4().hex
     try:
-        monkeypatch.setenv("FOOTBALL_STORAGE_BACKEND", "postgres")
-        monkeypatch.setenv("FOOTBALL_POSTGRES_DSN", postgres_server)
-        monkeypatch.setenv("FOOTBALL_POSTGRES_SCHEMA", schema)
+        first = publish_postgres(postgres_server, schema, match_db)
+        assert "matches" in first["changed"] and not first["unchanged"]
+        assert publish_postgres(postgres_server, schema, match_db)["changed"] == {}
+        with connect(match_db) as con:
+            con.execute("UPDATE matches SET home_goals = 9 WHERE league = 'SP1' AND season = 2024 "
+                        "AND home_team = (SELECT min(home_team) FROM matches WHERE league = 'SP1')")
+        assert set(publish_postgres(postgres_server, schema, match_db)["changed"]) == {"matches"}
         with PostgresReadOnlyStore(postgres_server, schema) as store:
-            original = store.query("SELECT * FROM matches WHERE league=? AND season=?", ["SP1", 2024])
-        changed = original.iloc[:1].copy()
-        changed.loc[:, "home_goals"] = 4
-
-        class Adapter:
-            def fetch(self, league, year):
-                return Batch(changed, "test://match", "new-digest")
-
-        monkeypatch.setattr("football_analysis.ingest.QUEUE_PATH", tmp_path / "pending.sqlite3")
-        monkeypatch.delenv("FOOTBALL_POSTGRES_DSN")
-        assert ingest(Adapter(), years=[2024], leagues=["SP1"])[0]["status"] == "deferred"
-        monkeypatch.setenv("FOOTBALL_POSTGRES_DSN", postgres_server)
-        result = ingest(Adapter(), years=[2024], leagues=["SP1"])
-        assert result[0]["status"] == "success"
-        import pandas as pd
-        pd.DataFrame([{"club_id": 11, "name": "Arsenal", "domestic_competition_id": "GB1"}]).to_csv(
-            tmp_path / "clubs.csv.gz", index=False,
-        )
-        pd.DataFrame([{"player_id": 7, "image_url": "https://example.test/7.jpg"}]).to_csv(
-            tmp_path / "players.csv.gz", index=False,
-        )
-        pd.DataFrame([{"player_id": 7, "player_name": "Example", "transfer_date": "2026-09-03",
-                       "transfer_season": "26/27", "from_club_id": 99, "to_club_id": 11,
-                       "from_club_name": "Old", "to_club_name": "Old", "transfer_fee": 100,
-                       "market_value_in_eur": 200}]).to_csv(tmp_path / "transfers.csv.gz", index=False)
-        assert sync_transfers(directory=tmp_path) == 1
-        with PostgresReadOnlyStore(postgres_server, schema) as store:
-            assert store.scalar("SELECT count(*) FROM matches WHERE league=? AND season=?", ["SP1", 2024]) == 1
-            assert store.scalar("SELECT home_goals FROM matches WHERE league=? AND season=?", ["SP1", 2024]) == 4
-            assert store.scalar("SELECT count(*) FROM elo_ratings WHERE league=? AND season=?", ["SP1", 2024]) == 4
-            assert store.scalar("SELECT count(*) FROM transfers") == 1
-        from football_analysis.api.contracts import RefreshRequest
-        from football_analysis.api.refresh import RefreshRunReport
-        import time
-
-        app = create_app(tmp_path / "refresh.duckdb", refresh_runner=lambda *_: RefreshRunReport())
-        endpoint = next(route.endpoint for route in app.routes if route.path == "/api/v1/refresh" and "POST" in route.methods)
-        endpoint(RefreshRequest(target_step=1))
-        for _ in range(100):
-            if app.state.refresh.status().status != "running":
-                break
-            time.sleep(0.01)
-        assert app.state.refresh.status().status == "success"
-        assert isinstance(app.state.store, PostgresReadOnlyStore)
-        app.state.store.close()
+            assert store.scalar("SELECT max(home_goals) FROM matches") == 9
+            assert store.scalar("SELECT count(*) FROM team_seasons") > 0  # views rebuilt after swap
+        local = tmp_path / "fallback.sqlite3"
+        counts = build_sqlite_fallback(match_db, local)
+        with SQLiteReadOnlyStore(local) as store:
+            assert store.scalar("SELECT count(*) FROM matches") == counts["matches"]
+            assert store.scalar("SELECT count(*) FROM team_seasons") > 0
     finally:
         with _connect(postgres_server, autocommit=True) as conn:
-            conn.execute(f"DROP SCHEMA {schema} CASCADE")
+            conn.execute(f"DROP SCHEMA IF EXISTS {schema} CASCADE")
 
 
 def test_sqlite_read_fallback_preserves_api_data(match_db, postgres_server, monkeypatch):
@@ -218,11 +180,6 @@ def test_match_read_model_rejects_public_schema(monkeypatch):
     monkeypatch.setenv("FOOTBALL_POSTGRES_SCHEMA", "public")
     with pytest.raises(ValueError, match="private application schema"):
         _schema_name()
-
-
-def test_postgres_writer_requires_explicit_dsn():
-    with pytest.raises(ValueError, match="FOOTBALL_POSTGRES_DSN"):
-        PostgresWriteStore("", "football_analysis_next")
 
 
 def test_json_round_trip_keeps_shared_match_semantics(match_db):
@@ -396,7 +353,7 @@ def test_postgres_snapshot_supports_shared_api_queries(match_db, postgres_server
             assert pg_body == duck_body
 
 
-def test_postgres_snapshot_api_switch_and_refresh_guard(match_db, postgres_server, monkeypatch):
+def test_postgres_snapshot_api_switch(match_db, postgres_server, monkeypatch):
     import psycopg
 
     schema = "snapshot_test_" + uuid.uuid4().hex
@@ -435,7 +392,6 @@ def test_postgres_snapshot_api_switch_and_refresh_guard(match_db, postgres_serve
         assert _body(pg.post("/api/v1/analysis", json={"competitions": ["SP1"], "seasons": [2024]})) == _body(
             duck.post("/api/v1/analysis", json={"competitions": ["SP1"], "seasons": [2024]})
         )
-        assert pg.post("/api/v1/refresh", json={"step": 1}).status_code == 409
     finally:
         pg_app.state.store.close()
         duck_app.state.store.close()

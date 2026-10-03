@@ -1,43 +1,13 @@
 import argparse
 import json
-import os
-import sqlite3
-from io import StringIO
 from importlib.resources import files
 from uuid import uuid4
 import duckdb
 import pandas as pd
-from .adapters import Batch, FootballDataCSV, LocalCSV
+from .adapters import FootballDataCSV, LocalCSV
 from .analytics import elo_history, team_match_rows, team_shot_efficiency
 from .config import DATA, DB, LEAGUES, seasons
 from .sync_state import cached_fingerprint, mark_fresh
-
-QUEUE_PATH = DATA / "pending_matches.sqlite3"
-
-
-def _connection_unavailable(exc, db):
-    if os.environ.get("FOOTBALL_STORAGE_BACKEND") != "postgres" or db != DB:
-        return False
-    from psycopg import OperationalError
-
-    return isinstance(exc, OperationalError) or str(exc) == "FOOTBALL_POSTGRES_DSN is required for PostgreSQL writes"
-
-
-def _queue_batch(league, year, batch):
-    QUEUE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(QUEUE_PATH) as queue:
-        queue.execute(
-            "CREATE TABLE IF NOT EXISTS pending_matches ("
-            "league TEXT NOT NULL, season INTEGER NOT NULL, url TEXT NOT NULL, "
-            "digest TEXT NOT NULL, rows_json TEXT NOT NULL, "
-            "PRIMARY KEY (league, season))"
-        )
-        queue.execute(
-            "INSERT OR REPLACE INTO pending_matches VALUES (?, ?, ?, ?, ?)",
-            [league, year, batch.url, batch.digest,
-             batch.frame.to_json(orient="records", date_format="iso")],
-        )
-
 
 def _store_batch(con, league, year, batch):
     count = len(batch.frame)
@@ -66,32 +36,8 @@ def _store_batch(con, league, year, batch):
     return True
 
 
-def _drain_queue(con):
-    if not QUEUE_PATH.exists():
-        return
-    with sqlite3.connect(QUEUE_PATH) as queue:
-        records = queue.execute(
-            "SELECT league, season, url, digest, rows_json FROM pending_matches ORDER BY season, league"
-        ).fetchall()
-        for league, year, url, digest, rows_json in records:
-            frame = pd.read_json(StringIO(rows_json), orient="records")
-            frame["match_date"] = pd.to_datetime(frame.match_date).dt.date
-            _store_batch(con, league, year, Batch(frame, url, digest))
-        if records:
-            refresh_analytics(con)
-            queue.executemany(
-                "DELETE FROM pending_matches WHERE league=? AND season=?",
-                [(league, year) for league, year, *_ in records],
-            )
-
 def connect(db=DB):
-    if os.environ.get("FOOTBALL_STORAGE_BACKEND") == "postgres" and db == DB:
-        from .postgres_write import PostgresWriteStore
-
-        return PostgresWriteStore(
-            os.environ.get("FOOTBALL_POSTGRES_DSN", ""),
-            os.environ.get("FOOTBALL_POSTGRES_SCHEMA", "football_analysis_next"),
-        )
+    """DuckDB is the single writer; serving stores are filled by `football-publish`."""
     db.parent.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect(str(db))
     con.execute(files("football_analysis").joinpath("schema.sql").read_text())
@@ -145,67 +91,24 @@ def ingest(adapter, db=DB, years=None, leagues=None):
     changed = False
     partitions = [(league, year) for year in (years if years is not None else seasons())
                   for league in (leagues if leagues is not None else LEAGUES)]
-    try:
-        con = connect(db)
-    except Exception as exc:
-        if not _connection_unavailable(exc, db):
-            raise
-        for league, year in partitions:
-            try:
-                batch = adapter.fetch(league, year)
-                _queue_batch(league, year, batch)
-                row = dict(league=league, season=year, status="deferred", rows=len(batch.frame),
-                           detail="Stored locally; PostgreSQL is unavailable")
-            except Exception as fetch_exc:
-                row = dict(league=league, season=year, status="failed", detail=str(fetch_exc))
-            report.append(row)
-            print(json.dumps(row), flush=True)
-        return report
-    with con:
-        if os.environ.get("FOOTBALL_STORAGE_BACKEND") == "postgres" and db == DB:
-            _drain_queue(con)
-        offline = False
-        last_batch = None
+    with connect(db) as con:
         for league, year in partitions:
             run_id = str(uuid4())
             url, digest, count = "", "", 0
             try:
                 batch = adapter.fetch(league, year)
-                last_batch = (league, year, batch)
                 url, digest, count = batch.url, batch.digest, len(batch.frame)
-                if offline:
-                    _queue_batch(league, year, batch)
-                    report.append(dict(league=league, season=year, status="deferred", rows=count,
-                                       detail="Stored locally; PostgreSQL is unavailable"))
-                    print(json.dumps(report[-1]), flush=True)
-                    continue
                 updated = _store_batch(con, league, year, batch)
                 report.append(dict(league=league, season=year, status="success", rows=count,
                                    **({"unchanged": True} if not updated else {})))
                 changed |= updated
             except Exception as exc:
-                if _connection_unavailable(exc, db) and count:
-                    try:
-                        _queue_batch(league, year, batch)
-                        offline = True
-                        report.append(dict(league=league, season=year, status="deferred", rows=count,
-                                           detail="Stored locally; PostgreSQL connection was lost"))
-                    except Exception as queue_exc:
-                        report.append(dict(league=league, season=year, status="failed", detail=str(queue_exc)))
-                else:
-                    if not offline:
-                        con.execute("INSERT INTO ingestion_runs VALUES (?, ?, ?, ?, ?, ?, 'failed', ?, current_timestamp)", [run_id, league, year, url, digest, count, str(exc)])
-                    report.append(dict(league=league, season=year, status="failed", detail=str(exc)))
+                con.execute("INSERT INTO ingestion_runs VALUES (?, ?, ?, ?, ?, ?, 'failed', ?, current_timestamp)",
+                            [run_id, league, year, url, digest, count, str(exc)])
+                report.append(dict(league=league, season=year, status="failed", detail=str(exc)))
             print(json.dumps(report[-1]), flush=True)
-        if changed and not offline:
-            try:
-                refresh_analytics(con)
-            except Exception as exc:
-                if not _connection_unavailable(exc, db) or last_batch is None:
-                    raise
-                _queue_batch(*last_batch)
-                report.append(dict(league=last_batch[0], season=last_batch[1], status="deferred",
-                                   detail="Results saved; analytics queued for retry"))
+        if changed:
+            refresh_analytics(con)
     return report
 
 def main():

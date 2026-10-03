@@ -142,16 +142,31 @@ def champion_model():
     })
 
 
+@dg.asset(deps=[champion_model, app_analytics_cache, app_recent_events, app_reference_standings,
+                 app_tournament_matches, app_open_players, app_media], group_name="serving",
+          description="Changed tables swapped into PostgreSQL atomically; local SQLite fallback rebuilt.")
+def serving_stores():
+    from ..publish import build_sqlite_fallback, publish_postgres
+    metadata = {}
+    if os.environ.get("FOOTBALL_POSTGRES_DSN"):
+        report = publish_postgres(os.environ["FOOTBALL_POSTGRES_DSN"],
+                                  os.environ.get("FOOTBALL_POSTGRES_SCHEMA", "football_analysis_next"))
+        metadata = {"postgres_changed": dg.MetadataValue.json(report["changed"]),
+                    "postgres_unchanged": len(report["unchanged"])}
+    counts = build_sqlite_fallback()
+    return dg.MaterializeResult(metadata={**metadata, "sqlite_tables": len(counts), "sqlite_rows": sum(counts.values())})
+
+
 # ── Jobs and schedules (mirrors the old four-step refresh cadence) ────────────
 
 core = dg.AssetSelection.assets(app_recent_matches, app_recent_events)
-downstream = dg.AssetSelection.assets(warehouse, champion_model, app_analytics_cache)
+downstream = dg.AssetSelection.assets(warehouse, champion_model, app_analytics_cache, serving_stores)
 jobs = [
     dg.define_asset_job("hourly_fixtures", selection=dg.AssetSelection.assets(app_recent_events)),
     dg.define_asset_job("six_hourly_refresh", selection=core | dg.AssetSelection.assets(
         landing_football_data, app_reference_standings) | downstream),
-    dg.define_asset_job("daily_details", selection=dg.AssetSelection.assets(app_tournament_matches, app_media)),
-    dg.define_asset_job("weekly_players", selection=dg.AssetSelection.assets(app_open_players)),
+    dg.define_asset_job("daily_details", selection=dg.AssetSelection.assets(app_tournament_matches, app_media, serving_stores)),
+    dg.define_asset_job("weekly_players", selection=dg.AssetSelection.assets(app_open_players, serving_stores)),
     dg.define_asset_job("bootstrap", selection=dg.AssetSelection.all()),
 ]
 by_name = {job.name: job for job in jobs}
@@ -164,7 +179,7 @@ schedules = [
 
 defs = dg.Definitions(
     assets=[landing_football_data, app_matches, app_recent_matches, app_recent_events, app_reference_standings,
-            app_tournament_matches, app_open_players, app_media, app_analytics_cache, warehouse, champion_model],
+            app_tournament_matches, app_open_players, app_media, app_analytics_cache, warehouse, champion_model, serving_stores],
     jobs=jobs,
     schedules=schedules,
     resources={"dbt": DbtCliResource(project_dir=dbt_project,

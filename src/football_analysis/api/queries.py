@@ -1551,7 +1551,7 @@ def _league_title_outlooks(store: ReadOnlyStore, tm_map: dict[str, Any]) -> list
 
 
 def predictions(store: ReadOnlyStore) -> PredictionsResponse:
-    empty = PredictionsResponse(source=_source("softmax-form-shots", "empty"))
+    empty = PredictionsResponse(source=_source("champion-model", "empty"))
     if not _has(store, "prediction_models"):
         return empty
     models = store.query("SELECT * FROM prediction_models ORDER BY trained_at DESC, model_id LIMIT 1")
@@ -1623,7 +1623,7 @@ def predictions(store: ReadOnlyStore) -> PredictionsResponse:
         metrics=metrics, calibration=calibration, forecasts=forecasts,
         forecast_history=forecast_history, forecast_record=forecast_record,
         league_outlooks=_league_title_outlooks(store, tm_map),
-        source=_source("softmax-form-shots", "predictions", model.trained_at),
+        source=_source("champion-model", "predictions", model.trained_at),
     )
 
 

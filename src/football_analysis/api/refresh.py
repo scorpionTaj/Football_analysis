@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -314,4 +315,12 @@ def run_refresh_pipeline(database: Path, request: RefreshRequest, progress: Prog
         report.attempt(4, "Model leaderboard", lambda: {
             "status": "success", "champion": str(train(db=database).query("is_champion").model.iloc[0]),
         }, required=True)
+        from football_analysis.publish import build_sqlite_fallback, publish_postgres
+
+        if os.environ.get("FOOTBALL_POSTGRES_DSN"):
+            report.attempt(4, "Publish PostgreSQL", lambda: {"status": "success", **publish_postgres(
+                os.environ["FOOTBALL_POSTGRES_DSN"],
+                os.environ.get("FOOTBALL_POSTGRES_SCHEMA", "football_analysis_next"), database)})
+            report.attempt(4, "SQLite fallback", lambda: {
+                "status": "success", "tables": len(build_sqlite_fallback(database, database.with_suffix(".sqlite3")))})
     return report
