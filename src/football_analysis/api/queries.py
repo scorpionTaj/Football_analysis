@@ -49,6 +49,8 @@ from football_analysis.api.contracts import (
     PlayerProfileResponse,
     PlayerStat,
     PlayerSummary,
+    ModelRun,
+    ModelsResponse,
     PredictionsResponse,
     QualityCell,
     QualityResponse,
@@ -1625,6 +1627,31 @@ def predictions(store: ReadOnlyStore) -> PredictionsResponse:
         league_outlooks=_league_title_outlooks(store, tm_map),
         source=_source("champion-model", "predictions", model.trained_at),
     )
+
+
+def models(store: ReadOnlyStore) -> ModelsResponse:
+    """Walk-forward leaderboard of every candidate model (written by football-train-models)."""
+    from football_analysis.ml.train import TARGETS
+
+    if not _has(store, "model_runs"):
+        return ModelsResponse(targets=TARGETS, source=_source("model-leaderboard", "empty"))
+    frame = store.query("SELECT * FROM model_runs ORDER BY rps")
+
+    def parsed(value):
+        return json.loads(value) if isinstance(value, str) and value else []
+
+    runs = [ModelRun(
+        model=row.model, log_loss=float(row.log_loss), rps=float(row.rps), brier=float(row.brier),
+        accuracy=float(row.accuracy), ece=float(row.ece), matches=int(row.n),
+        independent=bool(row.independent), is_champion=bool(row.is_champion),
+        trained_at=_as_datetime(row.trained_at),
+        params=parsed(getattr(row, "params", None)) or {},
+        seasons=parsed(getattr(row, "seasons", None)), calibration=parsed(row.bins),
+    ) for row in frame.itertuples(index=False)]
+    champion = next((run.model for run in runs if run.is_champion), None)
+    trained = runs[0].trained_at if runs else None
+    return ModelsResponse(champion=champion, targets=TARGETS, runs=runs,
+                          source=_source("model-leaderboard", "walk-forward", trained))
 
 
 def overview(

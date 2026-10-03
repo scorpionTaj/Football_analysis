@@ -138,7 +138,7 @@ def champion_model():
     return dg.MaterializeResult(metadata={
         "champion": str(champion.model),
         **{k: float(champion[k]) for k in ("log_loss", "rps", "accuracy", "ece")},
-        "leaderboard": dg.MetadataValue.md(board.drop(columns=["bins", "run_id"]).to_markdown(index=False)),
+        "leaderboard": dg.MetadataValue.md(board.drop(columns=["bins", "seasons", "params", "run_id"]).to_markdown(index=False)),
     })
 
 

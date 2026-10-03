@@ -77,8 +77,10 @@ def train(db=DB, test_seasons=None, tracking_uri=None):
                 p = predictions[["p_home", "p_draw", "p_away"]].to_numpy()
                 bins = calibration_bins(p, predictions.outcome.to_numpy())
                 mlflow.log_dict({"bins": bins}, "calibration_bins.json")
+                seasons = [{"season": int(season), **score(part)} for season, part in predictions.groupby("season")]
                 rows.append({"run_id": run.info.run_id, "model": name, **overall, "trained_at": stamp,
-                             "independent": name in INDEPENDENT, "bins": json.dumps(bins)})
+                             "independent": name in INDEPENDENT, "bins": json.dumps(bins),
+                             "seasons": json.dumps(seasons), "params": json.dumps(model.params(), default=float)})
         board = pd.DataFrame(rows).sort_values("rps")
         champion = board[board.independent].iloc[0].model
         board["is_champion"] = board.model == champion
@@ -89,9 +91,9 @@ def train(db=DB, test_seasons=None, tracking_uri=None):
         mlflow.log_metrics({"champion_gap_to_market_log_loss":
                             float(board.loc[board.model == champion, "log_loss"].iloc[0] - market.log_loss),
                             **{k: float(v) for k, v in gaps.items()}})
-        mlflow.log_table(board.drop(columns="bins"), "leaderboard.json")
+        mlflow.log_table(board.drop(columns=["bins", "seasons", "params"]), "leaderboard.json")
     _publish(db, frame, board, champion, results, current)
-    print(board.drop(columns=["bins", "run_id"]).to_string(index=False))
+    print(board.drop(columns=["bins", "seasons", "params", "run_id"]).to_string(index=False))
     return board
 
 

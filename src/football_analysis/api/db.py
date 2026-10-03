@@ -20,6 +20,9 @@ class ReadOnlyStore:
         if not self.path.exists():
             raise FileNotFoundError(f"Database is missing: {self.path}")
         self._con = duckdb.connect(str(self.path), read_only=True)
+        # Serving stores are flat; in DuckDB the warehouse layers live in their own schemas.
+        schemas = {row[0] for row in self._con.execute("SELECT schema_name FROM information_schema.schemata").fetchall()}
+        self._con.execute(f"SET search_path = '{','.join(s for s in ('main', 'marts', 'ml') if s in schemas)}'")
         self._lock = threading.Lock()
         self.opened_at = datetime.now().replace(microsecond=0)
         # A refresh closes this read snapshot and opens a new one. The token
@@ -28,10 +31,9 @@ class ReadOnlyStore:
         self.generation = uuid4().hex
 
     def tables(self) -> set[str]:
-        frame = self.query("SHOW TABLES")
-        if frame.empty:
-            return set()
-        return set(frame.iloc[:, 0].astype(str))
+        frame = self.query("SELECT table_name FROM information_schema.tables "
+                           "WHERE table_schema IN ('main', 'marts', 'ml')")
+        return set(frame.table_name.astype(str))
 
     def query(self, sql: str, params: list | tuple | None = None) -> pd.DataFrame:
         with self._lock:
