@@ -1,6 +1,14 @@
 -- Every landed Football-Data CSV (2005+, first and second divisions), typed.
 -- Raw files are read directly: the landing zone is the raw layer for this source.
+{%- set optional = ['Time', 'HTHG', 'HTAG', 'HS', 'AS', 'HST', 'AST', 'HC', 'AC', 'HF', 'AF', 'HY', 'AY', 'HR', 'AR',
+                     'Referee', 'AvgH', 'AvgD', 'AvgA', 'BbAvH', 'BbAvD', 'BbAvA', 'PSCH', 'PSCD', 'PSCA',
+                     'AvgCH', 'AvgCD', 'AvgCA'] %}
+
+-- Columns vary by season (e.g. BbAv* until 2019, Avg* after); guarantee every optional one exists.
 with raw as (
+    select {% for c in optional %}null::varchar as "{{ c }}"{% if not loop.last %}, {% endif %}{% endfor %}
+    where false
+    union all by name
     select * from {{ source('landing', 'football_data_csv') }}
 ),
 

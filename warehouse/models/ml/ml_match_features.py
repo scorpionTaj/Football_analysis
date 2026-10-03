@@ -21,7 +21,7 @@ def reconcile_fixtures(fixtures, played):
     fixtures = fixtures.drop_duplicates(["league", "season", "home_team", "away_team"])
     completed = set(zip(played.league, played.season, played.home_team, played.away_team))
     keep = [k not in completed for k in zip(fixtures.league, fixtures.season, fixtures.home_team, fixtures.away_team)]
-    return fixtures[keep][["league", "season", "match_date", "home_team", "away_team"]]
+    return fixtures[pd.Series(keep, index=fixtures.index, dtype=bool)][["league", "season", "match_date", "home_team", "away_team"]]
 
 
 def model(dbt, session):
