@@ -28,8 +28,9 @@ so same-day results never leak into each other (tested in `tests/test_ml.py` and
 
 Base-rate guess · Elo-only logistic · multinomial logistic regression · LightGBM (early stopping) ·
 Poisson goals with a Dixon-Coles low-score correction (also gives scorelines and over/under) ·
-ensemble (convex blend with weights fitted on the calibration season); logistic regression and LightGBM
-use recency-weighted training · model + opening odds ·
+ensemble (convex blend with weights fitted on the calibration season) · stacked (multinomial logistic
+meta-learner on member log-probabilities, fitted on out-of-fold predictions from the last six seasons of the
+training window only); logistic regression and LightGBM use recency-weighted training · model + opening odds ·
 bookmaker closing line (benchmark only). Each model gets temperature calibration on the calibration season.
 
 ## Evaluation (`football_analysis/ml/evaluate.py`)
@@ -51,6 +52,23 @@ The champion closes 89% of the gap between a base-rate guess and the closing lin
 loss to the market is typical of public-data models; the market prices team news, injuries and line-ups
 that results-only features cannot see.
 
+Stacking and time-series tuning (October 2026). Same 13,061 matches; Δ is RPS minus the ensemble's, with the
+paired standard error over matches (negative would be better):
+
+| Variant | RPS | Log loss | Accuracy | Δ RPS ± SE |
+|---|---|---|---|---|
+| Ensemble (champion) | 0.19458 | 0.9670 | 53.4% | — |
+| Stacked, 6 out-of-fold seasons | 0.19475 | 0.9680 | 53.6% | +0.00017 ± 0.00010 |
+| Ensemble with tuned members | 0.19467 | 0.9672 | 53.4% | +0.00009 ± 0.00004 |
+| Logistic regression, tuned (C 0.02, half-life 6) | 0.19478 | 0.9679 | 53.2% | +0.00020 ± 0.00008 |
+| LightGBM, tuned (7 leaves, min child 100) | 0.19493 | 0.9685 | 53.4% | +0.00035 ± 0.00011 |
+
+Nothing beat the ensemble. The stack loses by 1.6 standard errors (not distinguishable; 3- and 4-fold stacks were
+worse, 0.19517 and 0.19492, so more out-of-fold seasons help, and the fold count was picked after seeing these
+scores). `football-train-models --tune` (TimeSeriesSplit, four date-ordered folds before the first test season, one
+MLflow child run per trial) moved CV RPS by under 0.00006, and its winners did slightly *worse* walk-forward, so the
+defaults stay. The stack remains a leaderboard candidate; the champion rule is unchanged.
+
 ## Tracking and serving
 
 Two modes. `football-train-models` runs the full walk-forward leaderboard (~3 min). Routine refreshes
@@ -68,5 +86,5 @@ tables so `/api/v1/predictions` keeps its contract. `/api/v1/models` serves the 
 
 ## Next levers
 
-Tune Elo/pi-rating parameters and LightGBM with time-series cross-validation (log each trial as a child
-run); add expected-goals proxies when a free shot-location source exists; stack instead of blending.
+Model choice and hyperparameters are at a plateau. Remaining gains need new information: expected-goals proxies
+when a free shot-location source exists, and line-up/injury signals (the main thing the closing line prices in).
