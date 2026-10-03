@@ -9,12 +9,6 @@ No paid API or key is required.
 
 [![Full pipeline architecture](docs/architecture.png)](docs/architecture.svg)
 
-Full pipeline: free sources → Python extractors with freshness gates → DuckDB warehouse (dbt layers and
-data tests) → walk-forward models tracked in MLflow → verified publish to PostgreSQL with a SQLite
-fallback → FastAPI → Next.js, orchestrated by Dagster and checked in CI. Click for the scalable SVG.
-Regenerate with `python scripts/architecture_diagram.py docs/architecture.svg` then
-`node scripts/svg_to_png.mjs docs/architecture.svg docs/architecture.png`.
-
 ## Quick start
 
 ```bash
@@ -42,16 +36,16 @@ retrains and publishes. DuckDB allows one writer: stop other processes holding t
 Walk-forward evaluation: each of the last four completed seasons is predicted by models trained
 only on earlier seasons (calibrated on the season before), scored on 13,061 top-flight matches.
 
-| Model                              | RPS ↓      | Log loss ↓ | Accuracy  | ECE ↓     |
-| ---------------------------------- | ---------- | ---------- | --------- | --------- |
-| Bookmaker closing line (benchmark) | 0.1905     | 0.954      | 54.9%     | 0.011     |
-| Model + opening odds               | 0.1911     | 0.956      | 54.4%     | 0.004     |
-| **Ensemble (champion, no odds)**   | **0.1946** | **0.967**  | **53.4%** | **0.005** |
-| Logistic regression                | 0.1947     | 0.968      | 53.4%     | 0.005     |
-| LightGBM                           | 0.1949     | 0.969      | 53.4%     | 0.003     |
-| Poisson + Dixon-Coles              | 0.1951     | 0.969      | 53.3%     | 0.004     |
-| Elo only                           | 0.1975     | 0.977      | 53.0%     | 0.006     |
-| Base-rate guess                    | 0.2304     | 1.074      | 43.8%     | 0.009     |
+| Model                                  | RPS ↓           | Log loss ↓     | Accuracy        | ECE ↓          |
+| -------------------------------------- | ---------------- | --------------- | --------------- | --------------- |
+| Bookmaker closing line (benchmark)     | 0.1905           | 0.954           | 54.9%           | 0.011           |
+| Model + opening odds                   | 0.1911           | 0.956           | 54.4%           | 0.004           |
+| **Ensemble (champion, no odds)** | **0.1946** | **0.967** | **53.4%** | **0.005** |
+| Logistic regression                    | 0.1947           | 0.968           | 53.4%           | 0.005           |
+| LightGBM                               | 0.1949           | 0.969           | 53.4%           | 0.003           |
+| Poisson + Dixon-Coles                  | 0.1951           | 0.969           | 53.3%           | 0.004           |
+| Elo only                               | 0.1975           | 0.977           | 53.0%           | 0.006           |
+| Base-rate guess                        | 0.2304           | 1.074           | 43.8%           | 0.009           |
 
 The champion recovers 89% of the closing line's skill over a base-rate guess and meets the
 log-loss, RPS and calibration targets; accuracy (53.4%) is 0.1 points under its 53.5% target, well
