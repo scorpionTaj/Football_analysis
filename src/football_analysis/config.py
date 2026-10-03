@@ -1,8 +1,25 @@
 from datetime import date
 from pathlib import Path
 import os
+import sys
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def _load_dotenv(path: Path) -> None:
+    """Read KEY=VALUE lines from the project .env so every shell (bash, zsh, fish) works.
+    Variables already set in the environment win. Skipped under pytest so tests never see real DSNs."""
+    if "pytest" in sys.modules or not path.is_file():
+        return
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.removeprefix("export ").partition("=")
+        os.environ.setdefault(key.strip(), value.strip().strip("'\""))
+
+
+_load_dotenv(ROOT / ".env")
 DATA = Path(os.environ.get("FOOTBALL_DATA_DIR", ROOT / "data"))
 DB = DATA / "football.duckdb"
 LEAGUES = {"E0": "Premier League", "SP1": "La Liga", "D1": "Bundesliga", "I1": "Serie A", "F1": "Ligue 1"}

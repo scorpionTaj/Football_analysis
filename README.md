@@ -16,7 +16,7 @@ uv sync --extra dev --extra de --extra ml
 uv run football-fetch-history                 # land 2005+ CSVs (once; ~6 min, courteous pacing)
 uv run football-build-warehouse                # dbt build: models + 28 data tests
 uv run football-train-models                  # leaderboard + champion + forecasts
-set -a; . ./.env; set +a; uv run football-publish   # PostgreSQL + SQLite fallback
+uv run football-publish                       # PostgreSQL + SQLite fallback (reads .env itself)
 FOOTBALL_API_READ_BACKEND=postgres uv run football-api
 npm --prefix frontend run dev -- --port 3001
 ```
