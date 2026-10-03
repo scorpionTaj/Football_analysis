@@ -16,5 +16,4 @@ engineering / data science restructure) are recorded in git history.
 - [ ] Optional API-Football current-squad adapter once a free key is configured.
 
 ## Frontend
-- [ ] Split the remaining Overview charts into their own components (the transfer market is already separate).
 - [ ] Lighthouse budget (performance and accessibility ≥ 90) on Overview and Predictions in CI.
