@@ -18,7 +18,6 @@ import json
 import os
 import re
 import tempfile
-from importlib.resources import files
 from pathlib import Path
 
 import duckdb
@@ -27,25 +26,32 @@ from psycopg import sql
 from .config import DB, LOCAL_SNAPSHOT
 from .pg import TYPES, chunks as _chunks, connect as _connect, rows_digest as _rows_digest, schema_name as _name
 
-# Warehouse outputs served next to the app tables (published name -> DuckDB relation).
-# Only what the API reads: the Supabase free tier caps the database at 500 MB, so large
-# analytical tables (fct_match, backtest predictions, features) stay in DuckDB.
+# App tables the API reads directly (live feeds, media, model outputs, run status).
+APP_TABLES = {
+    "recent_matches", "recent_events", "event_statistics", "reference_standings", "ingestion_runs",
+    "team_media", "competition_media", "prediction_models", "match_predictions", "forecast_history",
+    "elo_ratings", "shot_efficiency_cache", "analytics_metadata", "pipeline_status",
+}
+# Warehouse outputs served next to them (published name -> DuckDB relation). Only what the API
+# reads: the Supabase free tier caps the database at 500 MB, so large analytical tables
+# (fct_match, backtest predictions, features) and the raw tables behind these marts stay in DuckDB.
 WAREHOUSE_TABLES = {
     "mart_team_season": "marts.mart_team_season",
     "model_runs": "ml.model_runs",
+    **{name: f"marts.{name}" for name in (
+        "mart_dashboard_match", "mart_dashboard_team_match", "mart_dashboard_team_season",
+        "fct_tournament_match", "fct_tournament_goal", "fct_match_context", "fct_match_timeline_event",
+        "fct_match_lineup", "dim_player", "fct_player_competition_season", "fct_transfer",
+    )},
 }
-VIEWS = [s.strip().replace("DOUBLE", "DOUBLE PRECISION") for s in files("football_analysis").joinpath("schema.sql").read_text().split(";")
-         if s.strip().upper().startswith("CREATE OR REPLACE VIEW")]
 
 
 def served_tables(con) -> dict[str, str]:
     """Published name -> DuckDB relation for every table the API may read."""
-    app = {row[0]: f'main."{row[0]}"' for row in con.execute(
-        "SELECT table_name FROM information_schema.tables "
-        "WHERE table_schema = 'main' AND table_type = 'BASE TABLE' ORDER BY 1").fetchall()}
     existing = {row[0] for row in con.execute(
         "SELECT table_schema || '.' || table_name FROM information_schema.tables").fetchall()}
-    return {**app, **{name: rel for name, rel in WAREHOUSE_TABLES.items() if rel in existing}}
+    served = {name: f'main."{name}"' for name in sorted(APP_TABLES) if f"main.{name}" in existing}
+    return {**served, **{name: rel for name, rel in WAREHOUSE_TABLES.items() if rel in existing}}
 
 
 def _columns(con, relation):
@@ -69,6 +75,12 @@ def publish_postgres(dsn: str, schema: str, db: Path = DB) -> dict:
                            "source_size bigint NOT NULL, source_mtime_ns bigint NOT NULL, "
                            "row_count bigint NOT NULL, row_digest text NOT NULL)")
             manifest = dict(cursor.execute("SELECT table_name, row_digest FROM snapshot_manifest").fetchall())
+            # Tables no longer served (e.g. raw tables replaced by marts) go first, so the quota
+            # never has to hold both the retired table and its replacement.
+            for name in sorted(set(manifest) - set(tables)):
+                cursor.execute(sql.SQL("DROP TABLE IF EXISTS {} CASCADE").format(sql.Identifier(name)))
+                cursor.execute("DELETE FROM snapshot_manifest WHERE table_name = %s", [name])
+                report.setdefault("retired", []).append(name)
             target.commit()
 
             staged = {}
@@ -95,7 +107,7 @@ def publish_postgres(dsn: str, schema: str, db: Path = DB) -> dict:
                 target.commit()
                 staged[name] = (count, digest)
 
-            # One transaction: swap every changed table, rebuild dependent views, update the manifest.
+            # One transaction: swap every changed table and update the manifest.
             if staged:
                 for name in staged:
                     cursor.execute(sql.SQL("DROP TABLE IF EXISTS {} CASCADE").format(sql.Identifier(name)))
@@ -104,8 +116,6 @@ def publish_postgres(dsn: str, schema: str, db: Path = DB) -> dict:
                     cursor.execute("INSERT INTO snapshot_manifest VALUES (%s, 0, 0, %s, %s) ON CONFLICT (table_name) "
                                    "DO UPDATE SET row_count = excluded.row_count, row_digest = excluded.row_digest",
                                    [name, *staged[name]])
-                for view in VIEWS:
-                    cursor.execute(view)
                 target.commit()
             report["changed"] = {name: count for name, (count, _) in staged.items()}
             size = cursor.execute("SELECT pg_database_size(current_database())").fetchone()[0]
@@ -151,10 +161,9 @@ def build_sqlite_fallback(db: Path = DB, path: Path = LOCAL_SNAPSHOT) -> dict:
         import sqlite3
 
         with sqlite3.connect(temporary) as target:
-            for view in VIEWS:
-                target.execute(view.replace("CREATE OR REPLACE VIEW", "CREATE VIEW", 1))
-            target.execute("CREATE INDEX matches_partition ON matches (league, season)")
-            target.execute("CREATE INDEX recent_partition ON recent_matches (league, season)")
+            for index, table in (("matches_partition", "mart_dashboard_match"), ("recent_partition", "recent_matches")):
+                if table in counts:
+                    target.execute(f"CREATE INDEX {index} ON {table} (league, season)")
         os.replace(temporary, path)
         return counts
     finally:

@@ -187,6 +187,12 @@ CREATE TABLE IF NOT EXISTS open_player_stats (
  fetched_at TIMESTAMP NOT NULL,
  PRIMARY KEY(source, player_id, season, competition_id)
 );
+CREATE TABLE IF NOT EXISTS transfers (
+ transfer_id VARCHAR, player_id VARCHAR, player_name VARCHAR, transfer_date DATE,
+ transfer_season VARCHAR, season INTEGER, from_club_id VARCHAR, from_club_name VARCHAR,
+ to_club_id VARCHAR, to_club_name VARCHAR, transfer_fee DOUBLE,
+ market_value_eur BIGINT, from_competition VARCHAR, to_competition VARCHAR, image_url VARCHAR
+);
 CREATE TABLE IF NOT EXISTS external_source_metadata (
  source VARCHAR PRIMARY KEY, dataset_url VARCHAR NOT NULL,
  licence VARCHAR, snapshot_season INTEGER, data_as_of DATE,

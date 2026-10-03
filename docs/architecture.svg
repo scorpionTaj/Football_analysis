@@ -126,19 +126,19 @@
 <text x="1094" y="330" font-size="15" font-weight="700" fill="#9b6ae0" text-anchor="start">dbt build · warehouse/</text>
 <rect x="1094" y="346" width="246" height="74" rx="10" fill="#ffffff" stroke="#9b6ae0" stroke-width="2"/>
 <text x="1108" y="370" font-size="15" font-weight="700" fill="#1f2433" text-anchor="start">staging</text>
-<text x="1108" y="390" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">stg_fd__results · stg_app__fixtures</text>
+<text x="1108" y="390" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">stg_fd__results · stg_app__*</text>
 <rect x="1094" y="450" width="246" height="60" rx="10" fill="#ffffff" stroke="#9b6ae0" stroke-width="2"/>
 <text x="1108" y="474" font-size="15" font-weight="700" fill="#1f2433" text-anchor="start">intermediate</text>
 <text x="1108" y="494" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">int_team_matches</text>
 <rect x="1094" y="540" width="246" height="74" rx="10" fill="#ffffff" stroke="#9b6ae0" stroke-width="2"/>
 <text x="1108" y="564" font-size="15" font-weight="700" fill="#1f2433" text-anchor="start">marts</text>
-<text x="1108" y="584" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">fct_match (113k) · mart_team_season</text>
+<text x="1108" y="584" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">fct_match (113k) · 12 serving marts</text>
 <rect x="1094" y="644" width="246" height="92" rx="10" fill="#ffffff" stroke="#9b6ae0" stroke-width="2"/>
 <text x="1108" y="668" font-size="15" font-weight="700" fill="#1f2433" text-anchor="start">ml.ml_match_features + elo</text>
 <text x="1108" y="688" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">Elo · pi-ratings · EWMA form</text>
 <text x="1108" y="706" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">one Elo for app and model</text>
 <rect x="1094" y="766" width="246" height="150" rx="10" fill="#fbf8ff" stroke="#9b6ae0" stroke-width="2" stroke-dasharray="6 4"/>
-<text x="1108" y="790" font-size="15" font-weight="700" fill="#1f2433" text-anchor="start">31 nodes · data tests</text>
+<text x="1108" y="790" font-size="15" font-weight="700" fill="#1f2433" text-anchor="start">118 nodes · 88 data tests</text>
 <text x="1108" y="810" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">unique / not-null keys</text>
 <text x="1108" y="828" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">double round-robin</text>
 <text x="1108" y="846" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">odds overround sanity</text>
@@ -203,13 +203,13 @@
 <text x="1800" y="474" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">row counts verified server-side</text>
 <rect x="1786" y="550" width="348" height="92" rx="10" fill="#ffffff" stroke="#c2553a" stroke-width="2"/>
 <text x="1800" y="574" font-size="15" font-weight="700" fill="#1f2433" text-anchor="start">3 · One-transaction swap</text>
-<text x="1800" y="594" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">drop old · rename · rebuild views</text>
+<text x="1800" y="594" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">drop retired tables · rename</text>
 <text x="1800" y="612" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">update manifest (readers never see a mix)</text>
 <path d="M1786,690 v90 a174.0,10 0 0 0 348,0 v-90" fill="#ffffff" stroke="#c2553a" stroke-width="2"/>
 <ellipse cx="1960.0" cy="690" rx="174.0" ry="10" fill="#ffffff" stroke="#c2553a" stroke-width="2"/>
 <text x="1800" y="718" font-size="15" font-weight="700" fill="#1f2433" text-anchor="start">PostgreSQL · Supabase</text>
 <text x="1800" y="738" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">private schema (no anon access)</text>
-<text x="1800" y="756" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">app tables + mart_team_season</text>
+<text x="1800" y="756" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">serving marts + live app tables</text>
 <text x="1800" y="774" font-size="13" font-weight="400" fill="#5a6072" text-anchor="start">+ model_runs + pipeline_status</text>
 <path d="M1786,840 v80 a174.0,10 0 0 0 348,0 v-80" fill="#ffffff" stroke="#c2553a" stroke-width="2"/>
 <ellipse cx="1960.0" cy="840" rx="174.0" ry="10" fill="#ffffff" stroke="#c2553a" stroke-width="2"/>
