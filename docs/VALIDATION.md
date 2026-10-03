@@ -12,7 +12,7 @@ softmax model audits) are in git history.
 | dbt models + data tests, fixture data (CI) | `./scripts/ci_warehouse.sh` | 31/31 |
 | Dagster definitions | `dagster definitions validate -m football_analysis.orchestration` | valid |
 | Frontend | `npm run lint`, `tsc --noEmit`, `npm run build` | clean |
-| Browser flows + accessibility | `npm run test:e2e` | 17/17, including axe WCAG A/AA scans of `/`, `/matches`, `/predictions`, `/settings` with no serious or critical violations |
+| Browser flows + accessibility | `npm run test:e2e` | 25/25, including axe WCAG A/AA scans of `/`, `/matches`, `/predictions`, `/settings`, `/models`, `/quality` in light and dark mode with no serious or critical violations |
 
 The local PostgreSQL publish test starts a temporary server with `initdb`; it failed once and passed on every rerun, most likely a random-port collision.
 

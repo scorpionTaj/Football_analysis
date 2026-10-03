@@ -1,9 +1,17 @@
 'use client';
 
+import { useSyncExternalStore } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { queryKeys } from '@/lib/api/query-keys';
 import { useFilterParams } from '@/lib/hooks/use-filter-params';
+
+const noop = () => () => {};
+
+/** false on the server and during hydration, true afterwards — no extra effect or render pass. */
+function useHydrated() {
+  return useSyncExternalStore(noop, () => true, () => false);
+}
 
 /** Shared filter bar for competition, season, team, and optional venue selection. */
 export function FilterBar({ showVenue = true }: { showVenue?: boolean }) {
@@ -20,10 +28,13 @@ export function FilterBar({ showVenue = true }: { showVenue?: boolean }) {
     enabled: !!filters.competition,
   });
 
-  const competitions = catalog?.competitions ?? [];
+  // The navigation fills the shared query cache before this Suspense subtree hydrates; render the
+  // server's (empty) options until hydration finishes so the markup matches.
+  const hydrated = useHydrated();
+  const competitions = (hydrated && catalog?.competitions) || [];
   const selected = competitions.find((c) => c.code === filters.competition);
   const seasons = selected?.seasons ?? [];
-  const teams = teamData?.teams ?? [];
+  const teams = (hydrated && teamData?.teams) || [];
 
   // Deduplicate teams by team_id and sort alphabetically
   const uniqueTeams = Array.from(

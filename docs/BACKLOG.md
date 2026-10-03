@@ -17,5 +17,4 @@ engineering / data science restructure) are recorded in git history.
 
 ## Frontend
 - [ ] Split the remaining Overview charts into their own components (the transfer market is already separate).
-- [ ] Extend the axe accessibility scans to Model Lab and Data Quality (needs mocks for `/models` and `/pipeline`).
 - [ ] Lighthouse budget (performance and accessibility ≥ 90) on Overview and Predictions in CI.

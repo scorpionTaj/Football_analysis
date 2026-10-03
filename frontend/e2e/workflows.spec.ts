@@ -53,6 +53,33 @@ async function mockApi(page: Page, onMatchSearch?: (query: string) => void, fore
       started_at: null, finished_at: null, error: null,
     };
     else if (path === '/api/v1/health') payload = { status: 'ok', database: 'test', read_only: true };
+    else if (path === '/api/v1/quality') payload = {
+      completed_coverage: '25/25', live_competitions: '10', match_records: 2, impossible_shot_rows: 0,
+      reference_rows: 0, recent_competitions: 1, completed_results: 1, tracked_players: 0, player_clubs: 0,
+      player_stat_rows: 0, artwork_rows: 0, tournament_matches: 0, tournament_teams: 0, tournament_breakdown: {},
+      context_rich_matches: 0, match_context_rows: 0, formation_rows: 0, coach_rows: 0, tournament_goals: 0,
+      detailed_event_stats: 0, timeline_events: 0, lineup_rows: 0, model_predictions: 0, fixture_coverage: [],
+      source_caps: [], null_coverage: {}, checksums: [], refresh_timestamps: {},
+      grid: [{ competition: 'E0', season: 2026, status: 'live_partial', match_count: 2 }], shot_coverage: [], source,
+    };
+    else if (path === '/api/v1/pipeline') payload = {
+      checked_at: '2026-10-03T04:30:00', tests_passed: 1, tests_failed: 0, source,
+      checks: [
+        { kind: 'dbt_test', name: 'unique_fct_match_match_id', status: 'pass', value: 0, seconds: 0.1, detail: '' },
+        { kind: 'layer_rows', name: 'marts.fct_match', status: 'ok', value: 113161, seconds: null, detail: '' },
+        { kind: 'freshness', name: 'recent-events', status: 'ok', value: 2, seconds: null, detail: '' },
+      ],
+    };
+    else if (path === '/api/v1/models') payload = {
+      champion: 'ensemble', targets: { log_loss: 0.975, rps: 0.2, accuracy: 0.535, ece: 0.02 }, source,
+      runs: ['market_closing', 'ensemble', 'elo_logit', 'prevalence_baseline'].map((model, i) => ({
+        model, rps: [0.19, 0.194, 0.198, 0.23][i], log_loss: 0.97, brier: 0.57, accuracy: 0.533, ece: 0.004,
+        matches: 13061, independent: model === 'ensemble' || model === 'elo_logit', is_champion: model === 'ensemble',
+        trained_at: '2026-10-03T03:52:07', params: {},
+        seasons: [{ season: 2024, rps: 0.19, log_loss: 0.97, brier: 0.57, accuracy: 0.53, ece: 0.01, n: 3000 }],
+        calibration: [{ outcome: 'Home', bin: 4, predicted: 0.45, observed: 0.46, n: 900 }],
+      })),
+    };
     else if (path === '/api/v1/predictions') payload = {
       model_id: 'test-model', model_name: 'Test model', trained_at: '2026-09-23T12:00:00',
       validation_cutoff: '2025-01-01', metrics: {
@@ -239,8 +266,9 @@ test('full-season forecasts stay browsable without rendering the whole calendar'
   await expect(page.getByText('Showing 25 of 25 forecasts')).toBeVisible();
 });
 
-for (const path of ['/', '/matches', '/predictions', '/settings']) {
-  test(`no serious accessibility violations on ${path}`, async ({ page }) => {
+for (const colorScheme of ['light', 'dark'] as const) for (const path of ['/', '/matches', '/predictions', '/settings', '/models', '/quality']) {
+  test(`no serious accessibility violations on ${path} (${colorScheme})`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme });
     await mockApi(page);
     await page.goto(path);
     await expect(page.locator('h1').first()).toBeVisible();
