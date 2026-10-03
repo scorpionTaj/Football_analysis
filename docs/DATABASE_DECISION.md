@@ -1,89 +1,46 @@
-# Database decision — 13 September 2026 (updated 3 October 2026)
+# Database decision
 
-> **Current architecture (3 October 2026):** DuckDB computes, PostgreSQL serves, SQLite is the fallback.
-> DuckDB stays the single writer and warehouse (extractors, dbt, model training). `football-publish`
-> swaps only changed tables into the private PostgreSQL schema in one transaction, then rebuilds
-> `data/football.sqlite3` locally. The API reads PostgreSQL (`FOOTBALL_API_READ_BACKEND=postgres`) and
-> falls back to SQLite when it is unreachable. The direct PostgreSQL writer pilot
-> (`FOOTBALL_STORAGE_BACKEND=postgres`, offline queue) was retired: one writer and an immutable published
-> snapshot are simpler than two writers, and analytical SQL is far faster in DuckDB. The sections below
-> are the original record.
+Decided 13 September 2026 (DuckDB), revised 3 October 2026 (current design below).
 
-Status: this records the original DuckDB design. A user-requested PostgreSQL-only cutover is in progress; the verified snapshot copier is the first migration checkpoint, not a complete replacement.
+## Decision: DuckDB computes, PostgreSQL serves, SQLite is the fallback
 
-## Decision
+| Store | Role | Written by | Read by |
+|---|---|---|---|
+| DuckDB `data/football.duckdb` | Single-writer warehouse: raw app tables, dbt layers, model outputs | extractors, `football-build-warehouse` (dbt), `football-train-models` | dbt, training, local API runs |
+| PostgreSQL (Supabase, private schema `FOOTBALL_POSTGRES_SCHEMA`) | Serving copy for the API | `football-publish` only | FastAPI with `FOOTBALL_API_READ_BACKEND=postgres` |
+| SQLite `data/football.sqlite3` | Read-only fallback | `football-publish` (rebuilt locally from DuckDB) | FastAPI when PostgreSQL is unreachable or no DSN is set |
 
-Keep **DuckDB** as the default database for the FastAPI analytical service. It is open source, embedded in the Python process, requires no server administration, reads compressed CSV directly and is designed for analytical SQL workloads. That matches a locally run, read-heavy platform with one ingestion writer and cached analytical tables.
+Why:
 
-Add **PostgreSQL** only when the application becomes a deployed multi-user service with concurrent ingestion, user accounts or multiple application workers. PostgreSQL is free and open source, ACID-compliant and uses MVCC so readers and writers can operate concurrently. Moving now would add a server, credentials, migrations and operations work without improving the current single-process experience.
+- **One writer.** DuckDB allows a single writing process. Keeping every write there (extractors, dbt, training) avoids two sources of truth. The direct PostgreSQL writer pilot (`FOOTBALL_STORAGE_BACKEND=postgres` with an offline queue) was retired for this reason.
+- **Analytics speed.** dbt models over 113k matches and Python feature building run on the local columnar engine. Doing that over a network database would be slower and would cost free-tier space.
+- **Serving needs concurrency.** PostgreSQL (MVCC) lets the API read while new data is published, and it can be hosted. The API never opens DuckDB in this mode, so refreshes no longer pause reads.
+- **Resilience.** The SQLite file keeps the app usable offline or during a Supabase outage.
 
-| Need | DuckDB now | PostgreSQL later |
-|---|---|---|
-| Linux/local setup | One embedded database file | Separate server and configuration |
-| Analytical scans and CSV ingestion | Excellent fit | Capable, with more loading/operations work |
-| FastAPI read-only analytical service | Excellent fit | Good fit |
-| Multiple concurrent writers/workers | Limited; coordinate one writer | Strong fit through server concurrency and MVCC |
-| User accounts and row-level application data | Possible but awkward | Strong fit |
-| Cost/licence | Free, open source | Free, PostgreSQL permissive licence |
+## Publishing
 
-Primary references:
+`football-publish` (`src/football_analysis/publish.py`):
 
-- DuckDB explains its embedded, in-process architecture and OLAP focus: https://duckdb.org/why_duckdb
-- PostgreSQL describes its open-source relational system: https://www.postgresql.org/about/
-- PostgreSQL documents MVCC for multi-user concurrency: https://www.postgresql.org/docs/current/mvcc-intro.html
-- PostgreSQL licence: https://www.postgresql.org/about/licence/
+1. Computes a row digest for each served table in DuckDB and compares it with `snapshot_manifest` in the PostgreSQL schema.
+2. Copies only changed tables to `<table>__next` with `COPY` and checks row counts.
+3. In one transaction: drops the old tables, renames the new ones, recreates dependent views and updates the manifest. Readers see either the old or the new snapshot, never a mix.
+4. Rebuilds the SQLite fallback in a temporary file from the same DuckDB tables, verifies counts, then renames it into place.
 
-The schema remains portable SQL where practical. A future PostgreSQL adapter should be introduced behind the same repository/storage interface and validated with real concurrent workloads before replacing DuckDB.
+Served tables: every `main` app table plus `mart_team_season`, `model_runs` and `pipeline_status`.
+Large analytical tables (`fct_match`, features, backtests) stay in DuckDB because the Supabase free tier
+caps the database at 500 MB (≈ 458 MB used on 3 October 2026). Per-table swapping means peak extra space
+is the size of the changed tables, not a second copy of the schema.
 
-## Optional match read model
+Security: the schema is private (not `public`), and neither `anon` nor `authenticated` has access. Keep
+the DSN in the ignored `.env` (template: `.env.example`).
 
-DuckDB remains the canonical writer and default API store. PostgreSQL can hold a
-published copy of one competition/season match partition for `/api/v1/matches`.
-This is an opt-in read model, not a database migration.
+## Still present, scheduled for removal
 
-Install the optional driver with `uv sync --extra postgres` (also use `--extra dev`
-for tests). Provide a PostgreSQL DSN that can create the two `match_read_*`
-tables and write rows, then publish each desired partition from a stable DuckDB
-file:
+The earlier per-partition match read model (`api/postgres_matches.py`, `football-publish-matches`,
+`FOOTBALL_MATCH_READ_BACKEND`) still works, but `football-publish` supersedes it. Its removal is tracked in `BACKLOG.md`.
 
-```bash
-export FOOTBALL_POSTGRES_DSN='postgresql://user:password@host:5432/football'
-uv run --extra postgres football-publish-matches SP1 2024 --database data/football.duckdb
-```
+## References
 
-The publisher reads all four match sources, selects that partition, and stores
-source rows plus a schema version, content version, row count, and SHA-256
-checksum. It verifies the PostgreSQL copy before commit. Repeating an unchanged
-publish leaves the content version intact; changed content advances it. A
-transaction and partition lock keep a failed or concurrent publish invisible.
-The API checks the version, row count, ordinal sequence, and checksum in one
-repeatable-read snapshot before using the partition.
-
-Tables are created in the private `football_analysis` schema by default, not
-Supabase's Data API-exposed `public` schema. Set `FOOTBALL_POSTGRES_SCHEMA` to a
-different private schema if needed. The database role needs permission to create
-or use that schema; do not grant `anon` or `authenticated` access.
-
-After publishing and checking parity in the target environment, enable scoped
-reads with both settings:
-
-```bash
-export FOOTBALL_MATCH_READ_BACKEND=postgres
-export FOOTBALL_POSTGRES_DSN='postgresql://user:password@host:5432/football'
-```
-
-Only requests with both `competition` and `season` use PostgreSQL. A missing,
-damaged, or inaccessible partition returns 503; it is never served partially.
-Unscoped requests and all other API routes continue to read DuckDB. Disable
-the switch (or set it to `duckdb`) to roll back immediately; DuckDB data is not
-changed or removed. Republish after ingestion, fixture updates, or source
-changes. The published fixture slice is a snapshot, so schedule aging and live
-refresh are not automatic. The PostgreSQL path still needs the DuckDB file for
-team badges, API caching outside the scoped route, and other endpoints.
-User accounts, analytical tables, Redis, and the frontend are outside this
-read-model path.
-
-For integration tests, set `TEST_POSTGRES_DSN` to a disposable local database,
-or let pytest start a temporary PostgreSQL service when `initdb` and `pg_ctl`
-are available. The tests create and remove a dedicated schema. Run
-`uv run --extra dev --extra postgres pytest -q` to include these tests.
+- DuckDB architecture and concurrency: https://duckdb.org/why_duckdb, https://duckdb.org/docs/stable/connect/concurrency
+- PostgreSQL MVCC: https://www.postgresql.org/docs/current/mvcc-intro.html
+- Supabase database size limits: https://supabase.com/docs/guides/platform/database-size

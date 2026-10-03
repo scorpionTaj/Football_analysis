@@ -1,4 +1,4 @@
-# Source research — 10 September 2026
+# Source research — 10 September 2026 (updated 3 October 2026)
 
 ## Selected: Football-Data.co.uk historical CSV
 
@@ -7,7 +7,7 @@ Historical country index: https://www.football-data.co.uk/englandm.php
 Field definitions: https://www.football-data.co.uk/notes.txt
 Example tested endpoint: https://www.football-data.co.uk/mmz4281/2526/E0.csv
 
-The provider describes its historical results, match statistics and odds files as free downloadable CSV/Excel, updated at least twice weekly. No token is required by the tested CSV endpoint. E0, SP1, D1, I1 and F1 provide five completed seasons; 2026/27 also uses N1, P1, B1, T1 and G1 for ten live domestic competitions. This implementation consumes scores and selected shots fields, not betting prices. Public files are data endpoints, not a guaranteed versioned API.
+The provider describes its historical results, match statistics and odds files as free downloadable CSV/Excel, updated at least twice weekly. No token is required by the tested CSV endpoint. The dashboard's validated `matches` table holds five completed seasons of E0, SP1, D1, I1 and F1; 2026/27 also uses N1, P1, B1, T1 and G1 for ten live domestic competitions. Since 3 October 2026 `football-fetch-history` also lands every season from 2005/06 for those ten leagues plus the second divisions E1, SP2, D2, I2 and F2 into `data/raw`, which the dbt warehouse reads directly. Opening and Pinnacle/market closing prices are kept there **only** as a model benchmark (and one clearly labelled market-informed model); they are not shown as betting content. Public files are data endpoints, not a guaranteed versioned API.
 
 No published numerical CSV quota or explicit broad redistribution grant was verified. The implementation uses sequential downloads, a one-second courtesy pause, persistent caching, bounded retries with Retry-After support, and no scraping or access-control bypasses. Page requests through the research browser encountered redirects/429 responses, but the actual CSV endpoint was separately tested. Free access is not treated as an open-data licence; source attribution is present in the dashboard. Review current terms before raw-data redistribution or commercial hosting.
 

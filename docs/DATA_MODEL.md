@@ -39,6 +39,10 @@ The warehouse lives in one DuckDB file (`data/football.duckdb`) and is built by 
 
 Data issues these tests surfaced and the fixes: one Latin-1 file (Serie B 2018/19, re-encoded on landing), two broken closing-price rows (quarantined), fixtures duplicated across providers under different club spellings (reconciled by canonical key), and odds columns missing in some eras (guarded in staging).
 
+## Pipeline status
+
+`football-build-warehouse` writes `main.pipeline_status` after every build, including failed ones: one row per dbt model, seed and test result, row counts for the main marts and ML tables, and per-source freshness (hours since the last successful check, from `source_sync_cache`). `/api/v1/pipeline` serves it to the Pipeline health panel on Data Quality.
+
 ## Serving
 
-`football-publish` copies the `main` app tables plus `mart_team_season` and `model_runs` to the private PostgreSQL schema, swapping only tables whose row digest changed. Large analytical tables stay in DuckDB because the Supabase free tier caps the database at 500 MB.
+`football-publish` copies the `main` app tables (including `pipeline_status`) plus `mart_team_season` and `model_runs` to the private PostgreSQL schema, swapping only tables whose row digest changed. Large analytical tables stay in DuckDB because the Supabase free tier caps the database at 500 MB.

@@ -100,14 +100,15 @@ The 2026/27 campaign is integrated into every match-driven page and adds the Ere
 - `src/football_analysis/tournaments.py`: no-key CC0 Champions League, Club World Cup and World Cup adapters, cache and transactional synchronization.
 - `src/football_analysis/analysis_system.py`: reusable filtering, ranking, form and correlation engine served through FastAPI.
 - `src/football_analysis/event_details.py`: explicitly capped current-event enrichment from free TheSportsDB endpoints; Match Centre prefers the normalized historical Transfermarkt context, timeline and lineup tables when available.
-- `src/football_analysis/prediction_features.py`: canonical match inputs and leakage-safe pre-match feature engineering.
-- `src/football_analysis/predictions.py`: calibrated softmax fitting, chronological evaluation, model caching and fixture forecasts.
+- `src/football_analysis/history.py`: lands 2005+ Football-Data CSVs (15 leagues, odds) for the warehouse.
+- `warehouse/`: dbt project — staging, marts and ML feature models plus data tests (see `docs/DATA_MODEL.md`).
+- `src/football_analysis/warehouse.py`: `football-build-warehouse` and the pipeline-status recorder.
+- `src/football_analysis/ml/`: feature engine, candidate models, walk-forward evaluation, MLflow training and publication to the app tables (see `docs/MODELLING.md`).
+- `src/football_analysis/orchestration/`: Dagster assets, jobs and schedules.
+- `src/football_analysis/publish.py`: incremental PostgreSQL publish and SQLite fallback (see `docs/DATABASE_DECISION.md`).
+- `src/football_analysis/predictions.py` and `prediction_features.py`: legacy softmax plus backtest helpers reused by `ml/publish.py`.
 - `frontend/`: responsive Next.js and HeroUI application using the versioned FastAPI contracts.
-- `docs/NEXTJS_READINESS.md`: completed frontend cutover and API contract status.
-- `docs/NEXTJS_MIGRATION_PLAN.md`: phased FastAPI and Next.js cutover record with validation gates.
-- `docs/SOURCE_CAPABILITY_AUDIT.md`: primary-source endpoint and dataset utilization audit.
-- `docs/SOURCES.md`: source research and constraints.
-- `docs/BACKLOG.md`: implementation tasks and next iterations.
+- `docs/`: `DATA_MODEL.md`, `MODELLING.md`, `DATABASE_DECISION.md`, `VALIDATION.md` (current checks), `BACKLOG.md` (open work), source research (`SOURCES.md`, `SOURCE_CAPABILITY_AUDIT.md`, `FUTURE_FIXTURE_SOURCES.md`, `PLAYER_DB_RESEARCH.md`) and `openapi_v1.json` (generated API contract).
 - `tests/`: data-quality, idempotency and dashboard tests.
 
 Data lives in `data/`; override with `FOOTBALL_DATA_DIR`. Raw archives and the database are excluded from version control. The lockfile pins the tested environment. No automated downloads run on page views.
@@ -133,4 +134,4 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-See `docs/VALIDATION.md` for actual validation results and current coverage. Free access does not imply an unrestricted redistribution licence; retain attribution and review the source terms before distributing raw files or commercial deployment.
+See `docs/VALIDATION.md` for current validation results and coverage. Free access does not imply an unrestricted redistribution licence; retain attribution and review the source terms before distributing raw files or commercial deployment.

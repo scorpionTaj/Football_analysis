@@ -1,6 +1,6 @@
 # Source capability audit
 
-Audited: 2026-09-23
+Audited: 2026-09-23 · Football-Data section updated 2026-10-03
 
 This audit compares the current `football_analysis` working tree with the publishers' official documentation and repositories. “Available” means a publisher exposes a field or endpoint; it does not imply that the response is complete enough to support a league-wide statistic. The audit treats missing values as unavailable, never as zero.
 
@@ -8,10 +8,10 @@ This audit compares the current `football_analysis` working tree with the publis
 
 The application now uses substantially more than final scores, but it does not yet exploit all valuable free capabilities:
 
-- Football-Data.co.uk match files are the strongest current input for domestic modeling. The app now stores full-time and half-time goals, shots, shots on target, corners, fouls, cards and referee. It still discards kickoff time and all opening/closing market prices, and it does not ingest the separate upcoming-fixture file.
+- Football-Data.co.uk match files are the strongest current input for domestic modeling. The app stores full-time and half-time goals, shots, shots on target, corners, fouls, cards and referee, and ingests the weekly upcoming-fixture file. Since October 2026 the dbt warehouse also reads kickoff time and opening/closing market prices from 2005/06 onwards, including five second divisions, using prices only as a model benchmark.
 - OpenFootball World Cup-family ingestion now includes the completed 64-match 2025 Club World Cup and stores final/extra-time scores, shootout scores, stages, groups, grounds and goal events. It still discards kickoff/timezone, half-time score and match number and does not use richer `worldcup-full.json` files.
 - OpenFootball Champions League ingestion reads only `cl.txt` for five seasons. It keeps dates, stages and scores, but discards kickoff, venue and scorer annotations; the repository's Europa League and Conference League files are unused.
-- The Transfermarkt Open Dataset importer now uses six of twelve published tables. `games`, `game_events` and `game_lineups` provide verified managers, formations, officials, stadiums, named goals/cards/substitutions/missed penalties, starting roles, positions and player portraits. Cup matches are normalized into the same tournament store. The snapshot is CC0 but stops before 2026/27.
+- The Transfermarkt Open Dataset importers now use eight of twelve published tables (`transfers.py` adds `transfers` and `clubs`). `games`, `game_events` and `game_lineups` provide verified managers, formations, officials, stadiums, named goals/cards/substitutions/missed penalties, starting roles, positions and player portraits. Cup matches are normalized into the same tournament store. The snapshot is CC0 but stops before 2026/27.
 - TheSportsDB integration calls the free v1 event and media endpoints. It preserves current cup/event metadata when supplied, but its small collection limits mean it remains a current-season enrichment fallback rather than a completeness authority.
 - football-data.org is evaluated but not configured. Its free authenticated tier is useful for stable competition/team identities, delayed fixtures and tables, but deep player, lineup, scorer, card and match-statistic data are paid.
 
@@ -19,7 +19,7 @@ The application now uses substantially more than final scores, but it does not y
 
 | Source | Current interface | Used now | Valuable unused capability | Main limit |
 | --- | --- | --- | --- | --- |
-| Football-Data.co.uk | `mmz4281/{season}/{league}.csv` | Dates, teams, FT/HT goals, shots, shots on target, corners, fouls, cards, referee | Kickoff time; separate upcoming-fixture CSV; optional opening/closing market benchmark | Free downloadable files, not a service-level API; update cadence and field coverage vary; no explicit open-data redistribution licence was found |
+| Football-Data.co.uk | `mmz4281/{season}/{league}.csv`, `fixtures.csv` | Dates, kickoff time, teams, FT/HT goals, shots, shots on target, corners, fouls, cards, referee, opening/closing prices (benchmark), weekly fixtures; 15 leagues from 2005/06 | Asian-handicap and totals prices; further countries | Free downloadable files, not a service-level API; update cadence and field coverage vary; no explicit open-data redistribution licence was found |
 | OpenFootball European club tournaments | Season `cl.txt` | Five UCL seasons; date, stage, teams, result and parsed shootout | UCL kickoff/venue/scorers; Europa League; Conference League; qualifying rounds where published | Community-maintained structured text; 2026/27 is not published in the repository at audit time |
 | OpenFootball World Cup JSON | Edition `worldcup.json` / `clubworldcup.json` | 2018, 2022 and 2026 World Cups plus all 64 completed 2025 Club World Cup matches; final/ET/shootout scores, stage/group, venue and goals | Kickoff/timezone, half-time scores, match number, full lineups/events/officials; older editions | No availability or live-update SLA; community data; richer fields vary by edition |
 | Transfermarkt Open Dataset | Six compressed CSV snapshots | Profiles and season totals plus historical match context, named events, full lineup roles and 4,086 normalized cup matches | Club/valuation/transfer/national-team tables and several secondary fields | CC0 snapshot paused at 6 July 2026; 2026/27 squads absent |
@@ -30,7 +30,7 @@ The application now uses substantially more than final scores, but it does not y
 
 ### Current code use
 
-`src/football_analysis/adapters.py` loads season CSV files and now normalizes:
+`src/football_analysis/adapters.py` loads the dashboard's season CSV files and normalizes the fields below; the dbt model `stg_fd__results` additionally reads `Time` and the opening/closing price columns from every landed file since 2005/06:
 
 `Div`, `Date`, `HomeTeam`, `AwayTeam`, `FTHG`, `FTAG`, `FTR`, `HTHG`, `HTAG`, `HS`, `AS`, `HST`, `AST`, `HC`, `AC`, `HF`, `AF`, `HY`, `AY`, `HR`, `AR`, and `Referee`.
 
@@ -40,9 +40,8 @@ The match and current-season tables preserve these fields. The analysis service 
 
 | Capability | Evidence in the published files | Recommended use |
 | --- | --- | --- |
-| Kickoff time | `Time` | Store the source clock time without inferring a timezone; add timezone-labelled ordering only if a future source verifies the zone. Dates alone can misorder same-day games. |
+| Kickoff time and home/draw/away prices | `Time`, `AvgH/D/A`, `BbAv*`, `PSCH/D/A`, `AvgCH/D/A` | **Now used** in the warehouse (`fct_match`): kickoff kept as unverified source time; prices converted to margin-free probabilities and used only as a benchmark. Totals and Asian-handicap columns remain unused. |
 | Half-time result code | `HTR` | No new field is required because it is derivable from the stored half-time goals. Validate it during ingestion as an integrity check. |
-| Opening/closing prices | Home/draw/away, totals and Asian-handicap columns, with `C` variants for closing prices | Keep in an isolated optional research table. Convert to overround-adjusted probabilities and use only as a benchmark for model calibration. Do not mix betting data into the default performance experience. |
 | Upcoming fixtures | OpenFootball `football.json` plus `fixtures.csv` | Seven current-season full league calendars are now guarded by complete-pair, date and identity checks; the weekly CSV remains a nearby fallback for all ten leagues. Neither source guarantees final kickoff times or supplies all domestic cups. |
 | Additional countries/divisions | Country pages and “all new countries” downloads | Add only through the competition manifest and the same completeness validation; this is lower priority than improving the ten current leagues. |
 
@@ -110,7 +109,7 @@ The publisher documents 12 joinable tables and also ships a single ready-to-quer
 | Published table | Current use | High-value unused analysis |
 | --- | --- | --- |
 | `competitions` | Stable app-code mapping and domestic/continental/international grouping | Additional geography and hierarchy fields |
-| `clubs` | Not downloaded | All covered clubs, squad size, average age, foreign-player share, total value, coach, stadium capacity |
+| `clubs` | Club name and domestic competition for the transfer feed | All covered clubs, squad size, average age, foreign-player share, total value, coach, stadium capacity |
 | `players` | 12-club current snapshot | All historical identities, contract/agent fields, national-team link, international caps/goals |
 | `games` | Season/date, score, round, managers, formations, stadium, attendance and referee | Aggregate score and pre-match positions |
 | `appearances` | Aggregated totals | Per-match availability, minutes, contributions and discipline features |
@@ -118,7 +117,7 @@ The publisher documents 12 joinable tables and also ships a single ready-to-quer
 | `club_games` | Not downloaded | Team-centric opponent, manager and table-position context |
 | `game_events` | Named goals, assists, cards, substitutions, shootout goals and missed penalties | Richer event-detail taxonomy and derived lineup-continuity features |
 | `game_lineups` | Starter/bench status, position, shirt number and player portrait | Captaincy and derived lineup-continuity features |
-| `transfers` | Not downloaded | Arrivals, departures, fees, value at transfer and net spend |
+| `transfers` | Transfers since 1 January 2021 (fee, market value, clubs) for the Overview transfer market | Net-spend and squad-turnover features |
 | `countries` | Not downloaded | Country/confederation dimension |
 | `national_teams` | Not downloaded | National-team identities, squad size and FIFA ranking |
 

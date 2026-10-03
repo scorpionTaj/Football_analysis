@@ -189,6 +189,22 @@
             }
           },
           {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
             "name": "cursor",
             "in": "query",
             "required": false,
@@ -592,6 +608,42 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PredictionsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/models": {
+      "get": {
+        "summary": "Models",
+        "operationId": "models_api_v1_models_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/pipeline": {
+      "get": {
+        "summary": "Pipeline",
+        "operationId": "pipeline_api_v1_pipeline_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineResponse"
                 }
               }
             }
@@ -1930,6 +1982,46 @@
         ],
         "title": "EventTimelineItem"
       },
+      "FixtureCoverageRow": {
+        "properties": {
+          "competition": {
+            "type": "string",
+            "title": "Competition"
+          },
+          "full_schedule": {
+            "type": "integer",
+            "title": "Full Schedule",
+            "default": 0
+          },
+          "weekly_window": {
+            "type": "integer",
+            "title": "Weekly Window",
+            "default": 0
+          },
+          "next_listed": {
+            "type": "integer",
+            "title": "Next Listed",
+            "default": 0
+          },
+          "latest_fetched_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Fetched At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "competition"
+        ],
+        "title": "FixtureCoverageRow"
+      },
       "Forecast": {
         "properties": {
           "competition": {
@@ -1981,6 +2073,92 @@
           "away_probability"
         ],
         "title": "Forecast"
+      },
+      "ForecastAuditRow": {
+        "properties": {
+          "competition": {
+            "type": "string",
+            "title": "Competition"
+          },
+          "season": {
+            "type": "integer",
+            "title": "Season"
+          },
+          "match_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Match Date"
+          },
+          "home": {
+            "$ref": "#/components/schemas/TeamRef"
+          },
+          "away": {
+            "$ref": "#/components/schemas/TeamRef"
+          },
+          "predicted_result": {
+            "type": "string",
+            "title": "Predicted Result"
+          },
+          "home_probability": {
+            "type": "number",
+            "title": "Home Probability"
+          },
+          "draw_probability": {
+            "type": "number",
+            "title": "Draw Probability"
+          },
+          "away_probability": {
+            "type": "number",
+            "title": "Away Probability"
+          },
+          "model_id": {
+            "type": "string",
+            "title": "Model Id"
+          },
+          "issued_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Issued At"
+          },
+          "actual_result": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actual Result"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "competition",
+          "season",
+          "match_date",
+          "home",
+          "away",
+          "predicted_result",
+          "home_probability",
+          "draw_probability",
+          "away_probability",
+          "model_id",
+          "issued_at"
+        ],
+        "title": "ForecastAuditRow"
       },
       "FormRow": {
         "properties": {
@@ -2136,6 +2314,17 @@
             "type": "string",
             "format": "date",
             "title": "Match Date"
+          },
+          "kickoff_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kickoff Time"
           },
           "home": {
             "$ref": "#/components/schemas/TeamRef"
@@ -2621,6 +2810,203 @@
         ],
         "title": "MatchListResponse"
       },
+      "ModelCalibrationPoint": {
+        "properties": {
+          "outcome": {
+            "type": "string",
+            "title": "Outcome"
+          },
+          "bin": {
+            "type": "integer",
+            "title": "Bin"
+          },
+          "predicted": {
+            "type": "number",
+            "title": "Predicted"
+          },
+          "observed": {
+            "type": "number",
+            "title": "Observed"
+          },
+          "n": {
+            "type": "integer",
+            "title": "N"
+          }
+        },
+        "type": "object",
+        "required": [
+          "outcome",
+          "bin",
+          "predicted",
+          "observed",
+          "n"
+        ],
+        "title": "ModelCalibrationPoint"
+      },
+      "ModelRun": {
+        "properties": {
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "log_loss": {
+            "type": "number",
+            "title": "Log Loss"
+          },
+          "rps": {
+            "type": "number",
+            "title": "Rps"
+          },
+          "brier": {
+            "type": "number",
+            "title": "Brier"
+          },
+          "accuracy": {
+            "type": "number",
+            "title": "Accuracy"
+          },
+          "ece": {
+            "type": "number",
+            "title": "Ece"
+          },
+          "matches": {
+            "type": "integer",
+            "title": "Matches"
+          },
+          "independent": {
+            "type": "boolean",
+            "title": "Independent"
+          },
+          "is_champion": {
+            "type": "boolean",
+            "title": "Is Champion"
+          },
+          "trained_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trained At"
+          },
+          "params": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Params"
+          },
+          "seasons": {
+            "items": {
+              "$ref": "#/components/schemas/ModelSeasonScore"
+            },
+            "type": "array",
+            "title": "Seasons"
+          },
+          "calibration": {
+            "items": {
+              "$ref": "#/components/schemas/ModelCalibrationPoint"
+            },
+            "type": "array",
+            "title": "Calibration"
+          }
+        },
+        "type": "object",
+        "required": [
+          "model",
+          "log_loss",
+          "rps",
+          "brier",
+          "accuracy",
+          "ece",
+          "matches",
+          "independent",
+          "is_champion"
+        ],
+        "title": "ModelRun"
+      },
+      "ModelSeasonScore": {
+        "properties": {
+          "season": {
+            "type": "integer",
+            "title": "Season"
+          },
+          "log_loss": {
+            "type": "number",
+            "title": "Log Loss"
+          },
+          "rps": {
+            "type": "number",
+            "title": "Rps"
+          },
+          "brier": {
+            "type": "number",
+            "title": "Brier"
+          },
+          "accuracy": {
+            "type": "number",
+            "title": "Accuracy"
+          },
+          "ece": {
+            "type": "number",
+            "title": "Ece"
+          },
+          "n": {
+            "type": "integer",
+            "title": "N"
+          }
+        },
+        "type": "object",
+        "required": [
+          "season",
+          "log_loss",
+          "rps",
+          "brier",
+          "accuracy",
+          "ece",
+          "n"
+        ],
+        "title": "ModelSeasonScore"
+      },
+      "ModelsResponse": {
+        "properties": {
+          "champion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Champion"
+          },
+          "targets": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Targets"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/ModelRun"
+            },
+            "type": "array",
+            "title": "Runs"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceMeta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source"
+        ],
+        "title": "ModelsResponse"
+      },
       "OverviewResponse": {
         "properties": {
           "spotlight": {
@@ -2692,6 +3078,97 @@
           "returned"
         ],
         "title": "PageMeta"
+      },
+      "PipelineCheck": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seconds"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "name",
+          "status"
+        ],
+        "title": "PipelineCheck"
+      },
+      "PipelineResponse": {
+        "properties": {
+          "checked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checked At"
+          },
+          "tests_passed": {
+            "type": "integer",
+            "title": "Tests Passed",
+            "default": 0
+          },
+          "tests_failed": {
+            "type": "integer",
+            "title": "Tests Failed",
+            "default": 0
+          },
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/PipelineCheck"
+            },
+            "type": "array",
+            "title": "Checks"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceMeta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source"
+        ],
+        "title": "PipelineResponse"
       },
       "PlayerListResponse": {
         "properties": {
@@ -3137,6 +3614,18 @@
             "type": "array",
             "title": "Forecasts"
           },
+          "forecast_history": {
+            "items": {
+              "$ref": "#/components/schemas/ForecastAuditRow"
+            },
+            "type": "array",
+            "title": "Forecast History"
+          },
+          "forecast_record": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Forecast Record"
+          },
           "league_outlooks": {
             "items": {
               "$ref": "#/components/schemas/LeagueTitleOutlook"
@@ -3296,6 +3785,13 @@
             "type": "integer",
             "title": "Model Predictions",
             "default": 0
+          },
+          "fixture_coverage": {
+            "items": {
+              "$ref": "#/components/schemas/FixtureCoverageRow"
+            },
+            "type": "array",
+            "title": "Fixture Coverage"
           },
           "source_caps": {
             "items": {
@@ -3721,6 +4217,56 @@
         "type": "object",
         "title": "RefreshRequest"
       },
+      "RefreshSourceOutcome": {
+        "properties": {
+          "step": {
+            "type": "integer",
+            "title": "Step"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "partition": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Partition"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "required": {
+            "type": "boolean",
+            "title": "Required",
+            "default": false
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "step",
+          "source",
+          "status"
+        ],
+        "title": "RefreshSourceOutcome"
+      },
       "RefreshStatusResponse": {
         "properties": {
           "job_id": {
@@ -3740,6 +4286,7 @@
               "idle",
               "running",
               "success",
+              "degraded",
               "failed"
             ],
             "title": "Status",
@@ -3806,6 +4353,30 @@
               }
             ],
             "title": "Error"
+          },
+          "failed_count": {
+            "type": "integer",
+            "title": "Failed Count",
+            "default": 0
+          },
+          "degraded_count": {
+            "type": "integer",
+            "title": "Degraded Count",
+            "default": 0
+          },
+          "source_messages": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Source Messages"
+          },
+          "source_outcomes": {
+            "items": {
+              "$ref": "#/components/schemas/RefreshSourceOutcome"
+            },
+            "type": "array",
+            "title": "Source Outcomes"
           }
         },
         "type": "object",
@@ -4242,6 +4813,17 @@
             "type": "string",
             "format": "date",
             "title": "Match Date"
+          },
+          "kickoff_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kickoff Time"
           },
           "home": {
             "$ref": "#/components/schemas/TeamRef"
