@@ -1,4 +1,13 @@
-# Database decision — 13 September 2026
+# Database decision — 13 September 2026 (updated 3 October 2026)
+
+> **Current architecture (3 October 2026):** DuckDB computes, PostgreSQL serves, SQLite is the fallback.
+> DuckDB stays the single writer and warehouse (extractors, dbt, model training). `football-publish`
+> swaps only changed tables into the private PostgreSQL schema in one transaction, then rebuilds
+> `data/football.sqlite3` locally. The API reads PostgreSQL (`FOOTBALL_API_READ_BACKEND=postgres`) and
+> falls back to SQLite when it is unreachable. The direct PostgreSQL writer pilot
+> (`FOOTBALL_STORAGE_BACKEND=postgres`, offline queue) was retired: one writer and an immutable published
+> snapshot are simpler than two writers, and analytical SQL is far faster in DuckDB. The sections below
+> are the original record.
 
 Status: this records the original DuckDB design. A user-requested PostgreSQL-only cutover is in progress; the verified snapshot copier is the first migration checkpoint, not a complete replacement.
 
