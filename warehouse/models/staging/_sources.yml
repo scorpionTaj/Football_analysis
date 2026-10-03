@@ -1,0 +1,21 @@
+version: 2
+
+sources:
+  - name: app
+    description: Tables written by the Python extractors (`football-sync`). Treated as the raw layer.
+    schema: main
+    tables:
+      - name: matches
+        description: Validated complete-season Football-Data results for the dashboard window.
+      - name: recent_matches
+        loaded_at_field: fetched_at
+        freshness:
+          warn_after: {count: 12, period: hour}
+          error_after: {count: 48, period: hour}
+      - name: recent_events
+        loaded_at_field: fetched_at
+        freshness:
+          warn_after: {count: 6, period: hour}
+          error_after: {count: 48, period: hour}
+      - name: tournament_matches
+      - name: ingestion_runs

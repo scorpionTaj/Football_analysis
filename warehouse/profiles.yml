@@ -1,0 +1,7 @@
+football_warehouse:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: "{{ env_var('FOOTBALL_DATA_DIR', '../data') }}/football.duckdb"
+      threads: 1

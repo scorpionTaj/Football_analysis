@@ -1,0 +1,33 @@
+name: football_warehouse
+version: "1.0.0"
+config-version: 2
+profile: football_warehouse
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+target-path: target
+clean-targets: [target, dbt_packages]
+
+vars:
+  # Landing zone of untouched Football-Data CSVs: <raw_dir>/<yyYY>/<league>.csv
+  raw_dir: "{{ env_var('FOOTBALL_DATA_DIR', '../data') }}/raw"
+
+models:
+  football_warehouse:
+    staging:
+      +schema: staging
+      +materialized: view
+    intermediate:
+      +schema: intermediate
+      +materialized: table
+    marts:
+      +schema: marts
+      +materialized: table
+    ml:
+      +schema: ml
+      +materialized: table
+seeds:
+  football_warehouse:
+    +schema: reference

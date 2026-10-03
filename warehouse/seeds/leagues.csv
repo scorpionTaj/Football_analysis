@@ -1,0 +1,16 @@
+league,league_name,country,tier,in_dashboard
+E0,Premier League,England,1,true
+E1,Championship,England,2,false
+SP1,La Liga,Spain,1,true
+SP2,La Liga 2,Spain,2,false
+D1,Bundesliga,Germany,1,true
+D2,2. Bundesliga,Germany,2,false
+I1,Serie A,Italy,1,true
+I2,Serie B,Italy,2,false
+F1,Ligue 1,France,1,true
+F2,Ligue 2,France,2,false
+N1,Eredivisie,Netherlands,1,true
+P1,Primeira Liga,Portugal,1,true
+B1,Belgian Pro League,Belgium,1,true
+T1,Turkish Süper Lig,Turkey,1,true
+G1,Greek Super League,Greece,1,true
