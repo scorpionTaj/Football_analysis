@@ -112,3 +112,39 @@ def test_scored_matches_become_provisional_results_until_football_data_has_them(
         assert rows == [("Football-Data.co.uk", 3, 3)]  # the published row is never overwritten
         assert con.execute("SELECT count(*) FROM recent_matches WHERE source=?",
                            [PROVISIONAL_SOURCE]).fetchone()[0] == len(played) - 1
+
+
+def _txt_season(teams, undated_round=None):
+    """A Football.TXT double round robin in both OpenFootball styles (scores before/after the away club)."""
+    rounds = []
+    for r in range(2 * (len(teams) - 1)):
+        rotated = teams[:1] + teams[1:][r % (len(teams) - 1):] + teams[1:][:r % (len(teams) - 1)]
+        pairs = list(zip(rotated[:len(teams) // 2], reversed(rotated[len(teams) // 2:])))
+        rounds.append([(a, b) if r < len(teams) - 1 else (b, a) for a, b in pairs])
+    lines = ["= Test League 2026/27", "# comment"]
+    for number, pairs in enumerate(rounds, 1):
+        lines.append(f"▪ Round {number}" + (" (datum TBC)" if number == undated_round else ""))
+        if number != undated_round:
+            day = date(2026, 8, 1) + timedelta(days=7 * number)
+            lines.append(day.strftime("%a %b ") + str(day.day) + (" 2026" if number == 1 else ""))
+        for index, (home, away) in enumerate(pairs):
+            if number == 1 and index == 0:
+                lines += [f"  20:00   {home}  2-1 (1-0)  {away}", "    (Scorer 12', Other 50'(p);", "     Third 88')"]
+            else:
+                lines.append(f"  --:--  {home}   v   {away}")
+        lines += ["  (*) note that may move", ""]
+    return "\n".join(lines)
+
+
+def test_football_txt_reader_feeds_the_same_validation():
+    from football_analysis.open_fixtures import football_txt_to_json
+
+    teams = [f"Club {index}" for index in range(14)]
+    full = normalize_open_schedule(football_txt_to_json(_txt_season(teams), 2026), "G1", 2026)
+    assert len(full) == 182 and full.scored.sum() == 1
+    assert full.loc[full.scored, ["home_goals", "away_goals"]].values.tolist() == [[2, 1]]
+    assert full.match_date.min() == date(2026, 8, 8) and full.match_date.max().year == 2027  # Jan+ rolls the year
+    with pytest.raises(ValueError, match="invalid date"):  # a round without a published date blocks the import
+        normalize_open_schedule(football_txt_to_json(_txt_season(teams, undated_round=9), 2026), "G1", 2026)
+    with pytest.raises(ValueError, match="Unrecognised"):
+        football_txt_to_json("▪ Round 1\nSat Aug 8 2026\n  Club A against Club B", 2026)

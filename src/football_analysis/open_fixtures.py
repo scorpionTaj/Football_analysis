@@ -28,7 +28,14 @@ LEAGUE_FILES = {
     "I1": "it.1.json", "F1": "fr.1.json", "N1": "nl.1.json",
     "P1": "pt.1.json",
 }
-EIGHTEEN_TEAM_LEAGUES = {"D1", "F1", "N1", "P1"}
+# Football.TXT files (CC0) where OpenFootball has no JSON export; converted to the same
+# document shape and passed through the same validation. Turkey has no 2026/27 file.
+TXT_FILES = {
+    "G1": "europe/master/greece/{season}-{yy}_gr1.txt",
+    "B1": "belgium/master/{season}-{yy}/be1.txt",
+}
+TEAMS = {"E0": 20, "SP1": 20, "I1": 20, "D1": 18, "F1": 18, "N1": 18, "P1": 18,
+         "B1": 18, "G1": 14}  # G1: regular season only (play-offs are drawn later)
 
 # Source-specific spellings are explicit: fuzzy matching would risk inserting
 # a full season under the wrong club identity.
@@ -62,6 +69,13 @@ ALIASES = {
     "CS Marítimo": "Maritimo", "GD Estoril Praia": "Estoril",
     "Sport Lisboa e Benfica": "Benfica", "Sporting Clube de Portugal": "Sp Lisbon",
     "Vitória Guimarães": "Guimaraes",
+    "Aris Thessaloniki": "Aris", "Iraklis 1908": "Iraklis", "OFI": "OFI Crete",
+    "Olympiakos Piraeus": "Olympiakos", "Volos": "Volos NFC", "Levadiakos": "Levadeiakos",
+    "KAA Gent": "Gent", "KRC Genk": "Genk", "KV Kortrijk": "Kortrijk", "KV Mechelen": "Mechelen",
+    "KVC Westerlo": "Westerlo", "OH Leuven": "Oud-Heverlee Leuven", "RAAL La Louvière": "RAAL La Louviere",
+    "Royal Antwerp FC": "Antwerp", "Royale Union Saint-Gilloise": "St. Gilloise",
+    "RSC Anderlecht": "Anderlecht", "SK Beveren": "Beveren", "Sporting Charleroi": "Charleroi",
+    "Standard de Liège": "Standard", "STVV": "St Truiden", "SV Zulte Waregem": "Waregem",
 }
 
 
@@ -69,13 +83,57 @@ def _provider_key(name: str) -> str:
     return team_key(ALIASES.get(name, name))
 
 
+_MONTHS = {m: i for i, m in enumerate(("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"), 1)}
+_DATE = re.compile(r"(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun) ([A-Z][a-z]{2}) (\d{1,2})(?: (\d{4}))?")
+_TIME = re.compile(r"(\d{1,2}:\d{2}|--:--)\s+")
+_SCORED = re.compile(r"(?P<home>.+?)\s{2,}(?P<h>\d+)-(?P<a>\d+)(?:\s+\(\d+-\d+\))?\s{2,}(?P<away>.+)")
+_VERSUS = re.compile(r"(?P<home>.+?)\s+v\s+(?P<away>.+?)(?:\s+(?P<h>\d+)-(?P<a>\d+))?")
+
+
+def football_txt_to_json(text: str, season: int) -> bytes:
+    """Football.TXT -> the football.json document shape. A match whose round has no
+    published date gets date None, so validation rejects the calendar until it is dated."""
+    matches, day, scorers = [], None, False
+    for line in text.splitlines():
+        line = line.split("#", 1)[0].strip()
+        if (scorers and line) or line.startswith("("):  # scorers or a note, until ")" or a blank line
+            scorers = not line.endswith(")")
+            continue
+        scorers = False
+        if not line or line.startswith("="):
+            continue
+        if line.startswith("▪"):
+            day = None  # every round states its own date; TBC rounds stay undated
+            continue
+        if found := _DATE.fullmatch(line):
+            month = _MONTHS[found[1]]
+            day = date(int(found[3] or (season if month >= 7 else season + 1)), month, int(found[2]))
+            continue
+        if line.startswith("TBC"):
+            day = None
+            continue
+        time = _TIME.match(line)
+        rest = line[time.end():] if time else line
+        found = _SCORED.fullmatch(rest) or _VERSUS.fullmatch(rest)
+        if not found:
+            raise ValueError(f"Unrecognised Football.TXT line: {line[:60]}")
+        scored = found["h"] is not None
+        matches.append({
+            "date": day.isoformat() if day else None,
+            "time": time[1] if time and time[1] != "--:--" else None,
+            "team1": found["home"].strip(), "team2": found["away"].strip(),
+            **({"score": {"ft": [int(found["h"]), int(found["a"])]}} if scored else {}),
+        })
+    return json.dumps({"matches": matches}).encode()
+
+
 def normalize_open_schedule(raw: bytes, league: str, season: int) -> pd.DataFrame:
     """Reject incomplete or malformed calendars before any stored partition changes."""
-    if league not in LEAGUE_FILES:
+    if league not in TEAMS:
         raise ValueError(f"No OpenFootball schedule for {league}")
     document = json.loads(raw)
     matches = document.get("matches") if isinstance(document, dict) else None
-    teams_expected = 18 if league in EIGHTEEN_TEAM_LEAGUES else 20
+    teams_expected = TEAMS[league]
     matches_expected = teams_expected * (teams_expected - 1)
     if not isinstance(matches, list) or len(matches) != matches_expected:
         raise ValueError(f"Expected {matches_expected} {league} fixtures, got {len(matches) if isinstance(matches, list) else 'invalid JSON'}")
@@ -128,13 +186,19 @@ class OpenFootballFixtures:
         self.session.mount("https://", HTTPAdapter(max_retries=retry))
 
     def fetch(self, league: str, season: int) -> bytes:
-        path = self.cache_root / f"{season}-{str(season + 1)[-2:]}" / LEAGUE_FILES[league]
+        yy = str(season + 1)[-2:]
+        path = self.cache_root / f"{season}-{yy}" / LEAGUE_FILES.get(league, f"{league.lower()}.json")
         if path.exists() and not self.refresh and datetime.fromtimestamp(path.stat().st_mtime) >= datetime.now() - timedelta(hours=12):
             return path.read_bytes()
-        url = f"{BASE_URL}/{season}-{str(season + 1)[-2:]}/{LEAGUE_FILES[league]}"
+        if league in TXT_FILES:
+            url = f"https://raw.githubusercontent.com/openfootball/{TXT_FILES[league].format(season=season, yy=yy)}"
+        else:
+            url = f"{BASE_URL}/{season}-{yy}/{LEAGUE_FILES[league]}"
         response = self.session.get(url, timeout=(10, 45))
         response.raise_for_status()
         raw = response.content
+        if league in TXT_FILES:
+            raw = football_txt_to_json(raw.decode("utf-8"), season)
         normalize_open_schedule(raw, league, season)
         path.parent.mkdir(parents=True, exist_ok=True)
         temporary = path.with_suffix(f"{path.suffix}.tmp")
@@ -168,12 +232,12 @@ def sync_open_fixtures(
     """Replace each verified source partition independently; retain it on any failure."""
     today = today or date.today()
     season = season if season is not None else (today.year if today.month >= 7 else today.year - 1)
-    leagues = leagues if leagues is not None else list(LEAGUE_FILES)
+    leagues = leagues if leagues is not None else list(TEAMS)
     adapter = adapter or OpenFootballFixtures(refresh=refresh)
     reports = []
     with connect(db) as con:
         for league in leagues:
-            if league not in LEAGUE_FILES:
+            if league not in TEAMS:
                 reports.append({"league": league, "status": "unsupported"})
                 continue
             key = f"open-fixtures:{league}:{season}"

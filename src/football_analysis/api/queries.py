@@ -1999,7 +1999,7 @@ def quality(store: ReadOnlyStore) -> QualityResponse:
     caps = [
         "TheSportsDB free standings and player feeds are explicitly capped.",
         "Transfermarkt Open Dataset is a 2025/26 snapshot with no 2026/27 squad rows.",
-        "OpenFootball supplies verified full-season schedules for seven leagues; Belgium, Turkey and Greece still rely on shorter feeds.",
+        "OpenFootball supplies verified full-season schedules for eight leagues (Greece: regular season); Belgium joins once every round is dated, and Turkey still relies on shorter feeds.",
         "Future fixture dates and source-local kickoff times are provisional until the publishers update them.",
     ]
     return QualityResponse(
