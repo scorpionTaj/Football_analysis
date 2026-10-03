@@ -7,21 +7,38 @@ No paid API or key is required.
 
 ## Architecture
 
-```
-Sources ── Football-Data CSVs (15 leagues incl. 2nd divisions, 2005+, with odds)
-        ── OpenFootball fixtures/tournaments · Transfermarkt CC0 · TheSportsDB (capped)
-   │  Python extractors (football_analysis.*.sync_*)            Dagster assets, group "extract"
-   ▼
-DuckDB  data/football.duckdb  — single writer, compute warehouse
-   main.*          raw app tables written by the extractors
-   staging.*       typed sources (dbt views)                     Dagster group "warehouse"
-   marts.*         fct_match, mart_team_season, … (dbt tables, 28 data tests)
-   ml.*            ml_match_features (leakage-safe), model_runs, predictions
-   │  football-train-models: walk-forward leaderboard → MLflow → champion   group "ml"
-   │  football-publish: changed tables swapped atomically                    group "serving"
-   ▼
-PostgreSQL (Supabase, private schema) ──► FastAPI /api/v1 ──► Next.js (frontend/)
-SQLite data/football.sqlite3 ── automatic read fallback when PostgreSQL is unreachable
+```mermaid
+flowchart TD
+    A["Sources<br/>Football-Data CSVs — 15 leagues incl. 2nd divisions, 2005+, with odds<br/>OpenFootball fixtures/tournaments · Transfermarkt CC0 · TheSportsDB (capped)"]
+    B["Python extractors<br/>football_analysis.*.sync_*<br/>Dagster group: extract"]
+    C["DuckDB<br/>data/football.duckdb<br/>single writer · compute warehouse"]
+
+    C1["main.*<br/>raw app tables"]
+    C2["staging.*<br/>typed sources · dbt views<br/>Dagster group: warehouse"]
+    C3["marts.*<br/>fct_match · mart_team_season · …<br/>dbt tables · 28 data tests"]
+    C4["ml.*<br/>ml_match_features · model_runs · predictions"]
+
+    D["football-train-models<br/>walk-forward leaderboard → MLflow → champion<br/>Dagster group: ml"]
+    E["football-publish<br/>changed tables swapped atomically<br/>Dagster group: serving"]
+
+    F["PostgreSQL<br/>Supabase · private schema"]
+    G["FastAPI<br/>/api/v1"]
+    H["Next.js<br/>frontend/"]
+    I["SQLite<br/>data/football.sqlite3<br/>automatic read fallback when PostgreSQL is unreachable"]
+
+    A --> B
+    B --> C
+    C --> C1
+    C --> C2
+    C2 --> C3
+    C3 --> C4
+    C4 --> D
+    D --> E
+    E --> F
+    F --> G
+    G --> H
+    C -. "read fallback" .-> I
+    I -. "when PostgreSQL unreachable" .-> G
 ```
 
 ## Quick start
