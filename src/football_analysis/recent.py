@@ -165,7 +165,12 @@ def sync_cup_events(db=DB, season=None, competitions=None, adapter=None, refresh
                         f"SELECT {', '.join(EVENT_COLUMNS)} FROM incoming_cup_events"
                     )
                     if not completed.empty:
-                        con.execute("INSERT OR REPLACE INTO tournament_matches SELECT * FROM incoming_cup_matches")
+                        con.execute(
+                            "DELETE FROM tournament_matches WHERE "
+                            "(competition, season, match_date, home_team, away_team) IN "
+                            "(SELECT competition, season, match_date, home_team, away_team FROM incoming_cup_matches)",
+                        )
+                        con.execute("INSERT INTO tournament_matches SELECT * FROM incoming_cup_matches")
                     mark_fresh(con, key)
                     con.execute("COMMIT")
                 except Exception:

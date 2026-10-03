@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import time
 
 import pandas as pd
@@ -110,9 +110,9 @@ def seed(path):
             INSERT INTO recent_events (
                 event_id, league, season, match_date, home_team, away_team,
                 home_goals, away_goals, status, event_kind, source, fetched_at
-            ) VALUES ('event-next', 'E0', 2026, '2026-09-27', 'Arsenal', 'Chelsea',
+            ) VALUES ('event-next', 'E0', 2026, ?, 'Arsenal', 'Chelsea',
                       NULL, NULL, 'Not Started', 'next', 'TheSportsDB', current_timestamp)
-        """)
+        """, [date.today() + timedelta(days=2)])
         con.execute("""
             INSERT INTO event_statistics (source, event_id, statistic, home_value, away_value, fetched_at)
             VALUES

@@ -37,11 +37,12 @@ from football_analysis.api.contracts import (
     TournamentResponse,
     TransferListResponse,
 )
-from football_analysis.api.db import PostgresReadOnlyStore, ReadOnlyStore
+from football_analysis.api.db import PostgresReadOnlyStore, ReadOnlyStore, SQLiteReadOnlyStore
 from football_analysis.api.postgres_matches import PartitionUnavailable, read_partition
 from football_analysis.api.refresh import RefreshCoordinator, RefreshRunner, run_refresh_pipeline
 from football_analysis.api.response_cache import RedisResponseCache
 from football_analysis.config import DB, TOURNAMENTS, current_season
+from football_analysis.sqlite_snapshot import LOCAL_SNAPSHOT
 
 
 CACHE_SHORT = "public, max-age=60, stale-while-revalidate=300"
@@ -62,23 +63,35 @@ def create_app(
     response_cache: RedisResponseCache | None = None,
 ) -> FastAPI:
     path = Path(database_path) if database_path is not None else DB
-    read_backend = os.environ.get("FOOTBALL_API_READ_BACKEND", "duckdb").lower()
+    writing_postgres = os.environ.get("FOOTBALL_STORAGE_BACKEND") == "postgres"
+    read_backend = os.environ.get("FOOTBALL_API_READ_BACKEND", "postgres" if writing_postgres else "duckdb").lower()
     if read_backend not in {"duckdb", "postgres"}:
         raise ValueError("FOOTBALL_API_READ_BACKEND must be duckdb or postgres")
+    if writing_postgres and read_backend != "postgres":
+        raise ValueError("PostgreSQL writes require PostgreSQL API reads")
     match_backend = os.environ.get("FOOTBALL_MATCH_READ_BACKEND", "duckdb").lower()
     if match_backend not in {"duckdb", "postgres"}:
         raise ValueError("FOOTBALL_MATCH_READ_BACKEND must be duckdb or postgres")
     postgres_dsn = os.environ.get("FOOTBALL_POSTGRES_DSN")
-    if (match_backend == "postgres" or read_backend == "postgres") and not postgres_dsn:
+    if read_backend == "duckdb" and match_backend == "postgres" and not postgres_dsn:
         raise ValueError("FOOTBALL_POSTGRES_DSN is required for the PostgreSQL match read path")
-    def open_store() -> ReadOnlyStore | PostgresReadOnlyStore:
+    local_snapshot = LOCAL_SNAPSHOT if database_path is None else path.with_suffix(".sqlite3")
+
+    def open_store() -> ReadOnlyStore | PostgresReadOnlyStore | SQLiteReadOnlyStore:
         if read_backend == "postgres":
-            return PostgresReadOnlyStore(
-                postgres_dsn, os.environ.get("FOOTBALL_POSTGRES_SCHEMA", "football_analysis_next"),
-            )
+            if postgres_dsn:
+                from psycopg import OperationalError
+
+                try:
+                    return PostgresReadOnlyStore(
+                        postgres_dsn, os.environ.get("FOOTBALL_POSTGRES_SCHEMA", "football_analysis_next"),
+                    )
+                except OperationalError:
+                    pass
+            return SQLiteReadOnlyStore(local_snapshot)
         return ReadOnlyStore(path)
 
-    store: ReadOnlyStore | PostgresReadOnlyStore | None
+    store: ReadOnlyStore | PostgresReadOnlyStore | SQLiteReadOnlyStore | None
     if defer_database_open:
         store = None
     else:
@@ -90,7 +103,10 @@ def create_app(
     @asynccontextmanager
     async def lifespan(application: FastAPI):
         if defer_database_open and application.state.store is None and (read_backend == "postgres" or path.exists()):
-            application.state.store = open_store()
+            try:
+                application.state.store = open_store()
+            except FileNotFoundError:
+                pass
         try:
             yield
         finally:
@@ -124,7 +140,7 @@ def create_app(
     app.state.refresh = RefreshCoordinator(path.with_suffix(".refresh.json"))
     response_cache = response_cache if response_cache is not None else RedisResponseCache.from_environment()
 
-    def require_store() -> ReadOnlyStore | PostgresReadOnlyStore:
+    def require_store() -> ReadOnlyStore | PostgresReadOnlyStore | SQLiteReadOnlyStore:
         current = app.state.store
         if current is None:
             raise HTTPException(status_code=503, detail="Database is unavailable")
@@ -197,7 +213,8 @@ def create_app(
             payload = queries.list_matches(
                 require_store(), competition, season, team, opponent, venue, cursor, limit, q,
                 raw_frame=partition.rows if partition else None,
-                source_name="postgresql" if partition or read_backend == "postgres" else "duckdb",
+                source_name="postgresql" if partition or isinstance(app.state.store, PostgresReadOnlyStore)
+                else "sqlite" if isinstance(app.state.store, SQLiteReadOnlyStore) else "duckdb",
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -354,7 +371,7 @@ def create_app(
 
     @app.post("/api/v1/refresh", response_model=RefreshStatusResponse, status_code=202)
     def start_refresh(body: RefreshRequest):
-        if read_backend == "postgres":
+        if read_backend == "postgres" and not writing_postgres:
             raise HTTPException(status_code=409, detail="PostgreSQL snapshot refresh is not available yet")
         def execute(refresh_request: RefreshRequest, progress):
             current = app.state.store
@@ -367,7 +384,7 @@ def create_app(
                 )
                 return runner(refresh_request, progress)
             finally:
-                app.state.store = ReadOnlyStore(path)
+                app.state.store = open_store()
 
         try:
             return app.state.refresh.start(body, execute)

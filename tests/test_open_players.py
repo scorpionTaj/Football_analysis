@@ -106,3 +106,21 @@ def test_match_detail_and_cup_frames_keep_players_cards_misses_and_images(tmp_pa
     assert matches.loc[0, "competition"] == "FAC"
     assert set(goals.player) == {"Home Player", "Lineup-only Scorer"}
     assert timeline.loc[timeline.player_id == "9", "player"].iloc[0] == "Lineup-only Scorer"
+
+
+def test_match_detail_accepts_source_without_events_or_lineups(tmp_path):
+    paths = {
+        "games": _write(pd.DataFrame([{"game_id": 1, "competition_id": "FAC", "season": 2025,
+                                       "date": "2026-05-01", "home_club_id": 11,
+                                       "away_club_id": 31, "home_club_name": "Arsenal",
+                                       "away_club_name": "Liverpool"}]), tmp_path / "games.csv.gz"),
+        "players": _write(pd.DataFrame(columns=["player_id", "name", "image_url"]), tmp_path / "players.csv.gz"),
+        "game_events": _write(pd.DataFrame(columns=["game_event_id", "game_id", "minute", "type", "club_id",
+                                                     "club_name", "player_id", "description", "player_in_id",
+                                                     "player_assist_id"]), tmp_path / "game_events.csv.gz"),
+        "game_lineups": _write(pd.DataFrame(columns=["game_lineups_id", "game_id", "player_id", "club_id",
+                                                     "player_name", "type", "position", "number"]),
+                               tmp_path / "game_lineups.csv.gz"),
+    }
+    timeline, lineups = build_match_detail_frames(paths)
+    assert timeline.empty and lineups.empty

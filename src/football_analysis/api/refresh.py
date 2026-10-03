@@ -51,7 +51,7 @@ class RefreshRunReport:
 
     @property
     def failures(self) -> list[RefreshSourceOutcome]:
-        return [row for row in self.outcomes if row.status in {"failed", "unavailable", "unsupported"}]
+        return [row for row in self.outcomes if row.status in {"failed", "unavailable", "unsupported", "deferred"}]
 
     @property
     def required_failures(self) -> list[RefreshSourceOutcome]:
@@ -273,10 +273,14 @@ def run_refresh_pipeline(database: Path, request: RefreshRequest, progress: Prog
         from football_analysis.media import sync_media
         from football_analysis.open_players import sync_open_players
         from football_analysis.players import sync_players
+        from football_analysis.transfers import sync_transfers
 
         report.attempt(3, "Open players", lambda: sync_open_players(
             db=database, refresh=request.force_download,
         ))
+        report.attempt(3, "Transfers", lambda: {
+            "status": "success", "rows": sync_transfers(db=database),
+        })
         try:
             featured = _featured_clubs_in_scope(database, requested, season)
         except Exception as exc:

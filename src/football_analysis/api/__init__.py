@@ -1,4 +1,4 @@
-"""Read-only FastAPI service over DuckDB analytics."""
+"""FastAPI service over the football analytics store."""
 
 __all__ = ["app", "create_app"]
 

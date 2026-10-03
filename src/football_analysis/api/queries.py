@@ -1,4 +1,4 @@
-"""DuckDB reads that power the versioned API."""
+"""Database reads that power the versioned API."""
 
 from __future__ import annotations
 
@@ -72,7 +72,7 @@ from football_analysis.api.contracts import (
     TransferRow,
     canonical_team_id,
 )
-from football_analysis.api.db import PostgresReadOnlyStore, ReadOnlyStore
+from football_analysis.api.db import PostgresReadOnlyStore, ReadOnlyStore, SQLiteReadOnlyStore
 from football_analysis.api.pagination import decode_cursor, encode_cursor
 from football_analysis.config import (
     CALENDAR_YEAR_TOURNAMENTS,
@@ -162,7 +162,9 @@ def _source(name: str, coverage: str, freshness=None) -> SourceMeta:
 
 
 def _store_source(store: ReadOnlyStore | PostgresReadOnlyStore) -> str:
-    return "postgresql" if isinstance(store, PostgresReadOnlyStore) else "duckdb"
+    if isinstance(store, PostgresReadOnlyStore):
+        return "postgresql"
+    return "sqlite" if isinstance(store, SQLiteReadOnlyStore) else "duckdb"
 
 
 def snapshot_etag(store: ReadOnlyStore) -> str:
@@ -1211,7 +1213,7 @@ def build_analysis(store: ReadOnlyStore, body: AnalysisFilters) -> AnalysisRepor
 
     elo_ratings = []
     if _has(store, "elo_ratings"):
-        elo_sql = "SELECT league, season, team, post_elo FROM elo_ratings"
+        elo_sql = "SELECT league, season, match_date, team, opponent, venue, post_elo FROM elo_ratings"
         clauses = []
         params = []
         if body.competitions:
@@ -1229,10 +1231,12 @@ def build_analysis(store: ReadOnlyStore, body: AnalysisFilters) -> AnalysisRepor
             params.extend(resolved_teams)
         if clauses:
             elo_sql += " WHERE " + " AND ".join(clauses)
-        elo_sql += " ORDER BY match_date DESC"
-
         elo_df = store.query(elo_sql, params)
         if not elo_df.empty:
+            elo_df = elo_df.sort_values(
+                ["match_date", "league", "season", "team", "opponent", "venue"],
+                ascending=[False, True, True, True, True, True], kind="stable",
+            )
             latest_elo = elo_df.drop_duplicates(subset=["league", "season", "team"], keep="first")
             for erow in latest_elo.itertuples(index=False):
                 elo_ratings.append(EloRatingRow(
@@ -1463,9 +1467,10 @@ def get_player(store: ReadOnlyStore, player_id: str) -> PlayerProfileResponse | 
     stats: list[PlayerStat] = []
     if _has(store, "open_player_stats"):
         stat_frame = store.query(
-            "SELECT * FROM open_player_stats WHERE player_id = ? ORDER BY season DESC, competition",
+            "SELECT * FROM open_player_stats WHERE player_id = ?",
             [player_id],
         )
+        stat_frame = stat_frame.sort_values(["season", "competition"], ascending=[False, True], kind="stable")
         for item in stat_frame.itertuples(index=False):
             stats.append(PlayerStat(
                 season=int(item.season), competition=item.competition, statistic="season",

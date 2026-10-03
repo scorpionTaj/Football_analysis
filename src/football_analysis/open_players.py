@@ -6,7 +6,6 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-import duckdb
 import pandas as pd
 import requests
 from requests.adapters import HTTPAdapter
@@ -24,7 +23,7 @@ from .ingest import connect
 SOURCE = "Transfermarkt Open Dataset"
 DATASET_URL = "https://github.com/dcaribou/transfermarkt-datasets"
 DOWNLOAD_BASE = "https://pub-e682421888d945d684bcae8890b0ec20.r2.dev/data"
-FILES = ("players", "games", "appearances", "competitions", "game_events", "game_lineups")
+FILES = ("players", "games", "appearances", "competitions", "game_events", "game_lineups", "transfers")
 CLUB_MAP = {
     418: "Real Madrid", 131: "Barcelona", 13: "Ath Madrid",
     281: "Man City", 31: "Liverpool", 11: "Arsenal",
@@ -45,7 +44,7 @@ def _session():
 
 
 def download_snapshot(directory, refresh=False):
-    """Download the six published CSVs required by the player importer."""
+    """Download the published CSVs required by the player and transfer importers."""
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     session = _session()
@@ -70,7 +69,7 @@ def _snapshot_fingerprint(paths, first_season):
     """Identify an unchanged local snapshot and importer without scanning CSV rows."""
     inputs = [
         (name, path.stat().st_size, path.stat().st_mtime_ns)
-        for name, path in sorted(paths.items())
+        for name, path in sorted(paths.items()) if name != "transfers"
     ]
     implementation = Path(__file__).stat()
     inputs.append(("importer", implementation.st_size, implementation.st_mtime_ns))
@@ -78,278 +77,238 @@ def _snapshot_fingerprint(paths, first_season):
     return hashlib.sha256(json.dumps(inputs).encode()).hexdigest()
 
 
-def _sql_path(path):
-    return str(Path(path).resolve()).replace("'", "''")
-
-
 def build_frames(paths, first_season=2021, last_season=None):
     """Return current featured-club profiles and five-season appearance totals."""
-    last_season = last_season if last_season is not None else max(
-        pd.read_csv(paths["players"], usecols=["last_season"])["last_season"]
-    )
-    club_map = pd.DataFrame(
-        [{"club_id": club_id, "team": team} for club_id, team in CLUB_MAP.items()]
-    )
+    players = pd.read_csv(paths["players"])
+    last_season = last_season if last_season is not None else int(players.last_season.max())
+    featured = players[
+        players.current_club_id.isin(CLUB_MAP) & players.last_season.eq(last_season)
+    ].copy()
+    featured["team"] = featured.current_club_id.map(CLUB_MAP)
+    games = pd.read_csv(paths["games"], usecols=["game_id", "season"])
+    games = games[games.season.between(first_season, last_season)]
+    seasons_by_game = games.set_index("game_id").season
+    teams_by_player = featured.set_index("player_id").team
+    competitions = pd.read_csv(paths["competitions"]).set_index("competition_id")
+    appearances = []
+    latest_match = None
+    columns = ["game_id", "player_id", "competition_id", "date", "goals", "assists",
+               "minutes_played", "yellow_cards", "red_cards"]
+    for chunk in pd.read_csv(paths["appearances"], usecols=columns, chunksize=100_000):
+        chunk = chunk[chunk.game_id.isin(seasons_by_game.index)].copy()
+        if chunk.empty:
+            continue
+        candidate = pd.to_datetime(chunk.date, errors="coerce").max()
+        if pd.notna(candidate) and (latest_match is None or candidate > latest_match):
+            latest_match = candidate
+        chunk = chunk[chunk.player_id.isin(teams_by_player.index)].copy()
+        if chunk.empty:
+            continue
+        chunk["team"] = chunk.player_id.map(teams_by_player)
+        chunk["season"] = chunk.game_id.map(seasons_by_game)
+        appearances.append(chunk)
+    data_as_of = latest_match.date() if latest_match is not None else None
     now = datetime.now()
-    with duckdb.connect() as con:
-        con.register("club_map", club_map)
-        players_path = _sql_path(paths["players"])
-        games_path = _sql_path(paths["games"])
-        appearances_path = _sql_path(paths["appearances"])
-        competitions_path = _sql_path(paths["competitions"])
-        latest_match = con.execute(
-            f"SELECT max(a.date)::DATE FROM read_csv_auto('{appearances_path}') a "
-            f"JOIN read_csv_auto('{games_path}') g USING(game_id) "
-            "WHERE g.season BETWEEN ? AND ?",
-            [first_season, last_season],
-        ).fetchone()[0]
-        profiles = con.execute(
-            f"""
-            SELECT '{SOURCE}' AS source, p.player_id::VARCHAR AS player_id,
-                   p.current_club_id::VARCHAR AS team_id, m.team,
-                   p.name AS player, coalesce(p.position, '') AS position,
-                   coalesce(p.sub_position, '') AS sub_position,
-                   coalesce(p.country_of_citizenship, '') AS nationality,
-                   try_cast(p.date_of_birth AS DATE) AS date_born,
-                   coalesce(p.foot, '') AS foot,
-                   try_cast(p.height_in_cm AS INTEGER) AS height_cm,
-                   try_cast(p.market_value_in_eur AS BIGINT) AS market_value_eur,
-                   try_cast(p.highest_market_value_in_eur AS BIGINT) AS highest_market_value_eur,
-                   coalesce(p.image_url, '') AS image_url,
-                   coalesce(p.url, '') AS profile_url,
-                   p.last_season::INTEGER AS last_season,
-                   ?::DATE AS data_as_of, ?::TIMESTAMP AS fetched_at
-            FROM read_csv_auto('{players_path}') p
-            JOIN club_map m ON p.current_club_id = m.club_id
-            WHERE p.last_season = ?
-            ORDER BY m.team, p.position, p.name
-            """,
-            [latest_match, now, last_season],
-        ).df()
-        con.register("featured_players", profiles[["player_id", "team"]])
-        stats = con.execute(
-            f"""
-            SELECT '{SOURCE}' AS source, a.player_id::VARCHAR AS player_id,
-                   fp.team, g.season::INTEGER AS season,
-                   a.competition_id::VARCHAR AS competition_id,
-                   replace(coalesce(c.name, a.competition_id), '-', ' ') AS competition,
-                   coalesce(c.type, '') AS competition_type,
-                   count(*)::INTEGER AS appearances,
-                   sum(coalesce(a.goals, 0))::INTEGER AS goals,
-                   sum(coalesce(a.assists, 0))::INTEGER AS assists,
-                   sum(coalesce(a.minutes_played, 0))::INTEGER AS minutes_played,
-                   sum(coalesce(a.yellow_cards, 0))::INTEGER AS yellow_cards,
-                   sum(coalesce(a.red_cards, 0))::INTEGER AS red_cards,
-                   ?::DATE AS data_as_of, ?::TIMESTAMP AS fetched_at
-            FROM read_csv_auto('{appearances_path}') a
-            JOIN featured_players fp ON a.player_id::VARCHAR = fp.player_id
-            JOIN read_csv_auto('{games_path}') g USING(game_id)
-            LEFT JOIN read_csv_auto('{competitions_path}') c
-              ON c.competition_id = a.competition_id
-            WHERE g.season BETWEEN ? AND ?
-            GROUP BY a.player_id, fp.team, g.season, a.competition_id, c.name, c.type
-            ORDER BY fp.team, a.player_id, g.season, a.competition_id
-            """,
-            [latest_match, now, first_season, last_season],
-        ).df()
-    return profiles, stats, latest_match, last_season
+    featured["source"] = SOURCE
+    featured["player_id"] = featured.player_id.astype(str)
+    featured["team_id"] = featured.current_club_id.astype(str)
+    featured["date_born"] = pd.to_datetime(featured.date_of_birth, errors="coerce").dt.date
+    featured["data_as_of"] = data_as_of
+    featured["fetched_at"] = now
+    profiles = featured.rename(columns={
+        "name": "player", "country_of_citizenship": "nationality", "height_in_cm": "height_cm",
+        "market_value_in_eur": "market_value_eur", "highest_market_value_in_eur": "highest_market_value_eur",
+        "url": "profile_url",
+    })[["source", "player_id", "team_id", "team", "player", "position", "sub_position",
+        "nationality", "date_born", "foot", "height_cm", "market_value_eur",
+        "highest_market_value_eur", "image_url", "profile_url", "last_season",
+        "data_as_of", "fetched_at"]].fillna({
+            "position": "", "sub_position": "", "nationality": "", "foot": "",
+            "image_url": "", "profile_url": "",
+        }).sort_values(["team", "position", "player"]).reset_index(drop=True)
+    stats_columns = ["source", "player_id", "team", "season", "competition_id", "competition",
+                     "competition_type", "appearances", "goals", "assists", "minutes_played",
+                     "yellow_cards", "red_cards", "data_as_of", "fetched_at"]
+    if not appearances:
+        return profiles, pd.DataFrame(columns=stats_columns), data_as_of, last_season
+    stats = pd.concat(appearances, ignore_index=True)
+    stats["competition"] = stats.competition_id.map(competitions.name).fillna(stats.competition_id).str.replace("-", " ")
+    stats["competition_type"] = stats.competition_id.map(competitions.type).fillna("")
+    metrics = ["goals", "assists", "minutes_played", "yellow_cards", "red_cards"]
+    for column in metrics:
+        stats[column] = pd.to_numeric(stats[column], errors="coerce").fillna(0).astype(int)
+    stats = stats.groupby(["player_id", "team", "season", "competition_id", "competition",
+                           "competition_type"], as_index=False).agg(
+        appearances=("game_id", "size"), **{column: (column, "sum") for column in metrics},
+    )
+    stats["source"] = SOURCE
+    stats["player_id"] = stats.player_id.astype(str)
+    stats["data_as_of"] = data_as_of
+    stats["fetched_at"] = now
+    return profiles, stats[stats_columns].sort_values(
+        ["team", "player_id", "season", "competition_id"],
+    ).reset_index(drop=True), data_as_of, last_season
 
 
 def build_match_context_frame(games_path):
     """Normalize the published real-match manager, formation and venue context."""
-    now = datetime.now()
-    path = _sql_path(games_path)
-    with duckdb.connect() as con:
-        return con.execute(
-            f"""
-            SELECT '{SOURCE}' AS source, game_id::VARCHAR AS match_id,
-                   coalesce(competition_id, '')::VARCHAR AS competition_id,
-                   try_cast(season AS INTEGER) AS season, try_cast(date AS DATE) AS match_date,
-                   coalesce(home_club_name, '') AS home_team,
-                   coalesce(away_club_name, '') AS away_team,
-                   coalesce(home_club_manager_name, '') AS home_coach,
-                   coalesce(away_club_manager_name, '') AS away_coach,
-                   coalesce(home_club_formation, '') AS home_formation,
-                   coalesce(away_club_formation, '') AS away_formation,
-                   coalesce(stadium, '') AS stadium,
-                   try_cast(attendance AS INTEGER) AS attendance,
-                   coalesce(referee, '') AS referee,
-                   coalesce(url, '') AS source_url,
-                   ?::TIMESTAMP AS fetched_at
-            FROM read_csv_auto('{path}', all_varchar=true)
-            WHERE try_cast(date AS DATE) IS NOT NULL
-              AND coalesce(home_club_name, '') <> ''
-              AND coalesce(away_club_name, '') <> ''
-            ORDER BY match_date DESC, match_id
-            """,
-            [now],
-        ).df()
+    games = pd.read_csv(games_path, dtype=str).fillna("")
+    games["match_date"] = pd.to_datetime(games["date"], errors="coerce").dt.date
+    games = games[
+        games.match_date.notna() & games.home_club_name.ne("") & games.away_club_name.ne("")
+    ].copy()
+    games["season"] = pd.to_numeric(games.season, errors="coerce").astype("Int64")
+    games["attendance"] = pd.to_numeric(games.attendance, errors="coerce").astype("Int64")
+    games["source"] = SOURCE
+    games["fetched_at"] = datetime.now()
+    return games.rename(columns={
+        "game_id": "match_id", "home_club_name": "home_team", "away_club_name": "away_team",
+        "home_club_manager_name": "home_coach", "away_club_manager_name": "away_coach",
+        "home_club_formation": "home_formation", "away_club_formation": "away_formation",
+        "stadium": "stadium", "referee": "referee", "url": "source_url",
+    })[[
+        "source", "match_id", "competition_id", "season", "match_date", "home_team", "away_team",
+        "home_coach", "away_coach", "home_formation", "away_formation", "stadium",
+        "attendance", "referee", "source_url", "fetched_at",
+    ]].sort_values(["match_date", "match_id"], ascending=[False, True]).reset_index(drop=True)
 
 
-def _competition_map_frame():
-    return pd.DataFrame([
-        {
-            "source_competition": source,
-            "competition": target,
-            "is_tournament": target in TRANSFERMARKT_TOURNAMENT_CODES,
-        }
-        for source, target in TRANSFERMARKT_COMPETITIONS.items()
-    ])
+def _detail_inputs(paths, first_season):
+    games = pd.read_csv(paths["games"], dtype=str).fillna("")
+    games["season"] = pd.to_numeric(games.season, errors="coerce")
+    games = games[
+        games.competition_id.isin(TRANSFERMARKT_COMPETITIONS) & games.season.ge(first_season)
+    ].copy()
+    game_ids = set(games.game_id)
+    players = pd.read_csv(paths["players"], usecols=["player_id", "name", "image_url"], dtype=str)
+    players = players.fillna("").drop_duplicates("player_id").set_index("player_id")
+    lineup_names = {}
+    lineups = []
+    for chunk in pd.read_csv(paths["game_lineups"], dtype=str, chunksize=100_000):
+        named = chunk[["player_id", "player_name"]].dropna().drop_duplicates("player_id")
+        lineup_names.update({key: value for key, value in zip(named.player_id, named.player_name)
+                             if key not in lineup_names and value})
+        scoped = chunk[chunk.game_id.isin(game_ids)]
+        if not scoped.empty:
+            lineups.append(scoped)
+    events = []
+    for chunk in pd.read_csv(paths["game_events"], dtype=str, chunksize=100_000):
+        scoped = chunk[chunk.game_id.isin(game_ids)]
+        if not scoped.empty:
+            events.append(scoped)
+    lineup_columns = ["game_lineups_id", "game_id", "player_id", "club_id", "player_name",
+                      "type", "position", "number"]
+    event_columns = ["game_event_id", "game_id", "minute", "type", "club_id", "club_name",
+                     "player_id", "description", "player_in_id", "player_assist_id"]
+    return (games, players, lineup_names,
+            pd.concat(lineups, ignore_index=True) if lineups else pd.DataFrame(columns=lineup_columns),
+            pd.concat(events, ignore_index=True) if events else pd.DataFrame(columns=event_columns))
 
 
 def build_match_detail_frames(paths, first_season=2021):
     """Build verified event and lineup rows for every covered app competition."""
+    games, players, lineup_names, raw_lineups, raw_events = _detail_inputs(paths, first_season)
     now = datetime.now()
-    games_path = _sql_path(paths["games"])
-    events_path = _sql_path(paths["game_events"])
-    lineups_path = _sql_path(paths["game_lineups"])
-    players_path = _sql_path(paths["players"])
-    with duckdb.connect() as con:
-        con.register("competition_map", _competition_map_frame())
-        timeline = con.execute(
-            f"""
-            WITH lineup_names AS (
-                SELECT player_id, any_value(player_name) AS player_name
-                FROM read_csv_auto('{lineups_path}')
-                WHERE player_id IS NOT NULL AND coalesce(player_name, '') <> ''
-                GROUP BY player_id
-            )
-            SELECT '{SOURCE}' AS source, e.game_event_id::VARCHAR AS timeline_id,
-                   e.game_id::VARCHAR AS event_id, e.minute::VARCHAR AS minute,
-                   CASE
-                     WHEN e.type = 'Goals' THEN 'Goal'
-                     WHEN e.type = 'Cards' AND lower(coalesce(e.description, '')) LIKE '%second yellow%' THEN 'Second yellow card'
-                     WHEN e.type = 'Cards' AND lower(coalesce(e.description, '')) LIKE '%red card%' THEN 'Red card'
-                     WHEN e.type = 'Cards' THEN 'Yellow card'
-                     WHEN e.type = 'Shootout' AND lower(coalesce(e.description, '')) LIKE '%missed%' THEN 'Missed penalty'
-                     WHEN e.type = 'Shootout' THEN 'Penalty shootout goal'
-                     WHEN e.type = 'Substitutions' THEN 'Substitution'
-                     ELSE coalesce(e.type, 'Match event')
-                   END AS event_type,
-                   coalesce(e.description, '') AS detail,
-                   coalesce(e.club_name, '') AS team,
-                   e.player_id::VARCHAR AS player_id,
-                   coalesce(nullif(p.name, ''), ln.player_name, '') AS player,
-                   CASE WHEN e.type = 'Substitutions'
-                        THEN coalesce(nullif(pin.name, ''), pin_ln.player_name, '')
-                        ELSE coalesce(nullif(pa.name, ''), pa_ln.player_name, '') END AS assist,
-                   e.club_id = g.home_club_id AS is_home,
-                   '' AS comment, ?::TIMESTAMP AS fetched_at
-            FROM read_csv_auto('{events_path}') e
-            JOIN read_csv_auto('{games_path}', all_varchar=true) g
-              ON e.game_id::VARCHAR = g.game_id
-            JOIN competition_map cm ON g.competition_id = cm.source_competition
-            LEFT JOIN read_csv_auto('{players_path}') p ON e.player_id = p.player_id
-            LEFT JOIN read_csv_auto('{players_path}') pin ON try_cast(e.player_in_id AS BIGINT) = pin.player_id
-            LEFT JOIN read_csv_auto('{players_path}') pa ON try_cast(e.player_assist_id AS BIGINT) = pa.player_id
-            LEFT JOIN lineup_names ln ON e.player_id = ln.player_id
-            LEFT JOIN lineup_names pin_ln ON try_cast(e.player_in_id AS BIGINT) = pin_ln.player_id
-            LEFT JOIN lineup_names pa_ln ON try_cast(e.player_assist_id AS BIGINT) = pa_ln.player_id
-            WHERE try_cast(g.season AS INTEGER) >= ?
-            ORDER BY e.game_id, e.minute, e.game_event_id
-            """,
-            [now, first_season],
-        ).df()
-        lineups = con.execute(
-            f"""
-            SELECT '{SOURCE}' AS source, l.game_lineups_id::VARCHAR AS lineup_id,
-                   l.game_id::VARCHAR AS event_id,
-                   CASE WHEN l.club_id::VARCHAR = g.home_club_id THEN g.home_club_name
-                        WHEN l.club_id::VARCHAR = g.away_club_id THEN g.away_club_name
-                        ELSE '' END AS team,
-                   l.player_id::VARCHAR AS player_id, coalesce(l.player_name, p.name, '') AS player,
-                   coalesce(l.position, '') AS position,
-                   l.club_id::VARCHAR = g.home_club_id AS is_home,
-                   lower(coalesce(l.type, '')) <> 'starting_lineup' AS is_substitute,
-                   coalesce(try_cast(l.number AS VARCHAR), '') AS shirt_number,
-                   coalesce(p.image_url, '') AS cutout_url, ?::TIMESTAMP AS fetched_at
-            FROM read_csv_auto('{lineups_path}') l
-            JOIN read_csv_auto('{games_path}', all_varchar=true) g
-              ON l.game_id::VARCHAR = g.game_id
-            JOIN competition_map cm ON g.competition_id = cm.source_competition
-            LEFT JOIN read_csv_auto('{players_path}') p ON l.player_id = p.player_id
-            WHERE try_cast(g.season AS INTEGER) >= ?
-            ORDER BY l.game_id, is_home DESC, is_substitute, l.position, l.player_name
-            """,
-            [now, first_season],
-        ).df()
-    return timeline, lineups
+    games = games.set_index("game_id")
+    events = raw_events.fillna("").join(
+        games[["home_club_id"]], on="game_id", how="inner",
+    )
+    description = events.description.str.lower()
+    kind = events.type.replace("", "Match event")
+    kind.loc[events.type.eq("Goals")] = "Goal"
+    cards = events.type.eq("Cards")
+    kind.loc[cards] = "Yellow card"
+    kind.loc[cards & description.str.contains("red card", regex=False)] = "Red card"
+    kind.loc[cards & description.str.contains("second yellow", regex=False)] = "Second yellow card"
+    shootout = events.type.eq("Shootout")
+    kind.loc[shootout] = "Penalty shootout goal"
+    kind.loc[shootout & description.str.contains("missed", regex=False)] = "Missed penalty"
+    kind.loc[events.type.eq("Substitutions")] = "Substitution"
+    assists = events.player_assist_id.where(events.type.ne("Substitutions"), events.player_in_id)
+    timeline = pd.DataFrame({
+        "source": SOURCE, "timeline_id": events.game_event_id, "event_id": events.game_id,
+        "minute": events.minute, "event_type": kind, "detail": events.description,
+        "team": events.club_name, "player_id": events.player_id,
+        "player": events.player_id.map(players.name).replace("", pd.NA).fillna(
+            events.player_id.map(lineup_names)).fillna(""),
+        "assist": assists.map(players.name).replace("", pd.NA).fillna(
+            assists.map(lineup_names)).fillna(""),
+        "is_home": events.club_id.eq(events.home_club_id), "comment": "", "fetched_at": now,
+    })
+    timeline["_minute"] = pd.to_numeric(timeline.minute, errors="coerce")
+    timeline = timeline.sort_values(["event_id", "_minute", "timeline_id"]).drop(
+        columns="_minute",
+    ).reset_index(drop=True)
+    lineups = raw_lineups.fillna("").join(
+        games[["home_club_id", "away_club_id", "home_club_name", "away_club_name"]],
+        on="game_id", how="inner",
+    )
+    is_home = lineups.club_id.eq(lineups.home_club_id)
+    lineups_frame = pd.DataFrame({
+        "source": SOURCE, "lineup_id": lineups.game_lineups_id, "event_id": lineups.game_id,
+        "team": lineups.home_club_name.where(is_home, lineups.away_club_name.where(
+            lineups.club_id.eq(lineups.away_club_id), "")),
+        "player_id": lineups.player_id,
+        "player": lineups.player_name.fillna(lineups.player_id.map(players.name)).fillna(""),
+        "position": lineups.position, "is_home": is_home,
+        "is_substitute": lineups.type.str.lower().ne("starting_lineup"),
+        "shirt_number": lineups.number, "cutout_url": lineups.player_id.map(players.image_url).fillna(""),
+        "fetched_at": now,
+    })
+    lineups_frame = lineups_frame.sort_values(
+        ["event_id", "is_home", "is_substitute", "position", "player"],
+        ascending=[True, False, True, True, True],
+    ).reset_index(drop=True)
+    return timeline, lineups_frame
 
 
-def build_transfermarkt_tournament_frames(paths, first_season=2021):
+def build_transfermarkt_tournament_frames(paths, first_season=2021, timeline=None):
     """Normalize completed domestic, continental and national cup matches."""
     now = datetime.now()
-    games_path = _sql_path(paths["games"])
-    events_path = _sql_path(paths["game_events"])
-    lineups_path = _sql_path(paths["game_lineups"])
-    players_path = _sql_path(paths["players"])
-    with duckdb.connect() as con:
-        con.register("competition_map", _competition_map_frame())
-        matches = con.execute(
-            f"""
-            SELECT cm.competition, try_cast(g.season AS INTEGER) AS season,
-                   coalesce(g.round, 'Unknown') AS stage, '' AS group_name,
-                   try_cast(g.date AS DATE) AS match_date,
-                   coalesce(g.home_club_name, '') AS home_team,
-                   coalesce(g.away_club_name, '') AS away_team,
-                   try_cast(g.home_club_goals AS INTEGER) AS home_goals,
-                   try_cast(g.away_club_goals AS INTEGER) AS away_goals,
-                   NULL::INTEGER AS home_penalties, NULL::INTEGER AS away_penalties,
-                   coalesce(g.stadium, '') AS venue, false AS neutral,
-                   'FINISHED' AS status, '{SOURCE}' AS source,
-                   coalesce(g.url, '') AS source_url, ?::TIMESTAMP AS fetched_at
-            FROM read_csv_auto('{games_path}', all_varchar=true) g
-            JOIN competition_map cm ON g.competition_id = cm.source_competition
-            WHERE cm.is_tournament
-              AND cm.competition NOT IN ('UCL', 'WC')
-              AND try_cast(g.season AS INTEGER) >= ?
-              AND try_cast(g.date AS DATE) IS NOT NULL
-              AND try_cast(g.home_club_goals AS INTEGER) IS NOT NULL
-              AND try_cast(g.away_club_goals AS INTEGER) IS NOT NULL
-              AND coalesce(g.home_club_name, '') <> coalesce(g.away_club_name, '')
-            QUALIFY row_number() OVER (
-              PARTITION BY cm.competition, try_cast(g.season AS INTEGER), try_cast(g.date AS DATE),
-                           g.home_club_name, g.away_club_name
-              ORDER BY g.game_id DESC
-            ) = 1
-            """,
-            [now, first_season],
-        ).df()
-        goals = con.execute(
-            f"""
-            WITH lineup_names AS (
-                SELECT player_id, any_value(player_name) AS player_name
-                FROM read_csv_auto('{lineups_path}')
-                WHERE player_id IS NOT NULL AND coalesce(player_name, '') <> ''
-                GROUP BY player_id
-            )
-            SELECT cm.competition, try_cast(g.season AS INTEGER) AS season,
-                   try_cast(g.date AS DATE) AS match_date,
-                   coalesce(e.club_name, '') AS team,
-                   coalesce(nullif(p.name, ''), ln.player_name, 'Unknown') AS player,
-                   e.minute::VARCHAR AS minute,
-                   lower(coalesce(e.description, '')) LIKE '%penalty%' AS penalty,
-                   lower(coalesce(e.description, '')) LIKE '%own-goal%' AS own_goal,
-                   '{SOURCE}' AS source, coalesce(g.url, '') AS source_url,
-                   ?::TIMESTAMP AS fetched_at
-            FROM read_csv_auto('{events_path}') e
-            JOIN read_csv_auto('{games_path}', all_varchar=true) g
-              ON e.game_id::VARCHAR = g.game_id
-            JOIN competition_map cm ON g.competition_id = cm.source_competition
-            LEFT JOIN read_csv_auto('{players_path}') p ON e.player_id = p.player_id
-            LEFT JOIN lineup_names ln ON e.player_id = ln.player_id
-            WHERE cm.is_tournament
-              AND cm.competition NOT IN ('UCL', 'WC')
-              AND try_cast(g.season AS INTEGER) >= ?
-              AND e.type = 'Goals'
-            QUALIFY row_number() OVER (
-              PARTITION BY cm.competition, try_cast(g.season AS INTEGER), try_cast(g.date AS DATE),
-                           e.club_name, coalesce(nullif(p.name, ''), ln.player_name, 'Unknown'), e.minute
-              ORDER BY e.game_event_id
-            ) = 1
-            """,
-            [now, first_season],
-        ).df()
+    games = pd.read_csv(paths["games"], dtype=str).fillna("")
+    games["competition"] = games.competition_id.map(TRANSFERMARKT_COMPETITIONS)
+    games["season"] = pd.to_numeric(games.season, errors="coerce").astype("Int64")
+    games["match_date"] = pd.to_datetime(games.date, errors="coerce").dt.date
+    games["home_goals"] = pd.to_numeric(games.home_club_goals, errors="coerce").astype("Int64")
+    games["away_goals"] = pd.to_numeric(games.away_club_goals, errors="coerce").astype("Int64")
+    cups = games[
+        games.competition.isin(TRANSFERMARKT_TOURNAMENT_CODES - {"UCL", "WC"})
+        & games.season.ge(first_season) & games.match_date.notna()
+    ].copy()
+    finished = cups[
+        cups.home_goals.notna() & cups.away_goals.notna()
+        & cups.home_club_name.ne(cups.away_club_name)
+    ].sort_values("game_id", ascending=False)
+    finished = finished.drop_duplicates(
+        ["competition", "season", "match_date", "home_club_name", "away_club_name"],
+    )
+    matches = pd.DataFrame({
+        "competition": finished.competition, "season": finished.season,
+        "stage": finished["round"].replace("", "Unknown"), "group_name": "",
+        "match_date": finished.match_date, "home_team": finished.home_club_name,
+        "away_team": finished.away_club_name, "home_goals": finished.home_goals,
+        "away_goals": finished.away_goals, "home_penalties": None, "away_penalties": None,
+        "venue": finished.stadium, "neutral": False, "status": "FINISHED", "source": SOURCE,
+        "source_url": finished.url, "fetched_at": now,
+    }).reset_index(drop=True)
+    if timeline is None:
+        timeline, _ = build_match_detail_frames(paths, first_season=first_season)
+    scored = timeline[timeline.event_type.eq("Goal")].merge(
+        cups[["game_id", "competition", "season", "match_date", "url"]],
+        left_on="event_id", right_on="game_id", how="inner",
+    )
+    scored["player"] = scored.player.replace("", "Unknown")
+    scored = scored.sort_values("timeline_id").drop_duplicates(
+        ["competition", "season", "match_date", "team", "player", "minute"],
+    )
+    description = scored.detail.str.lower()
+    goals = pd.DataFrame({
+        "competition": scored.competition, "season": scored.season,
+        "match_date": scored.match_date, "team": scored.team, "player": scored.player,
+        "minute": scored.minute, "penalty": description.str.contains("penalty", regex=False),
+        "own_goal": description.str.contains("own-goal", regex=False),
+        "source": SOURCE, "source_url": scored.url, "fetched_at": now,
+    }).reset_index(drop=True)
     return matches, goals
 
 
@@ -385,7 +344,7 @@ def sync_open_players(db=DB, directory=None, refresh=False, first_season=2021):
     contexts = build_match_context_frame(paths["games"])
     timeline, lineups = build_match_detail_frames(paths, first_season=first_season)
     tournament_matches, tournament_goals = build_transfermarkt_tournament_frames(
-        paths, first_season=first_season,
+        paths, first_season=first_season, timeline=timeline,
     )
     with connect(db) as con:
         con.register("incoming_open_players", profiles)

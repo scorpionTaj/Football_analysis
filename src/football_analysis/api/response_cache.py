@@ -28,7 +28,7 @@ class RedisResponseCache:
         try:
             return self.client.get(key)
         except Exception:
-            # Redis is an optimization; DuckDB remains the source of truth.
+            # Redis is an optimization; the database remains the source of truth.
             return None
 
     def set(self, key: str, body: bytes, ttl: int) -> None:

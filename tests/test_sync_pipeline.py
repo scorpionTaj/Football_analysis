@@ -91,7 +91,7 @@ def test_required_result_failure_makes_football_sync_exit_nonzero(monkeypatch, t
 
 
 def test_all_four_stages_keep_running_after_optional_source_failures(monkeypatch, tmp_path):
-    from football_analysis import event_details, fixtures, ingest, media, open_fixtures, open_players, predictions, recent, reference_standings
+    from football_analysis import event_details, fixtures, ingest, media, open_fixtures, open_players, predictions, recent, reference_standings, transfers
     from football_analysis.api import refresh
 
     monkeypatch.setattr(recent, "sync_recent", lambda **_kwargs: [
@@ -103,6 +103,7 @@ def test_all_four_stages_keep_running_after_optional_source_failures(monkeypatch
         {"league": "E0", "status": "failed", "detail": "standings offline"},
     ])
     monkeypatch.setattr(open_players, "sync_open_players", lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("snapshot offline")))
+    monkeypatch.setattr(transfers, "sync_transfers", lambda **_kwargs: 0)
     monkeypatch.setattr(refresh, "_featured_clubs_in_scope", lambda *_args: [])
     monkeypatch.setattr(media, "sync_media", lambda **_kwargs: [])
     monkeypatch.setattr(event_details, "sync_event_details", lambda **_kwargs: [])
