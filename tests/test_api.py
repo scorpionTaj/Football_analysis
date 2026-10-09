@@ -444,16 +444,28 @@ def test_match_centre_combines_stored_stats_context_and_events(tmp_path):
     assert payload["lineup_complete"] is False
 
 
-def test_refresh_workflow_reports_step_progress_and_reopens_database(tmp_path):
+def test_refresh_requires_loopback_or_admin_token(tmp_path, monkeypatch):
     db = tmp_path / "api.duckdb"
     seed(db)
+    monkeypatch.delenv("FOOTBALL_ADMIN_TOKEN", raising=False)
+    api = TestClient(create_app(db, refresh_runner=lambda *_: None))  # client host "testclient": not loopback
+    assert api.post("/api/v1/refresh", json={"target_step": 1}).status_code == 403
+    monkeypatch.setenv("FOOTBALL_ADMIN_TOKEN", "secret")
+    assert api.post("/api/v1/refresh", json={"target_step": 1}, headers={"X-Admin-Token": "wrong"}).status_code == 403
+    assert api.get("/api/v1/health").json()["status"] == "ok"
+
+
+def test_refresh_workflow_reports_step_progress_and_reopens_database(tmp_path, monkeypatch):
+    db = tmp_path / "api.duckdb"
+    seed(db)
+    monkeypatch.setenv("FOOTBALL_ADMIN_TOKEN", "secret")
 
     def fake_runner(request, progress):
         progress(1, "Results and fixtures", "Testing")
         progress(2, "Tables and competitions", "Testing")
 
     api = TestClient(create_app(db, refresh_runner=fake_runner))
-    started = api.post("/api/v1/refresh", json={"target_step": 2, "season": 2026})
+    started = api.post("/api/v1/refresh", json={"target_step": 2, "season": 2026}, headers={"X-Admin-Token": "secret"})
     assert started.status_code == 202
     for _ in range(100):
         status = api.get("/api/v1/refresh").json()
