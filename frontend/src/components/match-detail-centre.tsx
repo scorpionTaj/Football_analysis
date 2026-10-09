@@ -79,7 +79,7 @@ function Pitch({ detail, side }: { detail: MatchCentreDetailResponse; side: Side
         <div className="flex min-w-0 items-center gap-3">
           <FootballBadge name={team.name} url={team.badge_url} size={38} />
           <div className="min-w-0">
-            <h3 className="truncate text-base font-black text-text">{team.name}</h3>
+            <h3 className="truncate text-sm font-semibold text-text">{team.name}</h3>
             <p className="text-xs text-subtext0">{formation ? `${formation} published formation` : 'Formation not published'}</p>
           </div>
         </div>
@@ -112,7 +112,7 @@ function Pitch({ detail, side }: { detail: MatchCentreDetailResponse; side: Side
             style={{ left: `${left}%`, top: `${top}%` }}
           >
             <span className="mx-auto flex size-8 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-[#0c3d2a] shadow-lg">
-              {player.cutout_url ? <PlayerAvatar name={player.player || 'Player'} image_url={player.cutout_url} size={28} ring={false} /> : <span className="text-[10px] font-black text-white">{player.shirt_number || '•'}</span>}
+              {player.cutout_url ? <PlayerAvatar name={player.player || 'Player'} image_url={player.cutout_url} size={28} ring={false} /> : <span className="text-[10px] font-semibold text-white">{player.shirt_number || '•'}</span>}
             </span>
             <span className="mt-1 block truncate rounded-md bg-black/70 px-1 py-0.5 text-[9px] font-bold text-white">{player.player || 'Unnamed'}</span>
             <span className="mt-0.5 block truncate text-[8px] text-white/80">{player.position || 'Role unavailable'}</span>
@@ -135,9 +135,9 @@ function Pitch({ detail, side }: { detail: MatchCentreDetailResponse; side: Side
       </p>
       {bench.length ? (
         <div>
-          <h4 className="mb-2 flex items-center gap-2 text-sm font-bold text-text"><Shirt className="size-4 text-teal" /> Bench</h4>
+          <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-text"><Shirt className="size-4 text-overlay0" /> Bench</h4>
           <div className="flex flex-wrap gap-2">
-            {bench.map((player) => <span key={`${player.player_id}-${player.player}`} className="rounded-full border border-surface1 bg-mantle px-3 py-1 text-xs text-subtext1">{player.player}</span>)}
+            {bench.map((player) => <span key={`${player.player_id}-${player.player}`} className="rounded-md border border-surface1 px-2 py-0.5 text-xs text-subtext1">{player.player}</span>)}
           </div>
         </div>
       ) : null}
@@ -157,23 +157,23 @@ export function MatchDetailCentre({ detail, onBack }: { detail: MatchCentreDetai
     <div className="space-y-5">
       <Button variant="outline" size="sm" onPress={onBack} className="gap-2"><ArrowLeft className="size-4" />Back to matches</Button>
 
-      <Card className="overflow-hidden rounded-[1.8rem] border border-surface1 bg-surface0">
-        <div className="border-b border-surface1 bg-mantle/75 p-5 sm:p-8">
+      <Card className="overflow-hidden rounded-xl border border-surface1 bg-surface0">
+        <div className="border-b border-surface1 p-5 sm:p-6">
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3 text-xs text-subtext0">
             <span className="flex items-center gap-2"><CalendarDays className="size-4" />{match.match_date}{match.kickoff_time ? ` · Kickoff ${match.kickoff_time}` : ''} · {match.competition}</span>
             <span>{detail.status || match.stage || 'Match record'}</span>
           </div>
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 sm:gap-8">
             <div className="flex min-w-0 flex-col items-center gap-2 text-center sm:flex-row sm:justify-end sm:text-right">
-              <span className="truncate text-sm font-black text-text sm:text-xl">{match.home.name}</span>
+              <span className="truncate text-sm font-semibold text-text sm:text-lg">{match.home.name}</span>
               <FootballBadge name={match.home.name} url={match.home.badge_url} size={48} />
             </div>
-            <div className="rounded-2xl border border-surface2 bg-base px-4 py-3 font-mono text-2xl font-black text-text sm:px-6 sm:text-4xl">
+            <div className="rounded-lg bg-mantle px-4 py-2 text-2xl font-semibold tabular-nums text-text sm:px-5 sm:text-3xl">
               {match.home_goals ?? '–'}<span className="px-2 text-overlay0">:</span>{match.away_goals ?? '–'}
             </div>
             <div className="flex min-w-0 flex-col items-center gap-2 text-center sm:flex-row sm:text-left">
               <FootballBadge name={match.away.name} url={match.away.badge_url} size={48} />
-              <span className="truncate text-sm font-black text-text sm:text-xl">{match.away.name}</span>
+              <span className="truncate text-sm font-semibold text-text sm:text-lg">{match.away.name}</span>
             </div>
           </div>
           <div className="mt-5 flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs text-subtext0">
@@ -184,14 +184,14 @@ export function MatchDetailCentre({ detail, onBack }: { detail: MatchCentreDetai
         </div>
 
         {isFixturePreview ? (
-          <section className="space-y-5 p-5 sm:p-8">
+          <section className="space-y-5 p-5 sm:p-6">
             <div>
-              <h2 className="text-lg font-black text-text">Fixture preview</h2>
+              <h2 className="text-sm font-semibold text-text">Fixture preview</h2>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-subtext1">
                 This match has not produced a verified result or match events yet. The fixture information below is what the source has published.
               </p>
             </div>
-            <dl className="grid gap-4 rounded-xl border border-surface1 bg-mantle/60 p-4 text-sm sm:grid-cols-2">
+            <dl className="grid gap-4 rounded-lg border border-surface1 bg-mantle p-4 text-sm sm:grid-cols-2">
               <div><dt className="text-subtext0">Date</dt><dd className="font-semibold text-text">{match.match_date}</dd></div>
               <div><dt className="text-subtext0">Kickoff</dt><dd className="font-semibold text-text">{match.kickoff_time || 'Not announced'}</dd></div>
               <div><dt className="text-subtext0">Competition</dt><dd className="font-semibold text-text">{match.competition}</dd></div>
@@ -202,12 +202,12 @@ export function MatchDetailCentre({ detail, onBack }: { detail: MatchCentreDetai
               {detail.away_coach ? <div><dt className="text-subtext0">{match.away.name} coach</dt><dd className="font-semibold text-text">{detail.away_coach}</dd></div> : null}
             </dl>
             {detail.narrative.length ? <div className="space-y-2 text-sm leading-6 text-subtext1">{detail.narrative.map((line) => <p key={line}>{line}</p>)}</div> : null}
-            {detail.coverage_notes.length ? <div className="rounded-xl border border-yellow/25 bg-yellow/5 p-4"><h3 className="mb-2 text-sm font-bold text-yellow">Data coverage</h3><ul className="space-y-1 text-xs leading-5 text-subtext1">{detail.coverage_notes.map((note) => <li key={note}>• {note}</li>)}</ul></div> : null}
+            {detail.coverage_notes.length ? <div className="rounded-lg border border-warning/30 bg-warning/5 p-4"><h3 className="mb-2 text-sm font-semibold text-warning">Data coverage</h3><ul className="space-y-1 text-xs leading-5 text-subtext1">{detail.coverage_notes.map((note) => <li key={note}>• {note}</li>)}</ul></div> : null}
             <SourceBadge meta={detail.source} />
           </section>
         ) : <div className="grid xl:grid-cols-[1.05fr_0.95fr]">
           <div className="border-b border-surface1 p-4 sm:p-6 xl:border-b-0 xl:border-r">
-            <div className="mb-5 flex rounded-xl border border-surface1 bg-mantle p-1">
+            <div className="mb-5 flex rounded-lg border border-surface1 bg-mantle p-0.5">
               {(['home', 'away'] as Side[]).map((value) => {
                 const team = value === 'home' ? match.home : match.away;
                 return <Button key={value} size="sm" variant={side === value ? 'primary' : 'ghost'} onPress={() => setSide(value)} className="flex-1">{team.name}</Button>;
@@ -218,7 +218,7 @@ export function MatchDetailCentre({ detail, onBack }: { detail: MatchCentreDetai
 
           <div className="divide-y divide-surface1">
             <section className="p-4 sm:p-6">
-              <h2 className="mb-3 text-lg font-black text-text">Match overview</h2>
+              <h2 className="mb-3 text-sm font-semibold text-text">Match overview</h2>
               {detail.narrative.length ? (
                 <div className="space-y-2 text-sm leading-6 text-subtext1">
                   {detail.narrative.map((line) => <p key={line}>{line}</p>)}
@@ -227,7 +227,7 @@ export function MatchDetailCentre({ detail, onBack }: { detail: MatchCentreDetai
             </section>
 
             <section className="p-4 sm:p-6">
-              <h2 className="mb-4 text-lg font-black text-text">Match statistics</h2>
+              <h2 className="mb-4 text-sm font-semibold text-text">Match statistics</h2>
               <div className="space-y-4">
                 {detail.statistics.map((stat) => {
                   const home = stat.home_value ?? 0;
@@ -236,11 +236,11 @@ export function MatchDetailCentre({ detail, onBack }: { detail: MatchCentreDetai
                   return (
                     <div key={stat.statistic}>
                       <div className="mb-1.5 grid grid-cols-[3rem_1fr_3rem] items-center text-xs">
-                        <span className="font-mono font-bold text-blue">{stat.home_value ?? '—'}</span>
+                        <span className="font-semibold tabular-nums text-text">{stat.home_value ?? '—'}</span>
                         <span className="text-center font-semibold text-subtext1">{stat.statistic}</span>
-                        <span className="text-right font-mono font-bold text-peach">{stat.away_value ?? '—'}</span>
+                        <span className="text-right font-semibold tabular-nums text-text">{stat.away_value ?? '—'}</span>
                       </div>
-                      <div className="flex h-2 overflow-hidden rounded-full bg-surface1"><span className="bg-blue" style={{ width: `${home / total * 100}%` }} /><span className="bg-peach" style={{ width: `${away / total * 100}%` }} /></div>
+                      <div className="flex h-2 overflow-hidden rounded-full bg-surface1"><span style={{ background: 'var(--outcome-home)',  width: `${home / total * 100}%` }} /><span style={{ background: 'var(--outcome-away)',  width: `${away / total * 100}%` }} /></div>
                     </div>
                   );
                 })}
@@ -252,18 +252,18 @@ export function MatchDetailCentre({ detail, onBack }: { detail: MatchCentreDetai
       </Card>
 
       {!isFixturePreview ? <div className="grid gap-5 lg:grid-cols-[1fr_0.72fr]">
-        <Card className="rounded-2xl border border-surface1 bg-surface0 p-4 sm:p-6">
-          <h2 className="mb-5 flex items-center gap-2 text-lg font-black text-text"><Timer className="size-5 text-yellow" />Match timeline</h2>
+        <Card className="rounded-xl border border-surface1 bg-surface0 p-4 sm:p-5">
+          <h2 className="mb-5 flex items-center gap-2 text-sm font-semibold text-text"><Timer className="size-4 text-overlay0" />Match timeline</h2>
           {orderedTimeline.length ? (
             <div className="relative space-y-1 before:absolute before:bottom-4 before:left-[2.2rem] before:top-4 before:w-px before:bg-surface2">
               {orderedTimeline.map((item, index) => (
                 <div key={`${item.minute}-${item.player_id}-${index}`} className="relative grid grid-cols-[4.5rem_1fr] gap-3 py-2">
-                  <span className="z-10 flex size-9 items-center justify-center rounded-full border border-surface2 bg-mantle font-mono text-xs font-black text-yellow">{item.minute ? `${item.minute}′` : '•'}</span>
+                  <span className="z-10 flex size-9 items-center justify-center rounded-full border border-surface2 bg-mantle text-xs font-semibold tabular-nums text-text">{item.minute ? `${item.minute}′` : '•'}</span>
                   <div className="rounded-xl border border-surface1 bg-mantle/60 p-3">
                     <div className="flex items-center gap-2">
-                      <span className={`flex size-7 shrink-0 items-center justify-center rounded-lg border text-xs font-black ${timelineMark(item.event_type).tone}`}>{timelineMark(item.event_type).mark}</span>
+                      <span className={`flex size-7 shrink-0 items-center justify-center rounded-lg border text-xs font-semibold ${timelineMark(item.event_type).tone}`}>{timelineMark(item.event_type).mark}</span>
                       <FootballBadge name={item.team.name} url={item.team.badge_url} size={20} />
-                      <div className="min-w-0"><p className="truncate font-bold text-text">{item.player || item.event_type || 'Match event'}</p><p className="text-[10px] text-subtext0">{item.team.name}</p></div>
+                      <div className="min-w-0"><p className="truncate font-medium text-text">{item.player || item.event_type || 'Match event'}</p><p className="text-[10px] text-subtext0">{item.team.name}</p></div>
                     </div>
                     <p className="mt-2 text-xs text-subtext0">{item.event_type}{item.detail ? ` · ${item.detail}` : ''}{item.assist ? ` · ${item.event_type?.toLowerCase().includes('substitution') ? 'Player in' : 'Assist'}: ${item.assist}` : ''}</p>
                     {item.comment ? <p className="mt-1 text-xs text-subtext1">{item.comment}</p> : null}
@@ -275,16 +275,16 @@ export function MatchDetailCentre({ detail, onBack }: { detail: MatchCentreDetai
         </Card>
 
         <div className="space-y-5">
-          <Card className="rounded-2xl border border-surface1 bg-surface0 p-5">
-            <h2 className="mb-3 text-base font-black text-text">Technical area</h2>
+          <Card className="rounded-xl border border-surface1 bg-surface0 p-4">
+            <h2 className="mb-3 text-base font-semibold text-text">Technical area</h2>
             <div className="space-y-3 text-sm">
               <div className="flex justify-between gap-3"><span className="text-subtext0">{match.home.name}</span><span className="text-right font-semibold text-text">{detail.home_coach || 'Coach unavailable'} · {detail.home_formation || 'shape unavailable'}</span></div>
               <div className="flex justify-between gap-3"><span className="text-subtext0">{match.away.name}</span><span className="text-right font-semibold text-text">{detail.away_coach || 'Coach unavailable'} · {detail.away_formation || 'shape unavailable'}</span></div>
             </div>
           </Card>
           {detail.coverage_notes.length ? (
-            <Card className="rounded-2xl border border-yellow/25 bg-yellow/5 p-5">
-              <h2 className="mb-3 flex items-center gap-2 text-sm font-black text-yellow"><CircleAlert className="size-4" />Data coverage</h2>
+            <Card className="rounded-xl border border-warning/30 bg-warning/5 p-4">
+              <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-warning"><CircleAlert className="size-4" />Data coverage</h2>
               <ul className="space-y-2 text-xs leading-5 text-subtext1">{detail.coverage_notes.map((note) => <li key={note}>• {note}</li>)}</ul>
             </Card>
           ) : null}

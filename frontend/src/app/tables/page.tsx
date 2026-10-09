@@ -1,6 +1,6 @@
 'use client';
 
-import { Card, Button } from '@heroui/react';
+import { Button } from '@heroui/react';
 import { Suspense, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
@@ -10,6 +10,12 @@ import { useFilterParams } from '@/lib/hooks/use-filter-params';
 import { SourceBadge } from '@/components/ui/source-badge';
 import { LoadingSkeleton, ErrorMessage, EmptyState } from '@/components/ui/loading';
 import { PageHeader } from '@/components/ui/page-header';
+import { Panel } from '@/components/ui/panel';
+import { Select } from '@/components/ui/select';
+import { Segmented } from '@/components/ui/segmented';
+import { Stat, StatGrid } from '@/components/ui/stat';
+import { FormChip } from '@/components/ui/chip';
+import { DataTable, TBody, THead, Td, Th } from '@/components/ui/data-table';
 import { usePagination } from '@/components/ui/pagination';
 import { Table as TableIcon, Download } from 'lucide-react';
 import { FootballBadge, CompetitionBadge } from '@/lib/media-utils';
@@ -75,237 +81,128 @@ function LeagueTablesContent() {
   const totalMatches = rankings.reduce((acc, r) => acc + r.played, 0) / 2;
   const avgGoals = totalMatches > 0 ? (totalGoals / totalMatches).toFixed(2) : '0';
 
+  const zone = (pos: number) => pos <= 4 ? 'bg-accent' : pos <= 6 ? 'bg-teal' : pos >= rankings.length - 2 ? 'bg-negative' : 'bg-transparent';
+  const signed = (value: number | null | undefined) => value == null ? '—' : `${value > 0 ? '+' : ''}${value}`;
+
   return (
-    <div className="space-y-6">
-      {/* Controls Bar */}
-      <Card className="p-4 rounded-xl bg-surface0 border border-surface1 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-4">
-            <CompetitionBadge
-              code={selectedCompetition}
-              name={currentComp?.name || selectedCompetition}
-              badge_url={currentComp?.badge_url}
-              size={40}
-            />
-            <div className="flex flex-wrap items-center gap-3">
-              {/* League */}
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-subtext0">League</label>
-                <select
-                  value={selectedCompetition}
-                  onChange={(e) => filters.set({ competition: e.target.value })}
-                  className="rounded-lg border border-surface1 bg-mantle px-3 py-1.5 text-xs font-medium text-text outline-none cursor-pointer hover:border-surface2"
-                >
-                  {compOptions.map((c) => (
-                    <option key={c.code} value={c.code}>{c.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Season */}
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-subtext0">Season</label>
-                <select
-                  value={selectedSeason}
-                  onChange={(e) => filters.set({ season: Number(e.target.value) })}
-                  className="rounded-lg border border-surface1 bg-mantle px-3 py-1.5 text-xs font-medium text-text outline-none cursor-pointer hover:border-surface2"
-                >
-                  {seasons.map((s) => (
-                    <option key={s.season} value={s.season}>{s.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Venue */}
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-subtext0">Venue</label>
-                <div className="flex rounded-lg bg-mantle border border-surface1 p-0.5">
-                  {(['All', 'Home', 'Away'] as const).map((v) => (
-                    <Button
-                      key={v}
-                      size="sm"
-                      variant={venueFilter === v ? 'primary' : 'ghost'}
-                      onPress={() => setVenueFilter(v)}
-                      className={`px-3 py-1 text-xs font-medium min-w-0 h-7 cursor-pointer`}
-                    >
-                      {v}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {standingData?.source && <SourceBadge meta={standingData.source} />}
-            <Button
-              size="sm"
-              variant="outline"
-              onPress={exportCsv}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer"
-            >
-              <Download className="h-3.5 w-3.5 text-blue" />
-              <span>Export CSV</span>
-            </Button>
+    <div className="space-y-4">
+      <Panel bodyClassName="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+        <div className="flex flex-wrap items-end gap-3">
+          <CompetitionBadge code={selectedCompetition} name={currentComp?.name || selectedCompetition} badge_url={currentComp?.badge_url} size={36} />
+          <Select label="League" value={selectedCompetition} onChange={(value) => filters.set({ competition: value })}
+            options={compOptions.map((c) => ({ value: c.code, label: c.name }))} className="w-48" />
+          <Select label="Season" value={String(selectedSeason)} onChange={(value) => filters.set({ season: Number(value) })}
+            options={seasons.map((season) => ({ value: String(season.season), label: season.label }))} className="w-32" />
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-subtext0">Venue</span>
+            <Segmented label="Venue" value={venueFilter} onChange={setVenueFilter}
+              options={[{ value: 'All', label: 'All' }, { value: 'Home', label: 'Home' }, { value: 'Away', label: 'Away' }]} />
           </div>
         </div>
-      </Card>
+        <div className="flex flex-wrap items-center gap-2">
+          {standingData?.source && <SourceBadge meta={standingData.source} />}
+          <Button size="sm" variant="outline" onPress={exportCsv}>
+            <Download className="size-3.5" aria-hidden="true" /> Export CSV
+          </Button>
+        </div>
+      </Panel>
 
-      {/* KPI Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <Card className="rounded-xl bg-surface0 border border-surface1 p-4 shadow-sm">
-          <p className="text-xs text-subtext0 uppercase font-medium">Clubs</p>
-          <p className="text-2xl font-bold text-text mt-1">{rankings.length}</p>
-        </Card>
-        <Card className="rounded-xl bg-surface0 border border-surface1 p-4 shadow-sm">
-          <p className="text-xs text-subtext0 uppercase font-medium">Matches Played</p>
-          <p className="text-2xl font-bold text-blue mt-1">{totalMatches}</p>
-        </Card>
-        <Card className="rounded-xl bg-surface0 border border-surface1 p-4 shadow-sm">
-          <p className="text-xs text-subtext0 uppercase font-medium">Total Goals</p>
-          <p className="text-2xl font-bold text-peach mt-1">{totalGoals}</p>
-        </Card>
-        <Card className="rounded-xl bg-surface0 border border-surface1 p-4 shadow-sm">
-          <p className="text-xs text-subtext0 uppercase font-medium">Goals / Match</p>
-          <p className="text-2xl font-bold text-green mt-1">{avgGoals}</p>
-        </Card>
-      </div>
+      <StatGrid>
+        <Stat label="Clubs" value={rankings.length} />
+        <Stat label="Matches played" value={totalMatches} />
+        <Stat label="Total goals" value={totalGoals} />
+        <Stat label="Goals / match" value={avgGoals} />
+      </StatGrid>
 
-      {/* Standings Table */}
       {rankings.length === 0 ? (
-        <EmptyState icon="📋" message="No standings found for this competition and season." />
+        <Panel><EmptyState icon={TableIcon} message="No standings found for this competition and season." /></Panel>
       ) : (
-        <div className="rounded-xl border border-surface1 bg-surface0 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-surface1 bg-mantle text-xs uppercase text-subtext0">
-                <tr>
-                  <th className="py-3 px-3 w-12 text-center">Pos</th>
-                  <th className="py-3 px-4">Club</th>
-                  <th className="py-3 px-3 text-center">P</th>
-                  <th className="py-3 px-3 text-center">W</th>
-                  <th className="py-3 px-3 text-center">D</th>
-                  <th className="py-3 px-3 text-center">L</th>
-                  <th className="py-3 px-3 text-center">GF</th>
-                  <th className="py-3 px-3 text-center">GA</th>
-                  <th className="py-3 px-3 text-center">GD</th>
-                  <th className="py-3 px-3 text-center font-bold text-text">Pts</th>
-                  <th className="py-3 px-3 text-right">PPG</th>
-                  <th className="py-3 px-4 text-center">Form</th>
+        <Panel bodyClassName="p-0">
+          <DataTable minWidth={720} caption="League standings">
+            <THead>
+              <tr>
+                <Th align="center" className="w-12">Pos</Th>
+                <Th>Club</Th>
+                <Th align="right">P</Th>
+                <Th align="right">W</Th>
+                <Th align="right">D</Th>
+                <Th align="right">L</Th>
+                <Th align="right">GF</Th>
+                <Th align="right">GA</Th>
+                <Th align="right">GD</Th>
+                <Th align="right" className="text-text">Pts</Th>
+                <Th align="right">PPG</Th>
+                <Th align="center">Form</Th>
+              </tr>
+            </THead>
+            <TBody>
+              {paginatedRankings.map((r) => (
+                <tr key={r.team.team_id}>
+                  <Td align="center" className="relative text-subtext0">
+                    <span className={`absolute inset-y-1.5 left-0 w-0.5 rounded-r ${zone(r.rank)}`} aria-hidden="true" />
+                    {r.rank}
+                  </Td>
+                  <Td>
+                    <span className="flex items-center gap-2 font-medium">
+                      <FootballBadge url={r.team.badge_url} name={r.team.name} size={20} />
+                      {r.team.name}
+                    </span>
+                  </Td>
+                  <Td align="right" className="text-subtext1">{r.played}</Td>
+                  <Td align="right" className="text-subtext1">{r.wins}</Td>
+                  <Td align="right" className="text-subtext1">{r.draws}</Td>
+                  <Td align="right" className="text-subtext1">{r.losses}</Td>
+                  <Td align="right" className="text-subtext1">{r.goals_for}</Td>
+                  <Td align="right" className="text-subtext1">{r.goals_against}</Td>
+                  <Td align="right" className={r.goal_difference > 0 ? 'text-positive' : r.goal_difference < 0 ? 'text-negative' : 'text-subtext0'}>{signed(r.goal_difference)}</Td>
+                  <Td align="right" className="font-semibold">{r.points}</Td>
+                  <Td align="right" className="text-subtext0">{r.points_per_game.toFixed(2)}</Td>
+                  <Td align="center">
+                    <span className="inline-flex gap-1">
+                      {(r.form || '').split(' ').filter(Boolean).map((result, index) => <FormChip key={index} result={result} />)}
+                    </span>
+                  </Td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-surface1">
-                {paginatedRankings.map((r) => {
-                  const pos = r.rank;
-                  const isUcl = pos <= 4;
-                  const isUel = pos === 5 || pos === 6;
-                  const isRelegation = pos >= rankings.length - 2;
-
-                  return (
-                    <tr key={r.team.team_id} className="hover:bg-surface1/40 transition-colors">
-                      <td className="py-3 px-3 text-center font-mono text-xs font-semibold">
-                        <span
-                          className={`inline-flex items-center justify-center h-6 w-6 rounded-full text-xs ${
-                            isUcl
-                              ? 'bg-blue/20 text-blue font-bold'
-                              : isUel
-                              ? 'bg-teal/20 text-teal font-bold'
-                              : isRelegation
-                              ? 'bg-red/20 text-red font-bold'
-                              : 'text-subtext0'
-                          }`}
-                        >
-                          {pos}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 font-semibold text-text flex items-center gap-2.5">
-                        <FootballBadge url={r.team.badge_url} name={r.team.name} size={22} />
-                        <span>{r.team.name}</span>
-                      </td>
-                      <td className="py-3 px-3 text-center text-subtext1">{r.played}</td>
-                      <td className="py-3 px-3 text-center text-green font-medium">{r.wins}</td>
-                      <td className="py-3 px-3 text-center text-yellow font-medium">{r.draws}</td>
-                      <td className="py-3 px-3 text-center text-red font-medium">{r.losses}</td>
-                      <td className="py-3 px-3 text-center text-subtext1">{r.goals_for}</td>
-                      <td className="py-3 px-3 text-center text-subtext1">{r.goals_against}</td>
-                      <td className={`py-3 px-3 text-center font-mono text-xs font-semibold ${
-                        r.goal_difference > 0 ? 'text-green' : r.goal_difference < 0 ? 'text-red' : 'text-subtext0'
-                      }`}>
-                        {r.goal_difference > 0 ? `+${r.goal_difference}` : r.goal_difference}
-                      </td>
-                      <td className="py-3 px-3 text-center font-bold text-blue text-base">{r.points}</td>
-                      <td className="py-3 px-3 text-right font-mono text-xs text-subtext0">{r.points_per_game.toFixed(2)}</td>
-                      <td className="py-3 px-4 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          {(r.form || '').split(' ').map((char, ci) => {
-                            const bg = char === 'W' ? 'bg-green/20 text-green' : char === 'D' ? 'bg-yellow/20 text-yellow' : 'bg-red/20 text-red';
-                            return (
-                              <span key={ci} className={`h-5 w-5 rounded text-[10px] font-bold flex items-center justify-center ${bg}`}>
-                                {char}
-                              </span>
-                            );
-                          })}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+              ))}
+            </TBody>
+          </DataTable>
+          <div className="px-4 pb-3">{TablePagination}</div>
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-surface1 px-4 py-3 text-xs text-subtext0">
+            <span className="inline-flex items-center gap-2"><span className="h-3 w-0.5 rounded bg-accent" aria-hidden="true" />Champions League (1–4)</span>
+            <span className="inline-flex items-center gap-2"><span className="h-3 w-0.5 rounded bg-teal" aria-hidden="true" />Europa League (5–6)</span>
+            <span className="inline-flex items-center gap-2"><span className="h-3 w-0.5 rounded bg-negative" aria-hidden="true" />Relegation (bottom 3)</span>
           </div>
-
-          <div className="px-4 bg-mantle border-t border-surface1">
-            {TablePagination}
-          </div>
-
-          {/* Table Legend */}
-          <div className="flex flex-wrap items-center gap-6 p-4 border-t border-surface1 bg-mantle text-xs text-subtext0">
-            <div className="flex items-center gap-2">
-              <span className="h-3 w-3 rounded-full bg-blue" />
-              <span>Champions League spot (1-4)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="h-3 w-3 rounded-full bg-teal" />
-              <span>Europa League spot (5-6)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="h-3 w-3 rounded-full bg-red" />
-              <span>Relegation zone (bottom 3)</span>
-            </div>
-          </div>
-        </div>
+        </Panel>
       )}
 
       {venueFilter === 'All' ? (
-        <Card className="overflow-hidden rounded-xl border border-surface1 bg-surface0 shadow-sm">
-          <div className="border-b border-surface1 p-4">
-            <h2 className="font-semibold text-text">External reference validation</h2>
-            <p className="mt-1 text-xs text-subtext0">Reference minus results points exposes administrative adjustments; rank differences expose provider or tiebreak differences.</p>
-          </div>
+        <Panel
+          title="External reference validation"
+          description="Reference minus results points exposes administrative adjustments; rank differences expose provider or tiebreak differences."
+          bodyClassName="p-0"
+        >
           {standingData?.reference.length ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="border-b border-surface1 bg-mantle uppercase text-subtext0">
-                  <tr><th className="px-3 py-3">Ref</th><th className="px-3 py-3">Club</th><th className="px-3 py-3 text-center">P</th><th className="px-3 py-3 text-center">Ref pts</th><th className="px-3 py-3 text-center">Results pts</th><th className="px-3 py-3 text-center">Adjustment</th><th className="px-3 py-3 text-center">Rank Δ</th><th className="px-3 py-3">Qualification</th></tr>
-                </thead>
-                <tbody className="divide-y divide-surface1">
-                  {standingData.reference.map((row) => (
-                    <tr key={`${row.source_name}-${row.rank}-${row.team.team_id}`}>
-                      <td className="px-3 py-3 font-mono">{row.rank}</td>
-                      <td className="px-3 py-3"><span className="flex items-center gap-2 font-semibold text-text"><FootballBadge url={row.team.badge_url} name={row.team.name} size={20} />{row.team.name}</span></td>
-                      <td className="px-3 py-3 text-center">{row.played ?? '—'}</td>
-                      <td className="px-3 py-3 text-center font-bold text-blue">{row.points ?? '—'}</td>
-                      <td className="px-3 py-3 text-center">{row.results_points ?? '—'}</td>
-                      <td className={`px-3 py-3 text-center font-mono ${(row.point_adjustment ?? 0) !== 0 ? 'text-yellow' : 'text-green'}`}>{row.point_adjustment == null ? '—' : `${row.point_adjustment > 0 ? '+' : ''}${row.point_adjustment}`}</td>
-                      <td className="px-3 py-3 text-center font-mono">{row.rank_difference == null ? '—' : `${row.rank_difference > 0 ? '+' : ''}${row.rank_difference}`}</td>
-                      <td className="px-3 py-3 text-subtext0">{row.description || '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : <p className="p-5 text-sm text-subtext0">No external reference table is cached for this competition and season.</p>}
-        </Card>
+            <DataTable minWidth={720} caption="External reference standings">
+              <THead>
+                <tr><Th>Ref</Th><Th>Club</Th><Th align="right">P</Th><Th align="right">Ref pts</Th><Th align="right">Results pts</Th><Th align="right">Adjustment</Th><Th align="right">Rank Δ</Th><Th>Qualification</Th></tr>
+              </THead>
+              <TBody>
+                {standingData.reference.map((row) => (
+                  <tr key={`${row.source_name}-${row.rank}-${row.team.team_id}`}>
+                    <Td className="text-subtext0">{row.rank}</Td>
+                    <Td><span className="flex items-center gap-2 font-medium"><FootballBadge url={row.team.badge_url} name={row.team.name} size={18} />{row.team.name}</span></Td>
+                    <Td align="right">{row.played ?? '—'}</Td>
+                    <Td align="right" className="font-semibold">{row.points ?? '—'}</Td>
+                    <Td align="right">{row.results_points ?? '—'}</Td>
+                    <Td align="right" className={(row.point_adjustment ?? 0) !== 0 ? 'text-warning' : 'text-subtext0'}>{signed(row.point_adjustment)}</Td>
+                    <Td align="right" className="text-subtext0">{signed(row.rank_difference)}</Td>
+                    <Td className="text-subtext0">{row.description || '—'}</Td>
+                  </tr>
+                ))}
+              </TBody>
+            </DataTable>
+          ) : <p className="p-4 text-sm text-subtext0">No external reference table is cached for this competition and season.</p>}
+        </Panel>
       ) : null}
     </div>
   );
@@ -313,7 +210,7 @@ function LeagueTablesContent() {
 
 export default function TablesPage() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader icon={TableIcon} eyebrow="Standings" title="League Tables" description="Reconstruct domestic standings with venue splits, goal difference and recent form in one responsive table." />
 
       <Suspense fallback={<LoadingSkeleton lines={10} />}>
