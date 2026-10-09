@@ -89,6 +89,22 @@ def _locked(message: str) -> bool:
     return any(text in message for text in ("Could not set lock", "different configuration", "being used"))
 
 
+def forecast_drift(db=DB, min_matches=100, tolerance=0.01) -> str | None:
+    """A message when published forecasts score clearly worse live than walk-forward (RPS)."""
+    from .api.queries import LIVE_FORECAST_SQL
+
+    with duckdb.connect(str(db), read_only=True) as con:
+        tables = {row[0] for row in con.execute("SELECT table_name FROM information_schema.tables").fetchall()}
+        if not {"forecast_history", "prediction_models"} <= tables:
+            return None
+        matches, live = con.execute(LIVE_FORECAST_SQL).fetchone()
+        metrics = con.execute("SELECT metrics FROM prediction_models ORDER BY trained_at DESC LIMIT 1").fetchone()
+    expected = json.loads(metrics[0]).get("rps") if metrics else None
+    if not matches or matches < min_matches or live is None or expected is None or live <= expected + tolerance:
+        return None
+    return f"Live RPS {live:.4f} over {matches} resolved forecasts vs walk-forward {expected:.4f}."
+
+
 def notify(title: str, message: str, priority: str = "high") -> bool:
     """Phone/desktop alert via ntfy (https://ntfy.sh). Silent no-op unless NTFY_TOPIC is set."""
     import os
@@ -129,6 +145,12 @@ def main():
         if report.required_failures and all(_locked(row.detail or "") for row in report.required_failures):
             # Stages catch their own errors, so a held lock arrives here as failed rows, not an exception.
             raise duckdb.IOException(report.required_failures[0].detail)
+        try:  # monitoring must never fail the refresh itself
+            drift = forecast_drift()
+        except duckdb.Error:
+            drift = None
+        if drift:
+            notify("Football forecasts drifting", drift, "default")
         if report.required_failures:
             notify("Football refresh failed",
                    "\n".join(report.message(row) for row in report.required_failures)[:3500])

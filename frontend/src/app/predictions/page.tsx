@@ -451,6 +451,11 @@ function PredictionsContent() {
           {forecastRecord?.resolved ? `${forecastRecord.correct ?? 0} correct of ${forecastRecord.resolved} resolved (${((forecastRecord.accuracy ?? 0) * 100).toFixed(1)}%)` : 'No published forecasts resolved yet'}
           <span className="ml-2 text-xs font-normal text-subtext0">· {forecastRecord?.issued ?? 0} issued</span>
         </p>
+        <p className="mt-1 text-xs text-subtext1">
+          {forecastRecord?.rps != null
+            ? `Live RPS ${forecastRecord.rps.toFixed(4)} on ${forecastRecord.matches_scored} matches (last forecast before kick-off)${forecastRecord.walk_forward_rps != null ? ` vs ${forecastRecord.walk_forward_rps.toFixed(4)} walk-forward; lower is better` : ''}.`
+            : 'Live RPS appears once forecast matches have results.'}
+        </p>
         {forecastHistory.length > 0 && <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[500px] text-xs">
           <thead className="border-b border-surface1 text-subtext0"><tr><th className="py-2 text-left">Issued</th><th className="text-left">Fixture</th><th className="text-left">Pick</th><th className="text-left">Result</th></tr></thead>
           <tbody>{forecastHistory.map((row) => <tr key={`${row.model_id}-${row.competition}-${row.match_date}-${row.home.team_id}-${row.away.team_id}`} className="border-b border-surface1/50 last:border-0"><td className="py-2 text-subtext1">{row.issued_at.slice(0, 10)}</td><td className="text-subtext1">{row.home.name} – {row.away.name}</td><td className="text-subtext1">{row.predicted_result}</td><td className={row.actual_result ? row.actual_result === row.predicted_result ? 'text-green' : 'text-red' : 'text-subtext0'}>{row.actual_result || 'Pending'}</td></tr>)}</tbody>
