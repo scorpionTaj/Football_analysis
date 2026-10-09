@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import math
+from collections import defaultdict
 from datetime import datetime
 
 import numpy as np
@@ -80,25 +81,31 @@ def _outcome_backtest(probabilities, labels):
 
 
 def _reconcile_forecast_history(con, matches):
-    """Resolve published probabilities against completed results without rewriting them."""
-    pending = con.sql("SELECT model_id, league, season, match_date, home_team, away_team "
+    """Resolve published probabilities against completed results without rewriting them.
+
+    A pairing can meet more than once a season (play-offs), so each forecast takes the
+    meeting played on or after its issue date that is closest to its forecast date.
+    """
+    pending = con.sql("SELECT model_id, league, season, match_date, home_team, away_team, issued_at "
                       "FROM forecast_history WHERE actual_result IS NULL").df()
     if pending.empty:
         return
-    results = {}
+    results = defaultdict(list)
     for row in matches.itertuples(index=False):
         if pd.isna(row.home_goals) or pd.isna(row.away_goals):
             continue
         key = (row.league, int(row.season), team_key(row.home_team), team_key(row.away_team))
-        results[key] = "Home" if row.home_goals > row.away_goals else "Away" if row.home_goals < row.away_goals else "Draw"
+        outcome = "Home" if row.home_goals > row.away_goals else "Away" if row.home_goals < row.away_goals else "Draw"
+        results[key].append((pd.Timestamp(row.match_date), outcome))
     for row in pending.itertuples(index=False):
         key = (row.league, int(row.season), team_key(row.home_team), team_key(row.away_team))
-        actual = results.get(key)
-        if actual:
+        issued, target = pd.Timestamp(row.issued_at).normalize(), pd.Timestamp(row.match_date)
+        played = [(abs(day - target), outcome) for day, outcome in results.get(key, ()) if day >= issued]
+        if played:
             con.execute(
                 "UPDATE forecast_history SET actual_result=?, resolved_at=current_timestamp "
                 "WHERE model_id=? AND league=? AND match_date=? AND home_team=? AND away_team=?",
-                [actual, row.model_id, row.league, row.match_date, row.home_team, row.away_team],
+                [min(played)[1], row.model_id, row.league, row.match_date, row.home_team, row.away_team],
             )
 
 

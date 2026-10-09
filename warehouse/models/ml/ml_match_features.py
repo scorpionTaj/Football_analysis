@@ -7,28 +7,36 @@ from football_analysis.teams import team_key
 
 
 def reconcile_fixtures(fixtures, played):
-    """Map provider names onto Football-Data names; keep one row per pairing."""
+    """Map provider names onto Football-Data names; keep one row per upcoming meeting.
+
+    Names are matched per country (not per league) so a club new to a league is still
+    found through its lower-division history. A fixture is dropped only when that same
+    meeting was played (pairing within 3 days), so play-off rematches keep their forecast.
+    """
     names = {}
-    for league, group in played.groupby("league"):
+    for country, group in played.groupby("country"):
         for name in pd.unique(group[["home_team", "away_team"]].values.ravel()):
-            names[(league, team_key(name))] = name
+            names[(country, team_key(name))] = name
     fixtures = fixtures.assign(
-        home_team=[names.get((l, team_key(t))) for l, t in zip(fixtures.league, fixtures.home_team)],
-        away_team=[names.get((l, team_key(t))) for l, t in zip(fixtures.league, fixtures.away_team)],
+        home_team=[names.get((c, team_key(t))) for c, t in zip(fixtures.country, fixtures.home_team)],
+        away_team=[names.get((c, team_key(t))) for c, t in zip(fixtures.country, fixtures.away_team)],
         priority=fixtures.event_kind.map({"fixture": 0, "next": 1}),
     ).dropna(subset=["home_team", "away_team"])
-    fixtures = fixtures.sort_values(["priority", "fetched_at"], ascending=[True, False])
+    fixtures = fixtures.sort_values(["priority", "match_date", "fetched_at"], ascending=[True, True, False])
     fixtures = fixtures.drop_duplicates(["league", "season", "home_team", "away_team"])
-    completed = set(zip(played.league, played.season, played.home_team, played.away_team))
-    keep = [k not in completed for k in zip(fixtures.league, fixtures.season, fixtures.home_team, fixtures.away_team)]
-    return fixtures[pd.Series(keep, index=fixtures.index, dtype=bool)][["league", "season", "match_date", "home_team", "away_team"]]
+    pair = ["league", "season", "home_team", "away_team"]
+    meetings = fixtures[pair + ["match_date"]].reset_index().merge(
+        played[pair + ["match_date"]], on=pair, how="inner", suffixes=("", "_played"))
+    gap = (pd.to_datetime(meetings.match_date) - pd.to_datetime(meetings.match_date_played)).abs()
+    done = set(meetings.loc[gap <= pd.Timedelta(days=3), "index"])
+    return fixtures[~fixtures.index.isin(done)][["league", "season", "match_date", "home_team", "away_team", "country", "tier"]]
 
 
 def model(dbt, session):
     dbt.config(materialized="table")
     played = dbt.ref("fct_match").df()
     leagues = dbt.ref("leagues").df()[["league", "country", "tier"]]
-    fixtures = reconcile_fixtures(dbt.ref("stg_app__fixtures").df(), played).merge(leagues, on="league")
+    fixtures = reconcile_fixtures(dbt.ref("stg_app__fixtures").df().merge(leagues, on="league"), played)
     fixtures["is_future"] = True
     played["is_future"] = False
     return build_features(pd.concat([played, fixtures], ignore_index=True))

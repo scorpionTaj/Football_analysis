@@ -76,3 +76,60 @@ def test_stacking_meta_features_never_see_their_own_season():
     out_of_fold = seen[:2]  # the two fold predictions; later calls score calib with refitted members
     assert out_of_fold and all(not (trained & predicted) for trained, predicted in out_of_fold)
     assert all(max(trained) < min(predicted) for trained, predicted in out_of_fold)
+
+
+def test_promoted_flag_holds_for_the_whole_season():
+    rows = []
+    for i in range(3):
+        day = pd.Timestamp("2018-09-01") + pd.Timedelta(days=7 * i)
+        rows += [dict(league="X2", country="X", tier=2, season=2018, match_date=day, home_team="P", away_team="Q",
+                      home_goals=1, away_goals=0),
+                 dict(league="X1", country="X", tier=1, season=2018, match_date=day, home_team="A", away_team="B",
+                      home_goals=1, away_goals=0)]
+    for i in range(3):
+        day = pd.Timestamp("2019-09-01") + pd.Timedelta(days=7 * i)
+        rows.append(dict(league="X1", country="X", tier=1, season=2019, match_date=day, home_team="P", away_team="A",
+                         home_goals=0, away_goals=0))
+    frame = build_features(pd.DataFrame(rows))
+    season = frame[frame.season == 2019]
+    assert (season.home_promoted == 1).all() and (season.away_promoted == 0).all()
+
+
+def test_play_off_rematches_keep_fixtures_and_resolve_by_meeting():
+    import importlib.util
+    from pathlib import Path
+
+    import duckdb
+
+    from football_analysis.ml.publish import _reconcile_forecast_history
+
+    spec = importlib.util.spec_from_file_location(
+        "ml_match_features", Path(__file__).parents[1] / "warehouse/models/ml/ml_match_features.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    played = pd.DataFrame([
+        dict(league="B1", country="B", season=2025, match_date=pd.Timestamp("2025-10-01"),
+             home_team="Gent", away_team="Genk", home_goals=2, away_goals=0),
+        dict(league="B2", country="B", season=2025, match_date=pd.Timestamp("2025-10-01"),
+             home_team="Newcomer", away_team="Other", home_goals=1, away_goals=1),
+    ])
+    fixtures = pd.DataFrame([
+        dict(league="B1", country="B", tier=1, season=2025, match_date=pd.Timestamp("2026-04-10"), home_team="Gent",
+             away_team="Genk", event_kind="fixture", fetched_at=pd.Timestamp("2026-04-01")),
+        dict(league="B1", country="B", tier=1, season=2025, match_date=pd.Timestamp("2025-10-02"), home_team="Gent",
+             away_team="Genk", event_kind="next", fetched_at=pd.Timestamp("2025-09-30")),
+        dict(league="B1", country="B", tier=1, season=2025, match_date=pd.Timestamp("2026-04-11"),
+             home_team="Newcomer", away_team="Gent", event_kind="fixture", fetched_at=pd.Timestamp("2026-04-01")),
+    ])
+    kept = module.reconcile_fixtures(fixtures, played)
+    assert sorted(kept.match_date.dt.day) == [10, 11]  # rematch and the new club survive; the played one is gone
+
+    con = duckdb.connect()
+    con.execute("CREATE TABLE forecast_history (model_id VARCHAR, league VARCHAR, season INTEGER, match_date DATE, "
+                "home_team VARCHAR, away_team VARCHAR, issued_at TIMESTAMP, actual_result VARCHAR, resolved_at TIMESTAMP)")
+    con.execute("INSERT INTO forecast_history VALUES ('m', 'B1', 2025, '2026-04-10', 'Gent', 'Genk', '2026-04-01', NULL, NULL)")
+    _reconcile_forecast_history(con, played)  # only the October meeting is played: stays pending
+    assert con.sql("SELECT actual_result FROM forecast_history").fetchone()[0] is None
+    rematch = dict(played.iloc[0], match_date=pd.Timestamp("2026-04-10"), home_goals=0, away_goals=1)
+    _reconcile_forecast_history(con, pd.concat([played, pd.DataFrame([rematch])]))
+    assert con.sql("SELECT actual_result FROM forecast_history").fetchone()[0] == "Away"

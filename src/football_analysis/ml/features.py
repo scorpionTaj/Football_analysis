@@ -42,7 +42,7 @@ def _pi_goals(rating):
 
 
 class _Team:
-    __slots__ = ("elo", "pi_h", "pi_a", "ewm", "venue", "last", "season", "season_n", "league")
+    __slots__ = ("elo", "pi_h", "pi_a", "ewm", "venue", "last", "season", "season_n", "league", "prev_league")
 
     def __init__(self, elo, priors):
         self.elo = elo
@@ -54,6 +54,7 @@ class _Team:
         self.season = None
         self.season_n = 0
         self.league = None
+        self.prev_league = None  # league of the previous season played, fixed for the whole season
 
 
 def _outcome(hg, ag):
@@ -118,7 +119,7 @@ def build_features(matches: pd.DataFrame, params: Params | None = None) -> pd.Da
                 state.elo = entry_elo(league, season, tiers[state.league])
             elif state.season is not None:
                 state.elo = 1500 + p.elo_regress * (state.elo - 1500)
-            state.season, state.season_n = season, 0
+            state.season, state.season_n, state.prev_league = season, 0, state.league
         return state
 
     for (match_date,), day in frame.groupby(["match_date"], sort=True):
@@ -150,7 +151,7 @@ def build_features(matches: pd.DataFrame, params: Params | None = None) -> pd.Da
                     f"{side}_venue_ewm_points": state.venue[venue][0], f"{side}_venue_ewm_gd": state.venue[venue][1],
                     f"{side}_rest_days": 14.0 if state.last is None else float(min(30, max(1, (match_date - state.last).days))),
                     f"{side}_season_matches": float(state.season_n),
-                    f"{side}_promoted": float(state.league not in (None, league)),
+                    f"{side}_promoted": float(state.prev_league not in (None, league)),
                 })
             out[index] = [features[name] for name in FEATURES]
             if not row.is_future:

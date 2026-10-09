@@ -28,9 +28,12 @@ so same-day results never leak into each other (tested in `tests/test_ml.py` and
 
 Base-rate guess · Elo-only logistic · multinomial logistic regression · LightGBM (early stopping) ·
 Poisson goals with a Dixon-Coles low-score correction (also gives scorelines and over/under) ·
-ensemble (convex blend with weights fitted on the calibration season); logistic regression and LightGBM
-use recency-weighted training · model + opening odds ·
-bookmaker closing line (benchmark only). Each model gets temperature calibration on the calibration season.
+ensemble (convex blend with weights fitted on the calibration season) · stacked (multinomial logistic
+meta-learner on out-of-fold member log-probabilities from six earlier seasons); logistic regression and
+LightGBM use recency-weighted training · model + opening odds · bookmaker closing line (benchmark only).
+Elo-only, logistic regression, LightGBM, Poisson, the stack and the odds blend get temperature calibration on
+the calibration season; the ensemble blends already-calibrated members, and the base rate and closing line
+are used as is.
 
 ## Evaluation (`football_analysis/ml/evaluate.py`)
 
@@ -39,8 +42,10 @@ last four completed seasons, top flights only, matches with closing odds, so eve
 same 13,061 matches. Metrics: ranked probability score (primary), log loss, Brier score, accuracy and
 expected calibration error. The champion is the independent model (no odds) with the lowest RPS.
 
-Acceptance targets (`football_analysis.ml.TARGETS`): log loss ≤ 0.975 ✅ 0.9670 · RPS ≤ 0.200 ✅ 0.1946 ·
-ECE ≤ 0.02 ✅ 0.0048 · accuracy ≥ 53.5% ✗ 53.4% (standard error ≈ ±0.44 points, so not distinguishable).
+Acceptance targets (`football_analysis.ml.TARGETS`): log loss ≤ 0.975 ✅ 0.9672 · RPS ≤ 0.200 ✅ 0.1946 ·
+ECE ≤ 0.02 ✅ 0.0043 · accuracy ≥ 53.5% ✗ 53.3% (standard error ≈ ±0.44 points, so not distinguishable).
+The stack (RPS 0.1948) does not beat the simpler blend; fixing the `promoted` flag (it was set for a promoted
+club's first match only) moved every model by less than 0.0001 RPS.
 
 Tuning record: recency-weighted training (weight halves every 4 seasons for logistic regression, 6 for
 LightGBM) gave the only consistent gain. Elo K (15/20/28), form half-life (4/6/10) and between-season
@@ -68,5 +73,7 @@ tables so `/api/v1/predictions` keeps its contract. `/api/v1/models` serves the 
 
 ## Next levers
 
-Tune Elo/pi-rating parameters and LightGBM with time-series cross-validation (log each trial as a child
-run); add expected-goals proxies when a free shot-location source exists; stack instead of blending.
+`ml/tune.py` already runs time-series cross-validation for logistic regression and LightGBM; its best
+parameters are not yet fed back into `candidates()`. Feature levers with the most expected value: a
+market-implied team rating fitted on past opening odds only, a shots-on-target xG proxy with a finishing
+residual, lineup continuity from `fct_match_lineup`, and fixture congestion including cups.
