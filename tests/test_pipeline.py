@@ -1,5 +1,4 @@
 from datetime import date
-from io import StringIO
 import pandas as pd
 import pytest
 from football_analysis.adapters import normalize, LocalCSV

@@ -23,7 +23,7 @@ dev = ["pytest>=8,<10", "httpx2>=2,<3"]
 postgres = ["psycopg[binary]>=3.2,<4"]
 redis = ["redis>=5,<7"]
 de = ["dbt-duckdb>=1.9,<2", "dagster>=1.10,<2", "dagster-webserver>=1.10,<2", "dagster-dbt>=0.26,<1"]
-ml = ["scikit-learn>=1.5,<2", "lightgbm>=4.5,<5", "mlflow>=2.18,<4", "scipy>=1.14,<2"]
+ml = ["scikit-learn>=1.5,<2", "lightgbm>=4.6,<5", "mlflow>=2.18,<4", "scipy>=1.14,<2"]
 
 [project.scripts]
 football-ingest = "football_analysis.ingest:main"
@@ -44,6 +44,10 @@ football-api = "football_analysis.api.app:main"
 
 [tool.setuptools.package-data]
 football_analysis = ["schema.sql"]
+
+[tool.ruff.lint]
+# pyflakes + pycodestyle errors; compact one-line statements and lambdas are house style.
+ignore = ["E701", "E731", "E402"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

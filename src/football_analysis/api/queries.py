@@ -8,6 +8,7 @@ import re
 import unicodedata
 from datetime import date, datetime
 from difflib import SequenceMatcher
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -514,7 +515,9 @@ def list_matches(
         ["sort_group", "sort_order", "competition", "home_team", "away_team"],
         ascending=[False, False, True, True, True],
     ).reset_index(drop=True)
-    token = decode_cursor(cursor)
+    token = decode_cursor(cursor, required=("c", "h", "a"))
+    if token and "o" not in token and "d" not in token:
+        raise ValueError("Invalid cursor")
     if token:
         cursor_group = int(token.get("g", 0))
         cursor_order = int(token["o"]) if "o" in token else pd.Timestamp(token["d"]).date().toordinal()
@@ -953,10 +956,10 @@ def match_centre_detail(
         ("Red cards", match.home_reds, match.away_reds),
         ("Half-time goals", match.half_time_home_goals, match.half_time_away_goals),
     )
-    for label, home_value, away_value in stored_statistics:
-        if (home_value is not None or away_value is not None) and label.casefold() not in known_stats:
+    for name, home_value, away_value in stored_statistics:
+        if (home_value is not None or away_value is not None) and name.casefold() not in known_stats:
             statistics.append(EventStatistic(
-                statistic=label,
+                statistic=name,
                 home_value=None if home_value is None else float(home_value),
                 away_value=None if away_value is None else float(away_value),
             ))
@@ -992,20 +995,20 @@ def match_centre_detail(
 
     # Prefer verified event counts over a missing/incorrect aggregate without erasing
     # a larger provider total. A second yellow is a sending-off as well as a card event.
-    for label, matcher in (
+    for name, matcher in (
         ("Yellow cards", lambda value: "yellow" in value),
         ("Red cards", lambda value: "red card" in value or "second yellow" in value),
     ):
         home_count = sum(item.is_home is True and matcher((item.event_type or "").casefold()) for item in timeline)
         away_count = sum(item.is_home is False and matcher((item.event_type or "").casefold()) for item in timeline)
         if home_count or away_count:
-            existing = next((item for item in statistics if item.statistic.casefold() == label.casefold()), None)
+            existing = next((item for item in statistics if item.statistic.casefold() == name.casefold()), None)
             if existing:
                 existing.home_value = float(max(home_count, int(existing.home_value or 0)))
                 existing.away_value = float(max(away_count, int(existing.away_value or 0)))
             else:
                 statistics.append(EventStatistic(
-                    statistic=label, home_value=float(home_count), away_value=float(away_count),
+                    statistic=name, home_value=float(home_count), away_value=float(away_count),
                 ))
     home_starters = sum(item.is_home is True and item.is_substitute is not True for item in lineups)
     away_starters = sum(item.is_home is False and item.is_substitute is not True for item in lineups)
@@ -1411,7 +1414,7 @@ def list_players(
         frame = frame[frame._search_score >= 0.75]
     if sort_by == "market_value":
         frame = frame[frame.market_value_eur.notna()].sort_values(
-            ["market_value_eur", "player"], ascending=[False, True]
+            ["market_value_eur", "player", "player_id"], ascending=[False, True, True]
         )
     else:
         frame = frame.sort_values(["player", "player_id"])
@@ -1424,19 +1427,24 @@ def list_players(
         average_age = round(float((age_days / 365.2425).mean()), 1)
     nationality_count = int(frame.nationality.replace("", pd.NA).nunique())
     total_market_value = int(pd.to_numeric(frame.market_value_eur, errors="coerce").fillna(0).sum())
-    token = decode_cursor(cursor)
+    by_value = sort_by == "market_value"
+    token = decode_cursor(cursor, required=("n", "id", "v") if by_value else ("n", "id"))
     if token:
-        frame = frame[
-            (frame.player > token["n"])
-            | ((frame.player == token["n"]) & (frame.player_id > token["id"]))
-        ]
+        if token.get("s") != sort_by:
+            raise ValueError("Cursor belongs to a different sort order")
+        after_name = (frame.player > token["n"]) | ((frame.player == token["n"]) & (frame.player_id > token["id"]))
+        if by_value:
+            value = frame.market_value_eur.astype(float)
+            after_name = (value < token["v"]) | ((value == token["v"]) & after_name)
+        frame = frame[after_name]
     page = frame.head(limit + 1)
     has_more = len(page) > limit
     page = page.head(limit)
     next_cursor = None
     if has_more and not page.empty:
         last = page.iloc[-1]
-        next_cursor = encode_cursor({"n": last.player, "id": last.player_id})
+        next_cursor = encode_cursor({"n": last.player, "id": last.player_id, "s": sort_by,
+                                     **({"v": float(last.market_value_eur)} if by_value else {})})
     players = [
         PlayerSummary(
             player_id=str(row.player_id), name=row.player, team=_build_team_ref(row.team, media),
@@ -1821,7 +1829,7 @@ def list_transfers(
             source=_source("transfermarkt-open", "empty"),
         )
 
-    sql = "SELECT * FROM fct_transfer WHERE 1=1"
+    sql = " FROM fct_transfer WHERE 1=1"
     params = []
     if season is not None:
         try:
@@ -1843,11 +1851,13 @@ def list_transfers(
         sql += " AND (player_name ILIKE ? OR from_club_name ILIKE ? OR to_club_name ILIKE ?)"
         params.extend([f"%{query}%", f"%{query}%", f"%{query}%"])
 
-    sql += " ORDER BY market_value_eur DESC NULLS LAST, transfer_fee DESC NULLS LAST, transfer_date DESC NULLS LAST"
-    frame = store.query(sql, params)
-    total_count = len(frame)
-
-    page = frame.head(limit)
+    total_count = int(store.scalar("SELECT count(*)" + sql, params) or 0)
+    token = decode_cursor(cursor, required=("off",))
+    offset = int(token["off"]) if token else 0
+    # ponytail: offset cursor (the order has no cheap keyset with NULLS LAST); rows may shift if data changes mid-scroll.
+    sql += (" ORDER BY market_value_eur DESC NULLS LAST, transfer_fee DESC NULLS LAST, transfer_date DESC NULLS LAST, "
+            f"transfer_id LIMIT {limit} OFFSET {max(0, offset)}")
+    page = store.query("SELECT *" + sql, params)
     tm_map = _team_media_map(store)
     rows = []
     for r in page.itertuples(index=False):
@@ -1870,7 +1880,8 @@ def list_transfers(
     return TransferListResponse(
         transfers=rows,
         total_count=total_count,
-        page=PageMeta(next_cursor=None, limit=limit, returned=len(rows)),
+        page=PageMeta(next_cursor=encode_cursor({"off": offset + len(rows)}) if offset + len(rows) < total_count else None,
+                      limit=limit, returned=len(rows)),
         source=_source("transfermarkt-open", "transfers"),
     )
 

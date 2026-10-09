@@ -1,8 +1,15 @@
 -- One row per played domestic match, 2005+, with margin-free market probabilities.
 with provisional as (
+    -- Drop a provisional score only when Football-Data has that same meeting (pairing
+    -- within 3 days), so play-off rematches of a regular-season pairing are kept.
     select p.*
     from {{ ref('stg_app__provisional_results') }} p
-    anti join {{ ref('stg_fd__results') }} r using (league, season, home_team, away_team)
+    where not exists (
+        select 1 from {{ ref('stg_fd__results') }} r
+        where r.league = p.league and r.season = p.season
+          and r.home_team = p.home_team and r.away_team = p.away_team
+          and abs(date_diff('day', r.match_date, p.match_date)) <= 3
+    )
 ),
 
 results as (

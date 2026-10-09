@@ -1,6 +1,8 @@
 # Whole app on one host:  docker compose up -d   (or: podman compose up -d)
 # Needs ./.env (Supabase DSN etc.) and ./data (created on first run; bootstrap once with
 #   docker compose run --rm scheduler football-sync --bootstrap ).
+# Serving beyond localhost: set PUBLIC_API_URL (what the browser calls) and
+# FOOTBALL_CORS_ORIGINS (the web origin) in .env, then rebuild web.
 services:
   api:
     build: .
@@ -12,9 +14,13 @@ services:
     restart: unless-stopped
 
   web:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:8000}
     ports: ["3001:3001"]
-    depends_on: [api]
+    depends_on:
+      api: {condition: service_healthy}
     restart: unless-stopped
 
   scheduler:
@@ -23,6 +29,7 @@ services:
     environment:
       MLFLOW_TRACKING_URI: sqlite:////app/data/mlflow.db
     volumes: ["./data:/app/data"]
+    healthcheck: {disable: true}               # same image as api, but no HTTP server
     # Quick refresh every 6 h; every 4th run (once a day) is a full refresh.
     command: >
       sh -c 'n=0; while true; do

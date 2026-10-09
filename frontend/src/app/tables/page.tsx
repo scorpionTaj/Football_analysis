@@ -4,6 +4,7 @@ import { Card, Button } from '@heroui/react';
 import { Suspense, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
+import { toCsv } from '@/lib/csv';
 import { queryKeys } from '@/lib/api/query-keys';
 import { useFilterParams } from '@/lib/hooks/use-filter-params';
 import { SourceBadge } from '@/components/ui/source-badge';
@@ -36,14 +37,14 @@ function LeagueTablesContent() {
   });
 
   const rankings = standingData?.rankings || [];
-  const { paginatedItems: paginatedRankings, PaginationComponent: TablePagination } = usePagination(rankings, 10);
+  const { paginatedItems: paginatedRankings, paginationControls: TablePagination } = usePagination(rankings, 10);
 
   // Export CSV
   const exportCsv = () => {
     const headers = ['Pos', 'Team', 'P', 'W', 'D', 'L', 'GF', 'GA', 'GD', 'Pts', 'PPG', 'Form'];
     const rows = rankings.map((r) => [
       r.rank,
-      `"${r.team.name}"`,
+      r.team.name,
       r.played,
       r.wins,
       r.draws,
@@ -53,9 +54,9 @@ function LeagueTablesContent() {
       r.goal_difference,
       r.points,
       r.points_per_game.toFixed(2),
-      `"${r.form || ''}"`,
+      r.form || '',
     ]);
-    const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const csv = toCsv(headers, rows);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -254,7 +255,7 @@ function LeagueTablesContent() {
           </div>
 
           <div className="px-4 bg-mantle border-t border-surface1">
-            <TablePagination />
+            {TablePagination}
           </div>
 
           {/* Table Legend */}

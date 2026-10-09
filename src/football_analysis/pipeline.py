@@ -84,6 +84,11 @@ def run_pipeline(*, bootstrap=False, step=4, season=None, competitions=None,
     return report
 
 
+def _locked(message: str) -> bool:
+    """DuckDB's messages when another process holds the file (writer lock or API read handle)."""
+    return any(text in message for text in ("Could not set lock", "different configuration", "being used"))
+
+
 def notify(title: str, message: str, priority: str = "high") -> bool:
     """Phone/desktop alert via ntfy (https://ntfy.sh). Silent no-op unless NTFY_TOPIC is set."""
     import os
@@ -121,12 +126,15 @@ def main():
             competitions=args.competitions, force=args.force,
             all_media=args.all_media, max_teams=args.max_teams, quick=args.quick,
         )
+        if report.required_failures and all(_locked(row.detail or "") for row in report.required_failures):
+            # Stages catch their own errors, so a held lock arrives here as failed rows, not an exception.
+            raise duckdb.IOException(report.required_failures[0].detail)
         if report.required_failures:
             notify("Football refresh failed",
                    "\n".join(report.message(row) for row in report.required_failures)[:3500])
             raise SystemExit(1)
-    except duckdb.ConnectionException as exc:
-        if "different configuration" not in str(exc) and "being used" not in str(exc):
+    except (duckdb.ConnectionException, duckdb.IOException) as exc:
+        if not _locked(str(exc)):
             notify("Football refresh crashed", f"{type(exc).__name__}: {exc}"[:3500])
             raise
         notify("Football refresh skipped", "DuckDB is open in another process (football-api on DuckDB?).", "default")

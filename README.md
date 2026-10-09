@@ -26,7 +26,7 @@ Day to day, one command does everything (extract → dbt build → champion refi
 |---|---|---|
 | `uv run football-sync --quick` | current results + fixtures, warehouse, forecasts, publish | ~2 min |
 | `uv run football-sync` | all sources (standings, cups, players, media, event details) + the same | ~10 min |
-| `uv run football-train-models` | full 8-model walk-forward leaderboard (auto-runs weekly anyway) | ~3 min |
+| `uv run football-train-models` | full 9-model walk-forward leaderboard (auto-runs weekly anyway) | ~10 min |
 
 Automatic schedule (installed as systemd **user** timers; copies in `scripts/systemd/`):
 quick refresh every 6 hours, full refresh daily at 04:30, missed runs catch up at boot, runs never overlap.
@@ -45,6 +45,8 @@ Run everything in containers instead (API, web, scheduler; data stays in `./data
 docker compose up -d --build       # or: podman compose up -d --build
 ```
 
+Both images run as an unprivileged user (UID 1000, so `./data` must be writable by it) and declare health checks; `web` starts once `api` is healthy. Podman ignores `HEALTHCHECK` in its default OCI format: build with `BUILDAH_FORMAT=docker`. To serve beyond localhost set `PUBLIC_API_URL` and `FOOTBALL_CORS_ORIGINS` in `.env`.
+
 Other tools: `DAGSTER_HOME=$PWD/.dagster uv run dagster dev -m football_analysis.orchestration`
 (asset lineage, runs, schedules at http://localhost:3000) and
 `uv run mlflow ui --backend-store-uri sqlite:///mlflow.db` (experiments). DuckDB allows one writer;
@@ -60,16 +62,18 @@ only on earlier seasons (calibrated on the season before), scored on 13,061 top-
 | Bookmaker closing line (benchmark)     | 0.1905           | 0.954           | 54.9%           | 0.011           |
 | Model + opening odds                   | 0.1911           | 0.956           | 54.4%           | 0.004           |
 | **Ensemble (champion, no odds)** | **0.1946** | **0.967** | **53.4%** | **0.005** |
+| Stacked (out-of-fold meta-learner)     | 0.1948           | 0.968           | 53.6%           | 0.004           |
 | Logistic regression                    | 0.1947           | 0.968           | 53.4%           | 0.005           |
-| LightGBM                               | 0.1949           | 0.969           | 53.4%           | 0.003           |
+| Stacked (out-of-fold meta-learner)     | 0.1948           | 0.968           | 53.6%           | 0.004           |
+| LightGBM                               | 0.1949           | 0.969           | 53.3%           | 0.003           |
 | Poisson + Dixon-Coles                  | 0.1951           | 0.969           | 53.3%           | 0.004           |
 | Elo only                               | 0.1975           | 0.977           | 53.0%           | 0.006           |
 | Base-rate guess                        | 0.2304           | 1.074           | 43.8%           | 0.009           |
 
 The champion recovers 89% of the closing line's skill over a base-rate guess and meets the
-log-loss, RPS and calibration targets; accuracy (53.4%) is 0.1 points under its 53.5% target, well
+log-loss, RPS and calibration targets; accuracy (53.3%) is 0.2 points under its 53.5% target, well
 inside the ±0.4-point standard error on 13k matches.
-Forecasts at ≥75% confidence (9% of matches) were right 82.3% of the time. See
+Forecasts at ≥75% confidence (9% of matches) were right 81.8% of the time. See
 [docs/MODELLING.md](docs/MODELLING.md).
 
 ## Scope
@@ -114,10 +118,12 @@ The 2026/27 campaign is integrated into every match-driven page and adds the Ere
 - `src/football_analysis/pg.py`: shared PostgreSQL helpers (TLS for Supabase, private schema names, row digests).
 - `scripts/systemd/`, `Dockerfile`, `frontend/Dockerfile`, `compose.yaml`: scheduled refreshes and container deployment.
 - `frontend/`: responsive Next.js and HeroUI application using the versioned FastAPI contracts.
-- `docs/`: `MODELLING.md`, `VALIDATION.md` (current checks), `BACKLOG.md` (open work), `openapi_v1.json` (generated API contract) and `architecture.svg`/`.png` (full pipeline diagram).
+- `docs/`: `MODELLING.md`, `VALIDATION.md` (current checks), `openapi_v1.json` (generated API contract) and `architecture.svg`/`.png` (full pipeline diagram).
 - `tests/`: data-quality, idempotency and dashboard tests.
 
 Data lives in `data/`; override with `FOOTBALL_DATA_DIR`. Raw archives and the database are excluded from version control. The lockfile pins the tested environment. No automated downloads run on page views.
+
+The API's `POST /api/v1/refresh` only accepts loopback callers; set `FOOTBALL_ADMIN_TOKEN` and send it as `X-Admin-Token` to trigger it from elsewhere (for example inside containers). With the PostgreSQL backend the cache generation is the published `snapshot_manifest` digest (re-checked every minute), so a publish from another process invalidates ETags; a dropped connection is retried once, then the API serves the SQLite fallback and retries PostgreSQL every five minutes.
 
 Optional API response caching: install the Redis extra (`uv sync --extra redis`) and set `REDIS_URL` to a Redis URL. Only catalog and overview GET JSON responses use Redis, with 300-second and 60-second TTLs respectively. Each reopened DuckDB snapshot gets a new cache generation after refresh; Redis errors fall back to DuckDB. Without `REDIS_URL`, the API uses DuckDB as before.
 
@@ -132,6 +138,7 @@ DuckDB is the only writer and computes everything; PostgreSQL only serves.
 
 ```bash
 uv run pytest -q
+uvx ruff@0.14.0 check src tests
 ./scripts/ci_warehouse.sh            # dbt models + data tests on fixture data
 cd frontend
 npm run lint

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import math
+from collections import defaultdict
 from datetime import datetime
 
 import numpy as np
@@ -80,25 +81,31 @@ def _outcome_backtest(probabilities, labels):
 
 
 def _reconcile_forecast_history(con, matches):
-    """Resolve published probabilities against completed results without rewriting them."""
-    pending = con.sql("SELECT model_id, league, season, match_date, home_team, away_team "
+    """Resolve published probabilities against completed results without rewriting them.
+
+    A pairing can meet more than once a season (play-offs), so each forecast takes the
+    meeting played on or after its issue date that is closest to its forecast date.
+    """
+    pending = con.sql("SELECT model_id, league, season, match_date, home_team, away_team, issued_at "
                       "FROM forecast_history WHERE actual_result IS NULL").df()
     if pending.empty:
         return
-    results = {}
+    results = defaultdict(list)
     for row in matches.itertuples(index=False):
         if pd.isna(row.home_goals) or pd.isna(row.away_goals):
             continue
         key = (row.league, int(row.season), team_key(row.home_team), team_key(row.away_team))
-        results[key] = "Home" if row.home_goals > row.away_goals else "Away" if row.home_goals < row.away_goals else "Draw"
+        outcome = "Home" if row.home_goals > row.away_goals else "Away" if row.home_goals < row.away_goals else "Draw"
+        results[key].append((pd.Timestamp(row.match_date), outcome))
     for row in pending.itertuples(index=False):
         key = (row.league, int(row.season), team_key(row.home_team), team_key(row.away_team))
-        actual = results.get(key)
-        if actual:
+        issued, target = pd.Timestamp(row.issued_at).normalize(), pd.Timestamp(row.match_date)
+        played = [(abs(day - target), outcome) for day, outcome in results.get(key, ()) if day >= issued]
+        if played:
             con.execute(
                 "UPDATE forecast_history SET actual_result=?, resolved_at=current_timestamp "
                 "WHERE model_id=? AND league=? AND match_date=? AND home_team=? AND away_team=?",
-                [actual, row.model_id, row.league, row.match_date, row.home_team, row.away_team],
+                [min(played)[1], row.model_id, row.league, row.match_date, row.home_team, row.away_team],
             )
 
 
@@ -125,8 +132,15 @@ def champion_metrics(oos: pd.DataFrame, champion: str, board: pd.DataFrame, trai
                    if k in ("accuracy", "log_loss")}}
                for league, part in mine.groupby("league")]
     market = board.set_index("model").loc["market_closing"]
+    overall = _metrics(p, y)
+    # The base rate is a walk-forward model too (prior seasons' shares), not this sample's own shares.
+    paired = mine[["league", "match_date", "home_team", "away_team"]].merge(
+        baseline, on=["league", "match_date", "home_team", "away_team"])
+    if len(paired):
+        base = _metrics(paired[PROBS].to_numpy(), paired.outcome.to_numpy())
+        overall.update(baseline_accuracy=base["accuracy"], baseline_log_loss=base["log_loss"])
     return {
-        **_metrics(p, y, np.bincount(y, minlength=3) / len(y)),
+        **overall,
         **{k: v for k, v in proper_metrics(p, y).items() if k in ("rps", "ece")},
         **_confidence_backtest(p, y),
         "outcome_backtest": _outcome_backtest(p, y),
@@ -142,11 +156,11 @@ def champion_metrics(oos: pd.DataFrame, champion: str, board: pd.DataFrame, trai
     }
 
 
-def publish_to_app(con, champion, board, oos, current, played, train_matches, feature_count):
+def publish_to_app(con, champion, board, oos, current, played, train_matches, feature_names):
     stamp = datetime.now().replace(microsecond=0)
     model_id = f"{champion}-{stamp:%Y%m%d%H%M%S}"
     metrics = champion_metrics(oos, champion, board, train_matches)
-    metrics["feature_count"] = feature_count
+    metrics["feature_count"] = len(feature_names)
     keys = ["league", "season", "match_date", "home_team", "away_team"]
 
     validation = oos[oos.model == champion][[*keys, "outcome", *PROBS]].rename(columns=dict(zip(
@@ -172,7 +186,7 @@ def publish_to_app(con, champion, board, oos, current, played, train_matches, fe
         "model_id": model_id, "model_name": f"Champion · {champion.replace('_', ' ')} (walk-forward RPS)",
         "trained_at": stamp, "validation_cutoff": pd.to_datetime(validation.match_date).min().date(),
         "train_matches": int(train_matches), "validation_matches": int(len(validation)),
-        "feature_names": json.dumps(feature_count), "parameters": json.dumps({"champion": champion}),
+        "feature_names": json.dumps(feature_names), "parameters": json.dumps({"champion": champion}),
         "metrics": json.dumps(metrics, default=float),
     }])
 

@@ -4,6 +4,7 @@ import { Card, Button } from '@heroui/react';
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
+import { toCsv } from '@/lib/csv';
 import { queryKeys } from '@/lib/api/query-keys';
 import { useFilterParams } from '@/lib/hooks/use-filter-params';
 import { SourceBadge } from '@/components/ui/source-badge';
@@ -111,13 +112,13 @@ function MatchesContent() {
       m.match_date,
       m.competition,
       m.season,
-      `"${m.home.name}"`,
+      m.home.name,
       m.home_goals ?? '',
       m.away_goals ?? '',
-      `"${m.away.name}"`,
-      `"${m.referee || ''}"`,
+      m.away.name,
+      m.referee || '',
     ]);
-    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const csvContent = toCsv(headers, rows);
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');

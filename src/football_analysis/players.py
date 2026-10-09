@@ -33,7 +33,6 @@ TEAM_SEARCH_NAMES = {
     "Reims": "Stade de Reims",
     "Royale Union Saint-Gilloise": "Union Saint-Gilloise",
     "Sporting Clube de Braga": "Sporting Braga",
-    "St Truiden": "Sint-Truidense",
     "Valladolid": "Real Valladolid",
     "Volos NFC": "Volos",
     "Zenit St. Petersburg": "Zenit Saint Petersburg",

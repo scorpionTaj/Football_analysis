@@ -112,7 +112,7 @@ export const api = {
     }),
 
   tournament: (competition: string, season: number) =>
-    request<TournamentResponse>(`/api/v1/tournaments/${competition}/${season}`),
+    request<TournamentResponse>(`/api/v1/tournaments/${encodeURIComponent(competition)}/${season}`),
 
   predictions: () => request<PredictionsResponse>('/api/v1/predictions'),
 
@@ -124,7 +124,7 @@ export const api = {
     request<PlayerListResponse>(`/api/v1/players${params(opts || {})}`),
 
   player: (playerId: string) =>
-    request<PlayerProfileResponse>(`/api/v1/players/${playerId}`),
+    request<PlayerProfileResponse>(`/api/v1/players/${encodeURIComponent(playerId)}`),
 
   quality: () => request<QualityResponse>('/api/v1/quality'),
 
