@@ -57,5 +57,6 @@ select
     case when home_sot_raw > home_shots_raw then null else home_shots_raw end as home_shots,
     case when away_sot_raw > away_shots_raw then null else away_shots_raw end as away_shots,
     case when home_sot_raw > home_shots_raw then null else home_sot_raw end as home_sot,
-    case when away_sot_raw > away_shots_raw then null else away_sot_raw end as away_sot
+    case when away_sot_raw > away_shots_raw then null else away_sot_raw end as away_sot,
+    coalesce(home_sot_raw > home_shots_raw or away_sot_raw > away_shots_raw, false) as shots_quarantined
 from typed

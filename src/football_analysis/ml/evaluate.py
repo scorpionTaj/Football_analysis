@@ -54,7 +54,7 @@ def walk_forward(frame: pd.DataFrame, make_model, test_seasons, eval_mask=None):
     uses every league. Returns stacked out-of-sample predictions.
     """
     played = frame[frame.outcome >= 0]
-    out = []
+    out, model = [], None
     for season in test_seasons:
         train = played[played.season < season - 1]
         calib = played[played.season == season - 1]
