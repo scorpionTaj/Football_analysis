@@ -170,7 +170,9 @@ export function usePagination<T>(items: T[], initialPageSize = 10) {
       setPageSize(size);
       setCurrentPage(1);
     },
-    PaginationComponent: () => (
+    // An element, not a component: a component defined here would be a new type each render,
+    // remounting the controls and dropping keyboard focus after every page change.
+    paginationControls: (
       <Pagination
         currentPage={safePage}
         totalPages={totalPages}

@@ -279,3 +279,22 @@ for (const colorScheme of ['light', 'dark'] as const) for (const path of ['/', '
     expect(serious).toEqual([]);
   });
 }
+
+test('changing a filter restarts match pagination from the first page', async ({ page }) => {
+  await mockApi(page);
+  const cursors: (string | null)[] = [];
+  await page.route('**/api/v1/matches**', async (route) => {
+    const cursor = new URL(route.request().url()).searchParams.get('cursor');
+    cursors.push(cursor);
+    await route.fulfill({ json: {
+      matches: [cursor ? match : otherMatch],
+      page: { next_cursor: cursor ? null : 'page-2', limit: 20, returned: 1 }, source,
+    } });
+  });
+  await page.goto('/matches?competition=E0&season=2026');
+  await page.getByRole('button', { name: 'Next', exact: true }).click();
+  await expect.poll(() => cursors.at(-1)).toBe('page-2');
+  await page.getByRole('combobox', { name: 'Venue' }).selectOption({ index: 1 });
+  await expect(page).toHaveURL(/venue=/);
+  await expect.poll(() => cursors.at(-1)).toBeNull();
+});

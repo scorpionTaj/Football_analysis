@@ -4,6 +4,7 @@ import { Card, Button } from '@heroui/react';
 import { Suspense, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
+import { toCsv } from '@/lib/csv';
 import { queryKeys } from '@/lib/api/query-keys';
 import { SourceBadge } from '@/components/ui/source-badge';
 import { LoadingSkeleton, ErrorMessage, EmptyState } from '@/components/ui/loading';
@@ -107,14 +108,14 @@ function PredictionsContent() {
     const rows = forecasts.map((f) => [
       f.match_date,
       f.competition,
-      `"${f.home.name}"`,
-      `"${f.away.name}"`,
+      f.home.name,
+      f.away.name,
       f.predicted_result,
       (f.home_probability * 100).toFixed(1),
       (f.draw_probability * 100).toFixed(1),
       (f.away_probability * 100).toFixed(1),
     ]);
-    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const csvContent = toCsv(headers, rows);
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');

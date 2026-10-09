@@ -47,7 +47,7 @@ function QualityContent() {
     fetched_at?: string;
   };
   const checksums = useMemo(() => (data?.checksums || []) as ChecksumRow[], [data?.checksums]);
-  const { paginatedItems: paginatedChecksums, PaginationComponent: ChecksumsPagination } = usePagination(checksums, 10);
+  const { paginatedItems: paginatedChecksums, paginationControls: ChecksumsPagination } = usePagination(checksums, 10);
 
   if (isLoading) return <LoadingSkeleton lines={10} />;
   if (error) {
@@ -343,7 +343,7 @@ function QualityContent() {
             </table>
           </div>
           <div className="px-4 py-3 bg-mantle border-t border-surface1">
-            <ChecksumsPagination />
+            {ChecksumsPagination}
           </div>
         </div>
       )}
