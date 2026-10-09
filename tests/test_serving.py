@@ -182,8 +182,9 @@ def test_published_snapshot_supports_shared_api_queries(match_db, postgres_serve
         ):
             pg_body = build(postgres).model_dump(mode="json")
             duck_body = build(duck).model_dump(mode="json")
-            pg_body.pop("source", None)
-            duck_body.pop("source", None)
+            for body in (pg_body, duck_body):  # per-store metadata: source and open time differ by design
+                body.pop("source", None)
+                body.pop("generated_at", None)
             assert pg_body == duck_body
 
 
