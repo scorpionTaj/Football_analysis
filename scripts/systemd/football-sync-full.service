@@ -7,5 +7,5 @@ Type=oneshot
 WorkingDirectory=/home/scorpiontaj/Projects/Football_analysis
 Environment=MLFLOW_DISABLE_AGENT_HINT=1
 # DuckDB has one writer: a run waits up to an hour for any other run to finish.
-ExecStart=/usr/bin/flock -w 3600 /home/scorpiontaj/Projects/Football_analysis/data/.sync.lock /usr/bin/uv run football-sync
+ExecStart=/usr/bin/flock -w 3600 /home/scorpiontaj/Projects/Football_analysis/data/.sync.lock /usr/bin/uv run --extra de --extra ml football-sync
 Nice=10
