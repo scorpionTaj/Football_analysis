@@ -203,6 +203,16 @@ export interface RefreshRequest {
   season?: number;
   competitions: string[];
   force_download: boolean;
+  quick?: boolean;
+}
+
+export interface RefreshSourceOutcome {
+  step: number;
+  source: string;
+  partition: string | null;
+  status: string;
+  required: boolean;
+  detail: string | null;
 }
 
 export interface RefreshStatusResponse {
@@ -219,6 +229,7 @@ export interface RefreshStatusResponse {
   failed_count: number;
   degraded_count: number;
   source_messages: string[];
+  source_outcomes: RefreshSourceOutcome[];
 }
 
 export interface AnalysisFilters {

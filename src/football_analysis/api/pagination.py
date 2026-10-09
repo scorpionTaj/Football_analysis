@@ -12,11 +12,15 @@ def encode_cursor(payload: dict[str, Any]) -> str:
     return base64.urlsafe_b64encode(raw).decode().rstrip("=")
 
 
-def decode_cursor(cursor: str | None) -> dict[str, Any] | None:
+def decode_cursor(cursor: str | None, required: tuple[str, ...] = ()) -> dict[str, Any] | None:
+    """Decode a token; anything malformed raises ValueError, which routes map to 400."""
     if not cursor:
         return None
     padding = "=" * (-len(cursor) % 4)
     try:
-        return json.loads(base64.urlsafe_b64decode(cursor + padding))
+        token = json.loads(base64.urlsafe_b64decode(cursor + padding))
     except (ValueError, json.JSONDecodeError) as exc:
         raise ValueError("Invalid cursor") from exc
+    if not isinstance(token, dict) or any(key not in token for key in required):
+        raise ValueError("Invalid cursor")
+    return token

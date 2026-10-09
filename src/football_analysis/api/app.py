@@ -383,15 +383,18 @@ def create_app(
                 season_val = int(season)
             except ValueError:
                 season_val = None
-        payload = queries.list_transfers(
-            require_store(),
-            season=season_val,
-            competition=competition,
-            club=club,
-            query=q,
-            cursor=cursor,
-            limit=limit,
-        )
+        try:
+            payload = queries.list_transfers(
+                require_store(),
+                season=season_val,
+                competition=competition,
+                club=club,
+                query=q,
+                cursor=cursor,
+                limit=limit,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         return with_cache(payload, request)
 
     @app.get("/api/v1/refresh", response_model=RefreshStatusResponse)

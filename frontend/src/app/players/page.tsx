@@ -4,6 +4,7 @@ import { Card, Chip, Button } from '@heroui/react';
 import React, { Suspense, useMemo, useState, useEffect } from 'react';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
+import { toCsv } from '@/lib/csv';
 import { queryKeys } from '@/lib/api/query-keys';
 import { useFilterParams } from '@/lib/hooks/use-filter-params';
 import { SourceBadge } from '@/components/ui/source-badge';
@@ -175,12 +176,12 @@ function PlayersContent() {
     const headers = ['ID', 'Player', 'Team', 'Position', 'Nationality'];
     const rows = players.map((p) => [
       p.player_id,
-      `"${p.name}"`,
-      `"${p.team.name}"`,
-      `"${p.position || ''}"`,
-      `"${p.nationality || ''}"`,
+      p.name,
+      p.team.name,
+      p.position || '',
+      p.nationality || '',
     ]);
-    const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const csv = toCsv(headers, rows);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -519,7 +520,7 @@ function PlayersContent() {
 }
 
 function PlayerStatsTable({ stats }: { stats: PlayerProfileResponse['stats'] }) {
-  const { paginatedItems, PaginationComponent } = usePagination(stats, 10);
+  const { paginatedItems, paginationControls } = usePagination(stats, 10);
 
   if (stats.length === 0) {
     return <p className="text-xs text-subtext0 py-4">No historical competition stats recorded for this profile.</p>;
@@ -557,7 +558,7 @@ function PlayerStatsTable({ stats }: { stats: PlayerProfileResponse['stats'] }) 
           </tbody>
         </table>
       </div>
-      <PaginationComponent />
+      {paginationControls}
     </div>
   );
 }

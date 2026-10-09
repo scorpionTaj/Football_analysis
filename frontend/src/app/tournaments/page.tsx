@@ -3,6 +3,7 @@
 import { Suspense, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
+import { toCsv } from '@/lib/csv';
 import { queryKeys } from '@/lib/api/query-keys';
 import { useFilterParams } from '@/lib/hooks/use-filter-params';
 import { SourceBadge } from '@/components/ui/source-badge';
@@ -164,14 +165,14 @@ function TournamentsContent() {
     const headers = ['Date', 'Stage', 'Home Team', 'Score', 'Away Team', 'Penalties', 'Venue'];
     const rows = filteredMatches.map((m) => [
       m.match_date,
-      `"${m.stage || ''}"`,
-      `"${m.home.name}"`,
+      m.stage || '',
+      m.home.name,
       `${m.home_goals ?? ''} - ${m.away_goals ?? ''}`,
-      `"${m.away.name}"`,
+      m.away.name,
       m.home_penalties !== null && m.away_penalties !== null ? `${m.home_penalties}-${m.away_penalties}` : '',
-      `"${m.venue || ''}"`,
+      m.venue || '',
     ]);
-    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const csvContent = toCsv(headers, rows);
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -184,12 +185,12 @@ function TournamentsContent() {
 
   const {
     paginatedItems: paginatedMatches,
-    PaginationComponent: MatchesPagination,
+    paginationControls: MatchesPagination,
   } = usePagination(filteredMatches, 10);
 
   const {
     paginatedItems: paginatedScorers,
-    PaginationComponent: ScorersPagination,
+    paginationControls: ScorersPagination,
     currentPage: scorersPage,
     pageSize: scorersPageSize,
   } = usePagination(topScorers, 10);
@@ -452,7 +453,7 @@ function TournamentsContent() {
                   </div>
                 </div>
               ))}
-              <MatchesPagination />
+              {MatchesPagination}
             </>
           )}
         </div>
@@ -498,7 +499,7 @@ function TournamentsContent() {
             </tbody>
           </table>
           <div className="p-3 bg-mantle border-t border-surface1">
-            <ScorersPagination />
+            {ScorersPagination}
           </div>
         </Card>
       )}
