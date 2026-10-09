@@ -469,7 +469,10 @@ export interface PredictionsResponse {
   calibration: CalibrationBin[];
   forecasts: Forecast[];
   forecast_history: ForecastAuditRow[];
-  forecast_record: { issued?: number; resolved?: number; correct?: number; accuracy?: number | null };
+  forecast_record: {
+    issued?: number; resolved?: number; correct?: number; accuracy?: number | null;
+    matches_scored?: number; rps?: number | null; walk_forward_rps?: number | null;
+  };
   league_outlooks: LeagueTitleOutlook[];
   source: SourceMeta;
 }

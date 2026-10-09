@@ -1561,6 +1561,23 @@ def _league_title_outlooks(store: ReadOnlyStore, tm_map: dict[str, Any]) -> list
     return outlooks
 
 
+# Live score of the journal: each match's last forecast issued before it was resolved, scored with
+# the ranked probability score (same metric as the walk-forward leaderboard). Portable SQL: it runs
+# on DuckDB, PostgreSQL and the SQLite fallback.
+LIVE_FORECAST_SQL = """
+WITH final AS (
+    SELECT home_probability AS ph, draw_probability AS pd, actual_result,
+           row_number() OVER (PARTITION BY league, match_date, home_team, away_team ORDER BY issued_at DESC) AS rn
+    FROM forecast_history WHERE actual_result IS NOT NULL
+), scored AS (
+    SELECT ph - CASE WHEN actual_result = 'Home' THEN 1 ELSE 0 END AS c1,
+           ph + pd - CASE WHEN actual_result = 'Away' THEN 0 ELSE 1 END AS c2
+    FROM final WHERE rn = 1
+)
+SELECT count(*) AS matches, avg((c1 * c1 + c2 * c2) / 2) AS rps FROM scored
+"""
+
+
 def predictions(store: ReadOnlyStore) -> PredictionsResponse:
     empty = PredictionsResponse(source=_source("champion-model", "empty"))
     if not _has(store, "prediction_models"):
@@ -1603,10 +1620,14 @@ def predictions(store: ReadOnlyStore) -> PredictionsResponse:
         ).iloc[0]
         resolved = int(record.resolved or 0)
         correct = int(record.correct) if pd.notna(record.correct) else 0
+        live = store.query(LIVE_FORECAST_SQL).iloc[0]
         forecast_record = {
             "issued": int(record.issued or 0), "resolved": resolved,
             "correct": correct,
             "accuracy": correct / resolved if resolved else None,
+            "matches_scored": int(live.matches or 0),
+            "rps": None if pd.isna(live.rps) else float(live.rps),
+            "walk_forward_rps": metrics.get("rps"),
         }
         history = store.query("SELECT * FROM forecast_history")
         history = history.sort_values(

@@ -148,3 +148,21 @@ def test_duckdb_lock_held_by_another_process_is_a_skip_not_a_failure(monkeypatch
     with pytest.raises(SystemExit) as exc:
         pipeline.main()
     assert exc.value.code == 2 and alerts == ["Football refresh skipped"]
+
+
+def test_forecast_drift_alerts_only_on_a_clear_live_gap(tmp_path):
+    import json
+
+    import duckdb
+
+    db = tmp_path / "drift.duckdb"
+    with duckdb.connect(str(db)) as con:
+        con.execute("CREATE TABLE prediction_models (trained_at TIMESTAMP, metrics VARCHAR)")
+        con.execute("INSERT INTO prediction_models VALUES (now(), ?)", [json.dumps({"rps": 0.19})])
+        con.execute("CREATE TABLE forecast_history (league VARCHAR, match_date DATE, home_team VARCHAR, away_team VARCHAR, "
+                    "home_probability DOUBLE, draw_probability DOUBLE, issued_at TIMESTAMP, actual_result VARCHAR)")
+        # 120 matches forecast 60% home that all ended away: RPS (0.6^2 + 0.85^2) / 2 = 0.54
+        con.execute("INSERT INTO forecast_history SELECT 'E0', DATE '2026-01-01' + i::INTEGER, 'A', 'B', 0.6, 0.25, "
+                    "TIMESTAMP '2025-12-01', 'Away' FROM range(120) t(i)")
+    assert "Live RPS 0.5" in pipeline.forecast_drift(db)
+    assert pipeline.forecast_drift(db, min_matches=200) is None  # too few resolved forecasts to judge
