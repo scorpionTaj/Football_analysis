@@ -3,6 +3,7 @@
 import { Suspense, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
+import { toCsv } from '@/lib/csv';
 import { queryKeys } from '@/lib/api/query-keys';
 import { useFilterParams } from '@/lib/hooks/use-filter-params';
 import { SourceBadge } from '@/components/ui/source-badge';
@@ -80,7 +81,7 @@ function AnalysisContent() {
   });
 
   const rankings = useMemo(() => data?.rankings || [], [data?.rankings]);
-  const { paginatedItems: paginatedRankings, PaginationComponent: AnalysisPagination } = usePagination(rankings, 10);
+  const { paginatedItems: paginatedRankings, paginationControls: AnalysisPagination } = usePagination(rankings, 10);
   const matchFactors = data?.match_factors;
   const correlationMetrics = useMemo(() => {
     const first = data?.correlations?.[0];
@@ -112,7 +113,7 @@ function AnalysisContent() {
     ];
     const rows = rankings.map((r) => [
       r.rank,
-      `"${r.team.name}"`,
+      r.team.name,
       r.competition,
       r.played,
       r.wins,
@@ -125,10 +126,10 @@ function AnalysisContent() {
       r.goal_difference,
       r.win_rate.toFixed(1),
       r.clean_sheet_rate.toFixed(1),
-      `"${r.form || ''}"`,
+      r.form || '',
       r.form_ppg !== null ? r.form_ppg.toFixed(2) : '',
     ]);
-    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const csvContent = toCsv(headers, rows);
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -370,7 +371,7 @@ function AnalysisContent() {
           </table>
         </div>
         <div className="px-4 py-3 bg-mantle border-t border-surface1">
-          <AnalysisPagination />
+          {AnalysisPagination}
         </div>
       </div>
 

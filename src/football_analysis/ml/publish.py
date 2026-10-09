@@ -132,8 +132,15 @@ def champion_metrics(oos: pd.DataFrame, champion: str, board: pd.DataFrame, trai
                    if k in ("accuracy", "log_loss")}}
                for league, part in mine.groupby("league")]
     market = board.set_index("model").loc["market_closing"]
+    overall = _metrics(p, y)
+    # The base rate is a walk-forward model too (prior seasons' shares), not this sample's own shares.
+    paired = mine[["league", "match_date", "home_team", "away_team"]].merge(
+        baseline, on=["league", "match_date", "home_team", "away_team"])
+    if len(paired):
+        base = _metrics(paired[PROBS].to_numpy(), paired.outcome.to_numpy())
+        overall.update(baseline_accuracy=base["accuracy"], baseline_log_loss=base["log_loss"])
     return {
-        **_metrics(p, y, np.bincount(y, minlength=3) / len(y)),
+        **overall,
         **{k: v for k, v in proper_metrics(p, y).items() if k in ("rps", "ece")},
         **_confidence_backtest(p, y),
         "outcome_backtest": _outcome_backtest(p, y),
@@ -149,11 +156,11 @@ def champion_metrics(oos: pd.DataFrame, champion: str, board: pd.DataFrame, trai
     }
 
 
-def publish_to_app(con, champion, board, oos, current, played, train_matches, feature_count):
+def publish_to_app(con, champion, board, oos, current, played, train_matches, feature_names):
     stamp = datetime.now().replace(microsecond=0)
     model_id = f"{champion}-{stamp:%Y%m%d%H%M%S}"
     metrics = champion_metrics(oos, champion, board, train_matches)
-    metrics["feature_count"] = feature_count
+    metrics["feature_count"] = len(feature_names)
     keys = ["league", "season", "match_date", "home_team", "away_team"]
 
     validation = oos[oos.model == champion][[*keys, "outcome", *PROBS]].rename(columns=dict(zip(
@@ -179,7 +186,7 @@ def publish_to_app(con, champion, board, oos, current, played, train_matches, fe
         "model_id": model_id, "model_name": f"Champion · {champion.replace('_', ' ')} (walk-forward RPS)",
         "trained_at": stamp, "validation_cutoff": pd.to_datetime(validation.match_date).min().date(),
         "train_matches": int(train_matches), "validation_matches": int(len(validation)),
-        "feature_names": json.dumps(feature_count), "parameters": json.dumps({"champion": champion}),
+        "feature_names": json.dumps(feature_names), "parameters": json.dumps({"champion": champion}),
         "metrics": json.dumps(metrics, default=float),
     }])
 

@@ -29,11 +29,9 @@ so same-day results never leak into each other (tested in `tests/test_ml.py` and
 Base-rate guess · Elo-only logistic · multinomial logistic regression · LightGBM (early stopping) ·
 Poisson goals with a Dixon-Coles low-score correction (also gives scorelines and over/under) ·
 ensemble (convex blend with weights fitted on the calibration season) · stacked (multinomial logistic
-meta-learner on out-of-fold member log-probabilities from six earlier seasons); logistic regression and
-LightGBM use recency-weighted training · model + opening odds · bookmaker closing line (benchmark only).
-Elo-only, logistic regression, LightGBM, Poisson, the stack and the odds blend get temperature calibration on
-the calibration season; the ensemble blends already-calibrated members, and the base rate and closing line
-are used as is.
+meta-learner on member log-probabilities, fitted on out-of-fold predictions from the last six seasons of the
+training window only); logistic regression and LightGBM use recency-weighted training · model + opening odds ·
+bookmaker closing line (benchmark only). Each model gets temperature calibration on the calibration season.
 
 ## Evaluation (`football_analysis/ml/evaluate.py`)
 
@@ -63,6 +61,23 @@ Honest reading: accuracy is a poor target for three-way outcomes (draws are rare
 The champion closes 94% of the gap between a base-rate guess and the closing line. The remaining ~0.008 log
 loss to the market is the part it prices from team news, injuries and line-ups at kick-off.
 
+Stacking and time-series tuning (October 2026, before the market-strength feature). Same 13,061 matches; Δ is RPS minus the ensemble's, with the
+paired standard error over matches (negative would be better):
+
+| Variant | RPS | Log loss | Accuracy | Δ RPS ± SE |
+|---|---|---|---|---|
+| Ensemble (champion) | 0.19458 | 0.9670 | 53.4% | — |
+| Stacked, 6 out-of-fold seasons | 0.19475 | 0.9680 | 53.6% | +0.00017 ± 0.00010 |
+| Ensemble with tuned members | 0.19467 | 0.9672 | 53.4% | +0.00009 ± 0.00004 |
+| Logistic regression, tuned (C 0.02, half-life 6) | 0.19478 | 0.9679 | 53.2% | +0.00020 ± 0.00008 |
+| LightGBM, tuned (7 leaves, min child 100) | 0.19493 | 0.9685 | 53.4% | +0.00035 ± 0.00011 |
+
+Nothing beat the ensemble. The stack loses by 1.6 standard errors (not distinguishable; 3- and 4-fold stacks were
+worse, 0.19517 and 0.19492, so more out-of-fold seasons help, and the fold count was picked after seeing these
+scores). `football-train-models --tune` (TimeSeriesSplit, four date-ordered folds before the first test season, one
+MLflow child run per trial) moved CV RPS by under 0.00006, and its winners did slightly *worse* walk-forward, so the
+defaults stay. The stack remains a leaderboard candidate; the champion rule is unchanged.
+
 ## Tracking and serving
 
 Two modes. `football-train-models` runs the full walk-forward leaderboard (~3 min). Routine refreshes
@@ -80,6 +95,6 @@ tables so `/api/v1/predictions` keeps its contract. `/api/v1/models` serves the 
 
 ## Next levers
 
-`ml/tune.py` already runs time-series cross-validation for logistic regression and LightGBM; its best
-parameters are not yet fed back into `candidates()`. Remaining feature levers: lineup continuity from
-`fct_match_lineup` and fixture congestion including cups, both limited today by source coverage.
+Model choice and hyperparameters are at a plateau (see the tuning record above). Remaining gains need new
+information the closing line prices at kick-off: line-up and injury signals (lineup continuity from
+`fct_match_lineup`) and fixture congestion including cups, both limited today by source coverage.

@@ -53,7 +53,7 @@ function ShotIntelligenceContent() {
   }, [teams]);
   const volume = useMemo(() => [...teams].sort((a, b) => (b.shots_per_match ?? 0) - (a.shots_per_match ?? 0)).slice(0, 12), [teams]);
   const scatterTeams = useMemo(() => teams.slice(0, 160), [teams]);
-  const { paginatedItems, PaginationComponent } = usePagination(teams, 10);
+  const { paginatedItems, paginationControls } = usePagination(teams, 10);
 
   const formatPercent = (value: number | null) => value === null ? '—' : `${value.toFixed(1)}%`;
 
@@ -166,7 +166,7 @@ function ShotIntelligenceContent() {
           </table>
         </div>
         <div className="px-4">
-          <PaginationComponent />
+          {paginationControls}
         </div>
       </Card>
     </div>

@@ -261,12 +261,13 @@ def run_refresh_pipeline(database: Path, request: RefreshRequest, progress: Prog
                 db=database, years=[season], leagues=supported,
                 refresh=request.force_download,
             ))
-        openfootball_tournaments = [code for code in tournaments if code in OPENFOOTBALL_TOURNAMENTS]
-        if openfootball_tournaments:
-            from football_analysis.tournaments import OpenFootballTournaments, sync_tournaments
+        from football_analysis.tournaments import OpenFootballTournaments, live_partitions, sync_tournaments
+        # A full refresh keeps running editions current; a scoped one syncs what was selected.
+        partitions = ([(code, season) for code in tournaments if code in OPENFOOTBALL_TOURNAMENTS]
+                      if requested else live_partitions())
+        if partitions:
             report.attempt(2, "OpenFootball tournaments", lambda: sync_tournaments(
-                db=database,
-                partitions=[(code, season) for code in openfootball_tournaments],
+                db=database, partitions=partitions,
                 adapter=OpenFootballTournaments(refresh=request.force_download),
             ))
 

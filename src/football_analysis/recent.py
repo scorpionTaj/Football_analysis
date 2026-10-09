@@ -2,7 +2,7 @@
 
 import argparse
 import time
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 import pandas as pd
 import requests
@@ -187,6 +187,15 @@ def sync_cup_events(db=DB, season=None, competitions=None, adapter=None, refresh
     return report
 
 
+def _season_not_started(exc, today=None):
+    """Football-Data publishes a season's CSV with its first results (August). Between the
+    1 July rollover and kickoff the file is missing or empty: expected, not a failure."""
+    if (today or date.today()).month not in (7, 8, 9):
+        return False
+    missing = getattr(getattr(exc, "response", None), "status_code", None) == 404
+    return missing or "No completed matches" in str(exc)
+
+
 def sync_recent(db=DB, year=None, leagues=None, refresh=False, event_adapter=None):
     year = year if year is not None else current_season()
     leagues = leagues if leagues is not None else list(RECENT_LEAGUES)
@@ -241,7 +250,8 @@ def sync_recent(db=DB, year=None, leagues=None, refresh=False, event_adapter=Non
                 report.append({"league": league, "season": year, "source": SOURCE_CSV, "status": "success", "rows": len(frame)})
                 matches_changed = True
             except Exception as exc:
-                report.append({"league": league, "season": year, "source": SOURCE_CSV, "status": "failed", "detail": str(exc)})
+                status = "pending" if _season_not_started(exc) else "failed"
+                report.append({"league": league, "season": year, "source": SOURCE_CSV, "status": status, "detail": str(exc)})
             print(report[-1], flush=True)
 
         for league in leagues:

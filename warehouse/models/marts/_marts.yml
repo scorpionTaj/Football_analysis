@@ -28,6 +28,9 @@ models:
     tests:
       - unique_combination: {columns: [league, season, team]}
   - name: int_team_matches
+    description: "Grain: one row per (match_id, venue), two per match."
+    tests:
+      - unique_combination: {columns: [match_id, venue]}
     columns:
       - name: venue
         tests:

@@ -132,3 +132,19 @@ def test_all_four_stages_keep_running_after_optional_source_failures(monkeypatch
 
 def test_quick_refresh_skips_enrichment_but_still_builds_and_forecasts(monkeypatch, tmp_path):
     test_all_four_stages_keep_running_after_optional_source_failures(monkeypatch, tmp_path, quick=True)
+
+
+def test_duckdb_lock_held_by_another_process_is_a_skip_not_a_failure(monkeypatch):
+    import sys
+    import pytest
+
+    report = RefreshRunReport()
+    report.add(1, "Football-Data.co.uk", {"league": "E0", "status": "failed",
+                                          "detail": 'IO Error: Could not set lock on file "football.duckdb"'}, required=True)
+    alerts = []
+    monkeypatch.setattr(pipeline, "run_refresh_pipeline", lambda *_args: report)
+    monkeypatch.setattr(pipeline, "notify", lambda title, *_: alerts.append(title))
+    monkeypatch.setattr(sys, "argv", ["football-sync", "--step", "1"])
+    with pytest.raises(SystemExit) as exc:
+        pipeline.main()
+    assert exc.value.code == 2 and alerts == ["Football refresh skipped"]
