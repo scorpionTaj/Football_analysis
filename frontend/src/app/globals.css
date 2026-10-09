@@ -87,24 +87,25 @@
   --overlay0: #454862;
   --overlay1: #454862;
   --overlay2: #7c7f93;
-  --subtext0: #4c4f69;
-  --subtext1: #5c5f77;
-  --text: #4c4f69;
-  --lavender: #7287fd;
+  --subtext0: #44475d; /* darkened for 4.5:1 on surface1 */
+  --subtext1: #484b62; /* darkened from #5c5f77 for 4.5:1 on surface1 */
+  --text: #3c3f55; /* darkened from #4c4f69 for 4.5:1 on surface1 */
+  --lavender: #46539c; /* from #7287fd: 4.5:1 on surface0 */
   --blue: #164bbd; /* darkened from #1e66f5 for 4.5:1 on base/mantle/surface0 */
-  --sapphire: #209fb5;
-  --sky: #04a5e5;
-  --teal: #179299;
-  --green: #40a02b;
-  --yellow: #df8e1d;
-  --peach: #fe640b;
-  --maroon: #e64553;
-  --red: #d20f39;
-  --mauve: #8839ef;
-  --pink: #ea76cb;
-  --flamingo: #dd7878;
-  --rosewater: #dc8a78;
+  --sapphire: #136270; /* from #209fb5: 4.5:1 on surface0 */
+  --sky: #025f84; /* from #04a5e5: 4.5:1 on surface0 */
+  --teal: #0f6368; /* from #179299: 4.5:1 on surface0 */
+  --green: #28661b; /* from #40a02b: 4.5:1 on surface0 */
+  --yellow: #7c4f10; /* from #df8e1d: 4.5:1 on surface0 */
+  --peach: #983b06; /* from #fe640b: 4.5:1 on surface0 */
+  --maroon: #a0303a; /* from #e64553: 4.5:1 on surface0 */
+  --red: #b20c30; /* from #d20f39: 4.5:1 on surface0 */
+  --mauve: #7330cb; /* from #8839ef: 4.5:1 on surface0 */
+  --pink: #834271; /* from #ea76cb: 4.5:1 on surface0 */
+  --flamingo: #844747; /* from #dd7878: 4.5:1 on surface0 */
+  --rosewater: #7b4d43; /* from #dc8a78: 4.5:1 on surface0 */
   --success-soft-foreground: #1f5c33; /* HeroUI soft success chip text, 6.4:1 */
+  --accent: var(--blue); /* HeroUI primary buttons: white text on the darkened blue */
 }
 
 /* 3. Tokyo Night (Dark) */

@@ -12,7 +12,6 @@ import subprocess
 from datetime import datetime
 
 import duckdb
-import numpy as np
 import pandas as pd
 
 from ..config import DB, ROOT, current_season
@@ -74,7 +73,7 @@ def train(db=DB, test_seasons=None, tracking_uri=None):
     results = leaderboard(frame, test_seasons)
 
     rows, sha, stamp = [], _git_sha(), datetime.now().replace(microsecond=0)
-    with mlflow.start_run(run_name=f"leaderboard-{stamp:%Y%m%d-%H%M}") as parent:
+    with mlflow.start_run(run_name=f"leaderboard-{stamp:%Y%m%d-%H%M}"):
         mlflow.set_tags({"git_sha": sha, "test_seasons": ",".join(map(str, test_seasons))})
         for name, (predictions, model) in results.items():
             overall = score(predictions)

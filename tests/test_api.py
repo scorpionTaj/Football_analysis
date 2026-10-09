@@ -1,11 +1,10 @@
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from pathlib import Path
 import os
 import shutil
 import tempfile
 import time
 
-import pandas as pd
 from fastapi.testclient import TestClient
 
 from football_analysis.api.app import create_app

@@ -123,6 +123,8 @@ def create_app(
             "http://127.0.0.1:3000",
             "http://localhost:3001",
             "http://127.0.0.1:3001",
+            # Deployed web origins, comma-separated (the browser calls the API directly).
+            *(origin.strip() for origin in os.environ.get("FOOTBALL_CORS_ORIGINS", "").split(",") if origin.strip()),
         ],
         allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:[0-9]+)?$",
         allow_methods=["GET", "POST", "OPTIONS"],

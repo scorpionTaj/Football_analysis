@@ -45,5 +45,9 @@ football-api = "football_analysis.api.app:main"
 [tool.setuptools.package-data]
 football_analysis = ["schema.sql"]
 
+[tool.ruff.lint]
+# pyflakes + pycodestyle errors; compact one-line statements and lambdas are house style.
+ignore = ["E701", "E731", "E402"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
