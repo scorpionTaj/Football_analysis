@@ -52,6 +52,20 @@ function PlayersContent() {
   const [cursorHistory, setCursorHistory] = useState<string[]>([]);
   const [comparisonPlayers, setComparisonPlayers] = useState<[ComparisonPlayer | null, ComparisonPlayer | null]>([null, null]);
   const [comparisonKeySelection, setComparisonKeySelection] = useState('');
+  // The URL seeds local state; follow it when it changes without a remount (global search, back/forward).
+  const urlPlayer = filters.get('player');
+  const urlQuery = filters.get('q') || '';
+  const [seenUrl, setSeenUrl] = useState({ player: urlPlayer, q: urlQuery });
+  if (seenUrl.player !== urlPlayer || seenUrl.q !== urlQuery) {
+    setSeenUrl({ player: urlPlayer, q: urlQuery });
+    if (seenUrl.player !== urlPlayer) setSelectedPlayerId(urlPlayer);
+    if (seenUrl.q !== urlQuery) {
+      setSearchQuery(urlQuery);
+      setDebouncedQuery(urlQuery);
+      setCurrentCursor(null);
+      setCursorHistory([]);
+    }
+  }
 
   // 300ms debounce to prevent constant refetching on each keystroke
   useEffect(() => {
