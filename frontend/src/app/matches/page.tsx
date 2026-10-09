@@ -18,10 +18,15 @@ import { MatchDetailCentre } from '@/components/match-detail-centre';
 
 function MatchesContent() {
   const filters = useFilterParams();
-  const [currentCursor, setCurrentCursor] = useState<string | null>(null);
-  const [cursorHistory, setCursorHistory] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  // A cursor only means something for the filters that produced it. A filter change is a
+  // router.push that may or may not remount this page, so reset explicitly (during render).
+  const pagingKey = [filters.competition, filters.season, filters.team, filters.venue, debouncedSearch].join('|');
+  const [paging, setPaging] = useState({ key: pagingKey, cursor: null as string | null, history: [] as string[] });
+  if (paging.key !== pagingKey) setPaging({ key: pagingKey, cursor: null, history: [] });
+  const currentCursor = paging.key === pagingKey ? paging.cursor : null;
+  const cursorHistory = paging.key === pagingKey ? paging.history : [];
   const matchDate = filters.get('match_date');
   const matchHome = filters.get('home');
   const matchAway = filters.get('away');
@@ -29,8 +34,6 @@ function MatchesContent() {
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setDebouncedSearch(searchQuery.trim());
-      setCurrentCursor(null);
-      setCursorHistory([]);
     }, 350);
     return () => window.clearTimeout(timer);
   }, [searchQuery]);
@@ -70,24 +73,17 @@ function MatchesContent() {
   const filteredMatches = matches;
 
   const handleNextPage = () => {
-    if (page?.next_cursor) {
-      setCursorHistory((prev) => [...prev, currentCursor || '']);
-      setCurrentCursor(page.next_cursor);
-    }
+    const next = page?.next_cursor;
+    if (next) setPaging({ key: pagingKey, cursor: next, history: [...cursorHistory, currentCursor || ''] });
   };
 
   const handlePrevPage = () => {
     if (cursorHistory.length > 0) {
-      const prev = cursorHistory[cursorHistory.length - 1];
-      setCursorHistory((prevList) => prevList.slice(0, -1));
-      setCurrentCursor(prev || null);
+      setPaging({ key: pagingKey, cursor: cursorHistory[cursorHistory.length - 1] || null, history: cursorHistory.slice(0, -1) });
     }
   };
 
-  const handleResetPagination = () => {
-    setCurrentCursor(null);
-    setCursorHistory([]);
-  };
+  const handleResetPagination = () => setPaging({ key: pagingKey, cursor: null, history: [] });
 
   const openMatchCentre = (match: Match) => {
     filters.set({
