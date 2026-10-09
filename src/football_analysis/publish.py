@@ -81,6 +81,10 @@ def publish_postgres(dsn: str, schema: str, db: Path = DB) -> dict:
                 cursor.execute(sql.SQL("DROP TABLE IF EXISTS {} CASCADE").format(sql.Identifier(name)))
                 cursor.execute("DELETE FROM snapshot_manifest WHERE table_name = %s", [name])
                 report.setdefault("retired", []).append(name)
+            # A publish that failed mid-way leaves committed `<table>__next` copies; reclaim the quota.
+            for (name,) in cursor.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = %s "
+                                          "AND table_name LIKE %s", [schema, r"%\_\_next"]).fetchall():
+                cursor.execute(sql.SQL("DROP TABLE IF EXISTS {}").format(sql.Identifier(name)))
             target.commit()
 
             staged = {}

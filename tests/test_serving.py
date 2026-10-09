@@ -125,7 +125,11 @@ def test_publish_swaps_only_changed_tables(match_db, postgres_server, tmp_path):
         with pg_connect(postgres_server, autocommit=True) as conn:
             conn.execute(f'CREATE TABLE "{schema}".event_lineups (x int)')
             conn.execute(f"INSERT INTO \"{schema}\".snapshot_manifest VALUES ('event_lineups', 0, 0, 0, 'old')")
+            conn.execute(f'CREATE TABLE "{schema}".mart_dashboard_match__next (x int)')  # left by a failed publish
         assert publish_postgres(postgres_server, schema, match_db)["retired"] == ["event_lineups"]
+        with pg_connect(postgres_server, autocommit=True) as conn:
+            assert not conn.execute("SELECT 1 FROM information_schema.tables WHERE table_schema = %s "
+                                    "AND table_name LIKE '%%next'", [schema]).fetchall()
         with PostgresReadOnlyStore(postgres_server, schema) as store:
             assert "event_lineups" not in store.tables()
         local = tmp_path / "fallback.sqlite3"
