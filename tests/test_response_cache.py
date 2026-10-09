@@ -82,7 +82,8 @@ def test_conditional_requests_keep_headers_and_skip_query(tmp_path, monkeypatch)
         assert conditional.headers["Cache-Control"] == first.headers["Cache-Control"]
 
 
-def test_refresh_replaces_generation_for_media_and_reference_changes(tmp_path):
+def test_refresh_replaces_generation_for_media_and_reference_changes(tmp_path, monkeypatch):
+    monkeypatch.setenv("FOOTBALL_ADMIN_TOKEN", "secret")
     db = tmp_path / "api.duckdb"
     seed(db)
     redis = MemoryRedis()
@@ -100,7 +101,8 @@ def test_refresh_replaces_generation_for_media_and_reference_changes(tmp_path):
     api = TestClient(app)
     old = api.get("/api/v1/catalog")
     old_standings = api.get("/api/v1/standings?competition=E0&season=2024")
-    assert api.post("/api/v1/refresh", json={"target_step": 1}).status_code == 202
+    assert api.post("/api/v1/refresh", json={"target_step": 1},
+                    headers={"X-Admin-Token": "secret"}).status_code == 202
     for _ in range(200):
         if api.get("/api/v1/refresh").json()["status"] == "success":
             break
