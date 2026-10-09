@@ -119,6 +119,8 @@ The 2026/27 campaign is integrated into every match-driven page and adds the Ere
 
 Data lives in `data/`; override with `FOOTBALL_DATA_DIR`. Raw archives and the database are excluded from version control. The lockfile pins the tested environment. No automated downloads run on page views.
 
+The API's `POST /api/v1/refresh` only accepts loopback callers; set `FOOTBALL_ADMIN_TOKEN` and send it as `X-Admin-Token` to trigger it from elsewhere (for example inside containers). With the PostgreSQL backend the cache generation is the published `snapshot_manifest` digest (re-checked every minute), so a publish from another process invalidates ETags; a dropped connection is retried once, then the API serves the SQLite fallback and retries PostgreSQL every five minutes.
+
 Optional API response caching: install the Redis extra (`uv sync --extra redis`) and set `REDIS_URL` to a Redis URL. Only catalog and overview GET JSON responses use Redis, with 300-second and 60-second TTLs respectively. Each reopened DuckDB snapshot gets a new cache generation after refresh; Redis errors fall back to DuckDB. Without `REDIS_URL`, the API uses DuckDB as before.
 
 Serving: `football-publish` publishes only what the API reads (the serving marts plus live app tables listed in `publish.py`); raw tables behind the marts stay in DuckDB, and a table that stops being served is dropped from PostgreSQL before new ones are copied. It compares each table's row digest with `snapshot_manifest` in the

@@ -1,4 +1,5 @@
 import time
+from types import SimpleNamespace
 
 from football_analysis.api.contracts import RefreshRequest
 from football_analysis.api.refresh import RefreshCoordinator, RefreshRunReport
@@ -88,7 +89,8 @@ def test_api_refresh_handoff_persists_runner_outcomes(tmp_path):
     report.add(1, "Weekly fixtures", {"status": "unavailable", "detail": "provider offline"})
     app = create_app(db, refresh_runner=lambda _request, _progress: report, defer_database_open=True)
     endpoint = next(route.endpoint for route in app.routes if route.path == "/api/v1/refresh" and "POST" in route.methods)
-    endpoint(RefreshRequest(target_step=1))
+    loopback = SimpleNamespace(headers={}, client=SimpleNamespace(host="127.0.0.1"))
+    endpoint(RefreshRequest(target_step=1), loopback)
     for _ in range(100):
         if app.state.refresh.status().status == "degraded":
             break
