@@ -40,8 +40,10 @@ last four completed seasons, top flights only, matches with closing odds, so eve
 same 13,061 matches. Metrics: ranked probability score (primary), log loss, Brier score, accuracy and
 expected calibration error. The champion is the independent model (no odds) with the lowest RPS.
 
-Acceptance targets (`football_analysis.ml.TARGETS`): log loss ≤ 0.975 ✅ 0.9670 · RPS ≤ 0.200 ✅ 0.1946 ·
-ECE ≤ 0.02 ✅ 0.0048 · accuracy ≥ 53.5% ✗ 53.4% (standard error ≈ ±0.44 points, so not distinguishable).
+Acceptance targets (`football_analysis.ml.TARGETS`): log loss ≤ 0.975 ✅ 0.9672 · RPS ≤ 0.200 ✅ 0.1946 ·
+ECE ≤ 0.02 ✅ 0.0043 · accuracy ≥ 53.5% ✗ 53.3% (standard error ≈ ±0.44 points, so not distinguishable).
+The stack (RPS 0.1948) does not beat the simpler blend; fixing the `promoted` flag (it was set for a promoted
+club's first match only) moved every model by less than 0.0001 RPS.
 
 Tuning record: recency-weighted training (weight halves every 4 seasons for logistic regression, 6 for
 LightGBM) gave the only consistent gain. Elo K (15/20/28), form half-life (4/6/10) and between-season

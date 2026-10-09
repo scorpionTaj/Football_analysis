@@ -62,15 +62,16 @@ only on earlier seasons (calibrated on the season before), scored on 13,061 top-
 | **Ensemble (champion, no odds)** | **0.1946** | **0.967** | **53.4%** | **0.005** |
 | Stacked (out-of-fold meta-learner)     | 0.1948           | 0.968           | 53.6%           | 0.004           |
 | Logistic regression                    | 0.1947           | 0.968           | 53.4%           | 0.005           |
-| LightGBM                               | 0.1949           | 0.969           | 53.4%           | 0.003           |
+| Stacked (out-of-fold meta-learner)     | 0.1948           | 0.968           | 53.6%           | 0.004           |
+| LightGBM                               | 0.1949           | 0.969           | 53.3%           | 0.003           |
 | Poisson + Dixon-Coles                  | 0.1951           | 0.969           | 53.3%           | 0.004           |
 | Elo only                               | 0.1975           | 0.977           | 53.0%           | 0.006           |
 | Base-rate guess                        | 0.2304           | 1.074           | 43.8%           | 0.009           |
 
 The champion recovers 89% of the closing line's skill over a base-rate guess and meets the
-log-loss, RPS and calibration targets; accuracy (53.4%) is 0.1 points under its 53.5% target, well
+log-loss, RPS and calibration targets; accuracy (53.3%) is 0.2 points under its 53.5% target, well
 inside the ±0.4-point standard error on 13k matches.
-Forecasts at ≥75% confidence (9% of matches) were right 82.3% of the time. See
+Forecasts at ≥75% confidence (9% of matches) were right 81.8% of the time. See
 [docs/MODELLING.md](docs/MODELLING.md).
 
 ## Scope
