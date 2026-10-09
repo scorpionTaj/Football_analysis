@@ -61,19 +61,18 @@ only on earlier seasons (calibrated on the season before), scored on 13,061 top-
 | -------------------------------------- | ---------------- | --------------- | --------------- | --------------- |
 | Bookmaker closing line (benchmark)     | 0.1905           | 0.954           | 54.9%           | 0.011           |
 | Model + opening odds                   | 0.1911           | 0.956           | 54.4%           | 0.004           |
-| **Ensemble (champion, no odds)** | **0.1946** | **0.967** | **53.4%** | **0.005** |
-| Stacked (out-of-fold meta-learner)     | 0.1948           | 0.968           | 53.6%           | 0.004           |
-| Logistic regression                    | 0.1947           | 0.968           | 53.4%           | 0.005           |
-| Stacked (out-of-fold meta-learner)     | 0.1948           | 0.968           | 53.6%           | 0.004           |
-| LightGBM                               | 0.1949           | 0.969           | 53.3%           | 0.003           |
-| Poisson + Dixon-Coles                  | 0.1951           | 0.969           | 53.3%           | 0.004           |
-| Elo only                               | 0.1975           | 0.977           | 53.0%           | 0.006           |
+| **Stacked (champion, no odds)**  | **0.1928** | **0.962** | **54.0%** | **0.003** |
+| Ensemble                               | 0.1928           | 0.962           | 53.9%           | 0.005           |
+| Logistic regression                    | 0.1929           | 0.962           | 54.0%           | 0.005           |
+| LightGBM                               | 0.1930           | 0.963           | 53.9%           | 0.004           |
+| Poisson + Dixon-Coles                  | 0.1930           | 0.963           | 54.0%           | 0.006           |
+| Elo only                               | 0.1971           | 0.976           | 53.0%           | 0.006           |
 | Base-rate guess                        | 0.2304           | 1.074           | 43.8%           | 0.009           |
 
-The champion recovers 89% of the closing line's skill over a base-rate guess and meets the
-log-loss, RPS and calibration targets; accuracy (53.3%) is 0.2 points under its 53.5% target, well
-inside the ±0.4-point standard error on 13k matches.
-Forecasts at ≥75% confidence (9% of matches) were right 81.8% of the time. See
+The champion recovers 94% of the closing line's skill over a base-rate guess and meets every target
+(log loss, RPS, calibration and 53.5% accuracy). The largest gain came from a market-implied team
+strength learned from *past* opening prices only, so no forecast uses its own match's odds.
+Forecasts at ≥75% confidence (11% of matches) were right 80.8% of the time. See
 [docs/MODELLING.md](docs/MODELLING.md).
 
 ## Scope

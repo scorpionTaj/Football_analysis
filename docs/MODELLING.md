@@ -40,21 +40,28 @@ last four completed seasons, top flights only, matches with closing odds, so eve
 same 13,061 matches. Metrics: ranked probability score (primary), log loss, Brier score, accuracy and
 expected calibration error. The champion is the independent model (no odds) with the lowest RPS.
 
-Acceptance targets (`football_analysis.ml.TARGETS`): log loss ≤ 0.975 ✅ 0.9672 · RPS ≤ 0.200 ✅ 0.1946 ·
-ECE ≤ 0.02 ✅ 0.0043 · accuracy ≥ 53.5% ✗ 53.3% (standard error ≈ ±0.44 points, so not distinguishable).
-The stack (RPS 0.1948) does not beat the simpler blend; fixing the `promoted` flag (it was set for a promoted
-club's first match only) moved every model by less than 0.0001 RPS.
+Acceptance targets (`football_analysis.ml.TARGETS`): log loss ≤ 0.975 ✅ 0.9617 · RPS ≤ 0.200 ✅ 0.1928 ·
+ECE ≤ 0.02 ✅ 0.0026 · accuracy ≥ 53.5% ✅ 54.0%. The stack edges the blend by 0.00002 RPS, well inside noise.
+
+**Market-implied strength** (`market_strength_diff`): an Elo-style rating per club that moves towards each
+*past* match's margin-free opening log-odds (home vs away, plus a learned league home advantage), updated
+after the match day like every other state. A forecast never sees its own match's prices, so the no-odds
+contract holds; entering clubs start at the league's edge, as for Elo. It lowered logistic-regression RPS
+from 0.1947 to 0.1929 on the test seasons. Its step size (0.25) was picked on 2018–2021, not the test seasons.
+
+Tried and dropped (no gain on 2018–2021): a finishing residual (goals − 0.3 × shots on target, half-life 20)
+and seasons in the top flight over the last five. Regressing a promoted/relegated club's entry Elo like every
+staying club improved Elo-only (0.2031 → 0.2027 RPS on 2018–2021) and is neutral for the full models.
 
 Tuning record: recency-weighted training (weight halves every 4 seasons for logistic regression, 6 for
 LightGBM) gave the only consistent gain. Elo K (15/20/28), form half-life (4/6/10) and between-season
 regression (0.65/0.8) all landed within ±0.0001 RPS of each other, i.e. the features are at a plateau.
 
 Honest reading: accuracy is a poor target for three-way outcomes (draws are rarely the most likely result).
-The champion closes 89% of the gap between a base-rate guess and the closing line. The remaining ~0.013 log
-loss to the market is typical of public-data models; the market prices team news, injuries and line-ups
-that results-only features cannot see.
+The champion closes 94% of the gap between a base-rate guess and the closing line. The remaining ~0.008 log
+loss to the market is the part it prices from team news, injuries and line-ups at kick-off.
 
-Stacking and time-series tuning (October 2026). Same 13,061 matches; Δ is RPS minus the ensemble's, with the
+Stacking and time-series tuning (October 2026, before the market-strength feature). Same 13,061 matches; Δ is RPS minus the ensemble's, with the
 paired standard error over matches (negative would be better):
 
 | Variant | RPS | Log loss | Accuracy | Δ RPS ± SE |
@@ -88,5 +95,6 @@ tables so `/api/v1/predictions` keeps its contract. `/api/v1/models` serves the 
 
 ## Next levers
 
-Model choice and hyperparameters are at a plateau. Remaining gains need new information: expected-goals proxies
-when a free shot-location source exists, and line-up/injury signals (the main thing the closing line prices in).
+Model choice and hyperparameters are at a plateau (see the tuning record above). Remaining gains need new
+information the closing line prices at kick-off: line-up and injury signals (lineup continuity from
+`fct_match_lineup`) and fixture congestion including cups, both limited today by source coverage.
