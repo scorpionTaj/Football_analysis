@@ -86,7 +86,7 @@ function ClubLabContent() {
   });
 
   // Fetch recent matches for the club
-  const { data: matchData, isLoading: isMatchesLoading } = useQuery({
+  const { data: matchData, isLoading: isMatchesLoading, error: matchesError, refetch: refetchMatches } = useQuery({
     queryKey: queryKeys.matches({ team: selectedClub, limit: 100 }),
     queryFn: () => api.matches({ team: selectedClub, limit: 100 }),
     enabled: !!selectedClub,
@@ -94,7 +94,7 @@ function ClubLabContent() {
 
   // Direct filtering spans leagues and cups without losing older meetings to
   // either club's general recent-match pagination.
-  const { data: h2hData } = useQuery({
+  const { data: h2hData, isLoading: isH2HLoading, error: h2hError, refetch: refetchH2H } = useQuery({
     queryKey: queryKeys.matches({ team: selectedClub, opponent: opponentClub, limit: 200 }),
     queryFn: () => api.matches({ team: selectedClub, opponent: opponentClub, limit: 200 }),
     enabled: activeTab === 'h2h' && !!selectedClub && !!opponentClub,
@@ -527,6 +527,8 @@ function ClubLabContent() {
 
             {isMatchesLoading ? (
               <LoadingSkeleton lines={4} />
+            ) : matchesError ? (
+              <ErrorMessage title="Fixtures unavailable" detail={matchesError.message} retry={() => refetchMatches()} />
             ) : matches.length === 0 ? (
               <EmptyState icon="⚽" message="No recent fixtures recorded for this club." />
             ) : (
@@ -709,7 +711,11 @@ function ClubLabContent() {
               <Calendar className="h-4 w-4 text-teal" /> Historical Direct Encounters ({h2hMatches.length})
             </h3>
 
-            {h2hMatches.length === 0 ? (
+            {isH2HLoading ? (
+              <LoadingSkeleton lines={4} />
+            ) : h2hError ? (
+              <ErrorMessage title="Head-to-head unavailable" detail={h2hError.message} retry={() => refetchH2H()} />
+            ) : h2hMatches.length === 0 ? (
               <EmptyState
                 icon="⚽"
                 message={`No direct matches found between ${selectedClub} and ${opponentClub} in covered fixtures.`}

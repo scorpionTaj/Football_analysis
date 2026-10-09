@@ -6,7 +6,7 @@ import { api } from '@/lib/api/client';
 import { queryKeys } from '@/lib/api/query-keys';
 import { useFilterParams } from '@/lib/hooks/use-filter-params';
 import { SourceBadge } from '@/components/ui/source-badge';
-import { LoadingSkeleton, ErrorMessage } from '@/components/ui/loading';
+import { LoadingSkeleton, ErrorMessage, EmptyState } from '@/components/ui/loading';
 import { PageHeader } from '@/components/ui/page-header';
 import { usePagination } from '@/components/ui/pagination';
 import { BarChart3, TrendingUp, ShieldAlert, Award, Download, SlidersHorizontal } from 'lucide-react';
@@ -54,16 +54,15 @@ function AnalysisContent() {
     return filters.competition ? [filters.competition] : ['E0'];
   }, [filters.competition]);
 
+  // The selected competition's latest season (not the latest across every competition).
   const defaultSeason = useMemo(() => {
-    if (catalog?.competitions && catalog.competitions.length > 0) {
-      const allSeasons = catalog.competitions.flatMap((c) => c.seasons.map((s) => s.season));
-      if (allSeasons.length > 0) return Math.max(...allSeasons);
-    }
-    return 2026;
-  }, [catalog]);
+    const seasons = catalog?.competitions.find((c) => c.code === selectedCompetitions[0])?.seasons || [];
+    return seasons.length ? Math.max(...seasons.map((s) => s.season)) : catalog?.current_season;
+  }, [catalog, selectedCompetitions]);
 
   const selectedSeasons = useMemo(() => {
-    return filters.season ? [filters.season] : [defaultSeason];
+    const season = filters.season || defaultSeason;
+    return season ? [season] : [];
   }, [filters.season, defaultSeason]);
 
   const requestBody = useMemo(() => ({
@@ -77,6 +76,7 @@ function AnalysisContent() {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: queryKeys.analysis(requestBody),
     queryFn: () => api.analysis(requestBody),
+    enabled: selectedSeasons.length > 0,
   });
 
   const rankings = useMemo(() => data?.rankings || [], [data?.rankings]);
@@ -318,6 +318,9 @@ function AnalysisContent() {
           </button>
         </div>
 
+        {rankings.length === 0 ? (
+          <EmptyState icon="📊" message="No matches in this slice." suggestion="Widen the competition, season, team or venue filters." />
+        ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-surface1 bg-mantle text-xs uppercase text-subtext0">
@@ -369,6 +372,7 @@ function AnalysisContent() {
             </tbody>
           </table>
         </div>
+        )}
         <div className="px-4 py-3 bg-mantle border-t border-surface1">
           <AnalysisPagination />
         </div>

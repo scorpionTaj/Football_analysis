@@ -26,12 +26,13 @@ function LeagueTablesContent() {
   const compOptions = catalog?.competitions.filter((c) => c.kind === 'domestic') || [];
   const currentComp = compOptions.find((c) => c.code === selectedCompetition);
   const seasons = currentComp?.seasons || [];
-  const latestSeason = seasons.length > 0 ? Math.max(...seasons.map((s) => s.season)) : 2026;
-  const selectedSeason = filters.season || latestSeason;
+  const latestSeason = seasons.length > 0 ? Math.max(...seasons.map((s) => s.season)) : catalog?.current_season;
+  const selectedSeason = filters.season || latestSeason || 0;
 
   const { data: standingData, isLoading, error, refetch } = useQuery({
     queryKey: queryKeys.standings(selectedCompetition, selectedSeason, 5, venueFilter === 'All' ? undefined : venueFilter),
     queryFn: () => api.standings(selectedCompetition, selectedSeason, 5, venueFilter === 'All' ? undefined : venueFilter),
+    enabled: selectedSeason > 0,  // wait for the catalog instead of guessing a year
   });
 
   const rankings = standingData?.rankings || [];
