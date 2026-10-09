@@ -18,7 +18,7 @@ MASK = (1 << 256) - 1
 
 def schema_name(name: str | None = None) -> str:
     """A private, lowercase application schema; never Supabase's exposed or system schemas."""
-    name = os.environ.get("FOOTBALL_POSTGRES_SCHEMA", "football_analysis") if name is None else name
+    name = os.environ.get("FOOTBALL_POSTGRES_SCHEMA", "football_analysis_next") if name is None else name
     if not re.fullmatch(r"[a-z][a-z0-9_]*", name or "") or name in {"public", "auth", "storage"}:
         raise ValueError("FOOTBALL_POSTGRES_SCHEMA must be a private lowercase application schema")
     return name

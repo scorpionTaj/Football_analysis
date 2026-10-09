@@ -19,6 +19,10 @@ export const viewport: Viewport = {
   colorScheme: 'dark light',
 };
 
+// Applies the saved/system theme before first paint (same rules as ThemeProvider's activeTheme),
+// so light-mode users never see the dark default flash and colour transitions.
+const themeScript = `(function(){try{var m=localStorage.getItem('fa_theme_mode')||'auto',t=localStorage.getItem('fa_theme_id')||'mocha',l=t==='latte'||t==='github-light',s=matchMedia('(prefers-color-scheme: dark)').matches,a=m==='auto'?(s?(l?'mocha':t):'latte'):m==='dark'?(l?'mocha':t):(l?t:'latte'),d=a!=='latte'&&a!=='github-light',r=document.documentElement;r.setAttribute('data-theme',a);r.classList.toggle('dark',d);r.classList.toggle('light',!d)}catch(e){}})()`;
+
 export default function RootLayout({
   children,
 }: {
@@ -26,6 +30,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark" data-scroll-behavior="smooth" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body className="bg-base text-text antialiased">
         <Providers>
           <a href="#main-content" className="skip-link">Skip to content</a>

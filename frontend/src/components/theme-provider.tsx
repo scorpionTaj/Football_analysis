@@ -79,6 +79,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<ThemeId>('mocha');
   const [mode, setModeState] = useState<ThemeMode>('auto');
   const [systemDark, setSystemDark] = useState<boolean>(true);
+  // Until saved preferences load, keep what the layout's inline script applied before paint.
+  const [loaded, setLoaded] = useState(false);
 
   // Initialize from localStorage and system preference
   useEffect(() => {
@@ -96,6 +98,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
           setThemeState(savedTheme);
         }
         setSystemDark(mediaQuery.matches);
+        setLoaded(true);
       });
 
       const handleSystemChange = (e: MediaQueryListEvent) => {
@@ -127,6 +130,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   // Apply data-theme to HTML root
   useEffect(() => {
+    if (!loaded) return;
     const root = document.documentElement;
     root.setAttribute('data-theme', activeTheme);
     if (isDark) {
@@ -136,7 +140,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       root.classList.add('light');
       root.classList.remove('dark');
     }
-  }, [activeTheme, isDark]);
+  }, [activeTheme, isDark, loaded]);
 
   const setTheme = (newTheme: ThemeId) => {
     setThemeState(newTheme);

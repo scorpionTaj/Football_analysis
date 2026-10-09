@@ -8,6 +8,7 @@ import re
 import unicodedata
 from datetime import date, datetime
 from difflib import SequenceMatcher
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -955,10 +956,10 @@ def match_centre_detail(
         ("Red cards", match.home_reds, match.away_reds),
         ("Half-time goals", match.half_time_home_goals, match.half_time_away_goals),
     )
-    for label, home_value, away_value in stored_statistics:
-        if (home_value is not None or away_value is not None) and label.casefold() not in known_stats:
+    for name, home_value, away_value in stored_statistics:
+        if (home_value is not None or away_value is not None) and name.casefold() not in known_stats:
             statistics.append(EventStatistic(
-                statistic=label,
+                statistic=name,
                 home_value=None if home_value is None else float(home_value),
                 away_value=None if away_value is None else float(away_value),
             ))
@@ -994,20 +995,20 @@ def match_centre_detail(
 
     # Prefer verified event counts over a missing/incorrect aggregate without erasing
     # a larger provider total. A second yellow is a sending-off as well as a card event.
-    for label, matcher in (
+    for name, matcher in (
         ("Yellow cards", lambda value: "yellow" in value),
         ("Red cards", lambda value: "red card" in value or "second yellow" in value),
     ):
         home_count = sum(item.is_home is True and matcher((item.event_type or "").casefold()) for item in timeline)
         away_count = sum(item.is_home is False and matcher((item.event_type or "").casefold()) for item in timeline)
         if home_count or away_count:
-            existing = next((item for item in statistics if item.statistic.casefold() == label.casefold()), None)
+            existing = next((item for item in statistics if item.statistic.casefold() == name.casefold()), None)
             if existing:
                 existing.home_value = float(max(home_count, int(existing.home_value or 0)))
                 existing.away_value = float(max(away_count, int(existing.away_value or 0)))
             else:
                 statistics.append(EventStatistic(
-                    statistic=label, home_value=float(home_count), away_value=float(away_count),
+                    statistic=name, home_value=float(home_count), away_value=float(away_count),
                 ))
     home_starters = sum(item.is_home is True and item.is_substitute is not True for item in lineups)
     away_starters = sum(item.is_home is False and item.is_substitute is not True for item in lineups)

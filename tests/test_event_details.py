@@ -20,7 +20,7 @@ def test_event_detail_frames_keep_capped_source_values():
     assert statistics.loc[0, "home_value"] == 4
     assert timeline.loc[0, "event_type"] == "Goal"
     assert timeline.loc[0, "comment"] == ""
-    assert lineups.loc[0, "is_substitute"] == False
+    assert not lineups.loc[0, "is_substitute"]
 
 
 def test_event_details_cache_empty_provider_result(tmp_path):
