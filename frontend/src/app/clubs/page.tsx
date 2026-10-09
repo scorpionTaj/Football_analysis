@@ -1,11 +1,13 @@
 'use client';
 
 import { Card, Button } from '@heroui/react';
-import { Suspense, useMemo, useState } from 'react';
+import { Suspense, useCallback, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
+import { toCsv } from '@/lib/csv';
 import { queryKeys } from '@/lib/api/query-keys';
 import { useFilterParams } from '@/lib/hooks/use-filter-params';
+import type { Match } from '@/lib/api/types';
 import { SourceBadge } from '@/components/ui/source-badge';
 import { LoadingSkeleton, ErrorMessage, EmptyState } from '@/components/ui/loading';
 import { PageHeader } from '@/components/ui/page-header';
@@ -54,6 +56,11 @@ function ClubLabContent() {
   const selectedTeam = allTeams.find((team) => team.name === selectedClub);
   const opponentTeam = allTeams.find((team) => team.name === opponentClub);
   const selectedTeamId = selectedTeam?.team_id;
+  // Until the team list resolves the id, fall back to the name so home/away are not all read as away.
+  const isClubHome = useCallback(
+    (match: Match) => (selectedTeamId ? match.home.team_id === selectedTeamId : match.home.name === selectedClub),
+    [selectedTeamId, selectedClub],
+  );
 
   // Request analysis for the selected club across all seasons
   const requestBody = useMemo(() => ({
@@ -101,7 +108,7 @@ function ClubLabContent() {
   });
 
   const seasonsList = useMemo(() => {
-    return (analysis?.rankings || []).sort((a, b) => a.season - b.season);
+    return [...(analysis?.rankings || [])].sort((a, b) => a.season - b.season);
   }, [analysis]);
 
   const benchmarkRequest = useMemo(() => ({
@@ -119,7 +126,7 @@ function ClubLabContent() {
   });
 
   // Paginated season history table (10 per page)
-  const { paginatedItems: paginatedSeasons, PaginationComponent: SeasonsPagination } = usePagination(seasonsList, 10);
+  const { paginatedItems: paginatedSeasons, paginationControls: SeasonsPagination } = usePagination(seasonsList, 10);
 
   // Total stats across seasons for selected club
   const totals = useMemo(() => {
@@ -189,7 +196,7 @@ function ClubLabContent() {
   const rollingForm = useMemo(() => {
     const ordered = [...matches].filter((match) => match.home_goals != null && match.away_goals != null).sort((a, b) => a.match_date.localeCompare(b.match_date));
     const points: number[] = ordered.map((match) => {
-      const isHome = match.home.team_id === selectedTeamId;
+      const isHome = isClubHome(match);
       const goalsFor = isHome ? match.home_goals! : match.away_goals!;
       const goalsAgainst = isHome ? match.away_goals! : match.home_goals!;
       return goalsFor > goalsAgainst ? 3 : goalsFor === goalsAgainst ? 1 : 0;
@@ -198,7 +205,7 @@ function ClubLabContent() {
       const window = points.slice(Math.max(0, index - formWindow + 1), index + 1);
       return { date: match.match_date, PPG: Number((window.reduce((sum, value) => sum + value, 0) / window.length).toFixed(2)) };
     });
-  }, [matches, selectedTeamId, formWindow]);
+  }, [matches, isClubHome, formWindow]);
 
   const percentileProfile = useMemo(() => {
     const rows = benchmark?.rankings || [];
@@ -215,7 +222,7 @@ function ClubLabContent() {
     });
   }, [benchmark?.rankings, selectedClub]);
   // Paginated club recent fixtures (10 per page)
-  const { paginatedItems: paginatedMatches, PaginationComponent: MatchesPagination } = usePagination(matches, 10);
+  const { paginatedItems: paginatedMatches, paginationControls: MatchesPagination } = usePagination(matches, 10);
 
   // Head-to-Head matches calculation
   const h2hMatches = useMemo(() => {
@@ -236,7 +243,7 @@ function ClubLabContent() {
   }, [h2hData?.matches]);
 
   // Paginated Head-to-Head encounters (10 per page)
-  const { paginatedItems: paginatedH2HMatches, PaginationComponent: H2HPagination } = usePagination(h2hMatches, 10);
+  const { paginatedItems: paginatedH2HMatches, paginationControls: H2HPagination } = usePagination(h2hMatches, 10);
 
   const h2hStats = useMemo(() => {
     let clubAWins = 0;
@@ -247,7 +254,7 @@ function ClubLabContent() {
 
     for (const m of h2hMatches) {
       if (m.home_goals === null || m.away_goals === null) continue;
-      const isHomeA = m.home.team_id === selectedTeamId;
+      const isHomeA = isClubHome(m);
       const aGoals = isHomeA ? m.home_goals : m.away_goals;
       const bGoals = isHomeA ? m.away_goals : m.home_goals;
 
@@ -266,7 +273,7 @@ function ClubLabContent() {
       clubAGoals,
       clubBGoals,
     };
-  }, [h2hMatches, selectedTeamId]);
+  }, [h2hMatches, isClubHome]);
 
   // Export CSV
   const exportCsv = () => {
@@ -286,7 +293,7 @@ function ClubLabContent() {
       s.win_rate.toFixed(1),
       s.clean_sheet_rate.toFixed(1),
     ]);
-    const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const csv = toCsv(headers, rows);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -515,7 +522,7 @@ function ClubLabContent() {
               </table>
             </div>
             <div className="px-4 py-3 bg-mantle border-t border-surface1">
-              <SeasonsPagination />
+              {SeasonsPagination}
             </div>
           </div>
 
@@ -582,7 +589,7 @@ function ClubLabContent() {
                   })}
                 </div>
                 <div className="pt-2 border-t border-surface1">
-                  <MatchesPagination />
+                  {MatchesPagination}
                 </div>
               </div>
             )}
@@ -719,7 +726,7 @@ function ClubLabContent() {
               <div className="space-y-3">
                 <div className="space-y-2">
                   {paginatedH2HMatches.map((m, idx) => {
-                    const isHomeA = m.home.team_id === selectedTeamId;
+                    const isHomeA = isClubHome(m);
                     const clubAGoals = isHomeA ? m.home_goals : m.away_goals;
                     const clubBGoals = isHomeA ? m.away_goals : m.home_goals;
                     const winner =
@@ -772,7 +779,7 @@ function ClubLabContent() {
                 </div>
 
                 <div className="pt-2 border-t border-surface1">
-                  <H2HPagination />
+                  {H2HPagination}
                 </div>
               </div>
             )}

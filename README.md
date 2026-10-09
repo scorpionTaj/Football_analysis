@@ -26,7 +26,7 @@ Day to day, one command does everything (extract → dbt build → champion refi
 |---|---|---|
 | `uv run football-sync --quick` | current results + fixtures, warehouse, forecasts, publish | ~2 min |
 | `uv run football-sync` | all sources (standings, cups, players, media, event details) + the same | ~10 min |
-| `uv run football-train-models` | full 8-model walk-forward leaderboard (auto-runs weekly anyway) | ~3 min |
+| `uv run football-train-models` | full 9-model walk-forward leaderboard (auto-runs weekly anyway) | ~10 min |
 
 Automatic schedule (installed as systemd **user** timers; copies in `scripts/systemd/`):
 quick refresh every 6 hours, full refresh daily at 04:30, missed runs catch up at boot, runs never overlap.
@@ -60,16 +60,18 @@ only on earlier seasons (calibrated on the season before), scored on 13,061 top-
 | Bookmaker closing line (benchmark)     | 0.1905           | 0.954           | 54.9%           | 0.011           |
 | Model + opening odds                   | 0.1911           | 0.956           | 54.4%           | 0.004           |
 | **Ensemble (champion, no odds)** | **0.1946** | **0.967** | **53.4%** | **0.005** |
+| Stacked (out-of-fold meta-learner)     | 0.1948           | 0.968           | 53.6%           | 0.004           |
 | Logistic regression                    | 0.1947           | 0.968           | 53.4%           | 0.005           |
-| LightGBM                               | 0.1949           | 0.969           | 53.4%           | 0.003           |
+| Stacked (out-of-fold meta-learner)     | 0.1948           | 0.968           | 53.6%           | 0.004           |
+| LightGBM                               | 0.1949           | 0.969           | 53.3%           | 0.003           |
 | Poisson + Dixon-Coles                  | 0.1951           | 0.969           | 53.3%           | 0.004           |
 | Elo only                               | 0.1975           | 0.977           | 53.0%           | 0.006           |
 | Base-rate guess                        | 0.2304           | 1.074           | 43.8%           | 0.009           |
 
 The champion recovers 89% of the closing line's skill over a base-rate guess and meets the
-log-loss, RPS and calibration targets; accuracy (53.4%) is 0.1 points under its 53.5% target, well
+log-loss, RPS and calibration targets; accuracy (53.3%) is 0.2 points under its 53.5% target, well
 inside the ±0.4-point standard error on 13k matches.
-Forecasts at ≥75% confidence (9% of matches) were right 82.3% of the time. See
+Forecasts at ≥75% confidence (9% of matches) were right 81.8% of the time. See
 [docs/MODELLING.md](docs/MODELLING.md).
 
 ## Scope
@@ -118,6 +120,8 @@ The 2026/27 campaign is integrated into every match-driven page and adds the Ere
 - `tests/`: data-quality, idempotency and dashboard tests.
 
 Data lives in `data/`; override with `FOOTBALL_DATA_DIR`. Raw archives and the database are excluded from version control. The lockfile pins the tested environment. No automated downloads run on page views.
+
+The API's `POST /api/v1/refresh` only accepts loopback callers; set `FOOTBALL_ADMIN_TOKEN` and send it as `X-Admin-Token` to trigger it from elsewhere (for example inside containers). With the PostgreSQL backend the cache generation is the published `snapshot_manifest` digest (re-checked every minute), so a publish from another process invalidates ETags; a dropped connection is retried once, then the API serves the SQLite fallback and retries PostgreSQL every five minutes.
 
 Optional API response caching: install the Redis extra (`uv sync --extra redis`) and set `REDIS_URL` to a Redis URL. Only catalog and overview GET JSON responses use Redis, with 300-second and 60-second TTLs respectively. Each reopened DuckDB snapshot gets a new cache generation after refresh; Redis errors fall back to DuckDB. Without `REDIS_URL`, the API uses DuckDB as before.
 

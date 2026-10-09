@@ -6,20 +6,21 @@ import argparse
 import hashlib
 import json
 import re
+import time
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Iterable
 
 import pandas as pd
 import requests
 
-from .config import DATA, DB, OPENFOOTBALL_TOURNAMENTS
+from .config import DATA, DB, OPENFOOTBALL_TOURNAMENTS, current_season
 from .ingest import connect
 from .sync_state import cached_fingerprint, mark_fresh
 
 SOURCE = "OpenFootball (CC0)"
-UCL_SEASONS = tuple(range(2021, 2026))
+UCL_SEASONS = tuple(range(2021, current_season() + 1))  # the current file appears once OpenFootball starts it
 WORLD_CUPS = (2018, 2022, 2026)
 CLUB_WORLD_CUPS = (2025,)
 
@@ -193,7 +194,9 @@ class OpenFootballTournaments:
             raise ValueError(f"Unsupported tournament: {competition}")
 
         path = self.cache / competition.lower() / f"{season}.{suffix}"
-        if path.exists() and not self.refresh:
+        # Completed editions are immutable; a running one is re-downloaded once a day.
+        stale = is_live(competition, season) and time.time() - path.stat().st_mtime > 86400 if path.exists() else True
+        if not stale and not self.refresh:
             raw = path.read_bytes()
         else:
             response = self.session.get(url, timeout=45)
@@ -202,6 +205,14 @@ class OpenFootballTournaments:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(raw)
         return parser(raw, season, url)
+
+
+def is_live(competition: str, season: int) -> bool:
+    return season >= (current_season() if competition == "UCL" else date.today().year)
+
+
+def live_partitions() -> list[tuple[str, int]]:
+    return [(competition, season) for competition, season in default_partitions() if is_live(competition, season)]
 
 
 def default_partitions() -> list[tuple[str, int]]:
@@ -271,9 +282,11 @@ def sync_tournaments(
                     "status": "success", "rows": len(batch.frame),
                 })
             except Exception as exc:
+                # A live edition OpenFootball has not started yet (404) is expected, not a failure.
+                missing = getattr(getattr(exc, "response", None), "status_code", None) == 404
                 report.append({
                     "competition": competition, "season": season,
-                    "status": "failed", "detail": str(exc),
+                    "status": "pending" if missing and is_live(competition, season) else "failed", "detail": str(exc),
                 })
             print(json.dumps(report[-1]), flush=True)
     return report

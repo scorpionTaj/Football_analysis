@@ -444,16 +444,28 @@ def test_match_centre_combines_stored_stats_context_and_events(tmp_path):
     assert payload["lineup_complete"] is False
 
 
-def test_refresh_workflow_reports_step_progress_and_reopens_database(tmp_path):
+def test_refresh_requires_loopback_or_admin_token(tmp_path, monkeypatch):
     db = tmp_path / "api.duckdb"
     seed(db)
+    monkeypatch.delenv("FOOTBALL_ADMIN_TOKEN", raising=False)
+    api = TestClient(create_app(db, refresh_runner=lambda *_: None))  # client host "testclient": not loopback
+    assert api.post("/api/v1/refresh", json={"target_step": 1}).status_code == 403
+    monkeypatch.setenv("FOOTBALL_ADMIN_TOKEN", "secret")
+    assert api.post("/api/v1/refresh", json={"target_step": 1}, headers={"X-Admin-Token": "wrong"}).status_code == 403
+    assert api.get("/api/v1/health").json()["status"] == "ok"
+
+
+def test_refresh_workflow_reports_step_progress_and_reopens_database(tmp_path, monkeypatch):
+    db = tmp_path / "api.duckdb"
+    seed(db)
+    monkeypatch.setenv("FOOTBALL_ADMIN_TOKEN", "secret")
 
     def fake_runner(request, progress):
         progress(1, "Results and fixtures", "Testing")
         progress(2, "Tables and competitions", "Testing")
 
     api = TestClient(create_app(db, refresh_runner=fake_runner))
-    started = api.post("/api/v1/refresh", json={"target_step": 2, "season": 2026})
+    started = api.post("/api/v1/refresh", json={"target_step": 2, "season": 2026}, headers={"X-Admin-Token": "secret"})
     assert started.status_code == 202
     for _ in range(100):
         status = api.get("/api/v1/refresh").json()
@@ -473,3 +485,54 @@ def test_teams_endpoint_fallback(tmp_path):
     data = res.json()
     assert "teams" in data
     assert len(data["teams"]) >= 2
+
+
+def test_player_and_transfer_cursors_walk_every_row_once(tmp_path):
+    import duckdb
+    import pytest
+
+    from football_analysis.api import queries
+    from football_analysis.api.db import ReadOnlyStore
+    from football_analysis.api.pagination import encode_cursor
+
+    db = tmp_path / "paging.duckdb"
+    with duckdb.connect(str(db)) as con:
+        con.execute("""CREATE TABLE dim_player AS SELECT 'tm' AS source, 'p' || i::VARCHAR AS player_id,
+                       'Arsenal' AS team, chr((90 - i)::INTEGER) || ' Player' AS player, 'Attack' AS position,
+                       'England' AS nationality, DATE '2000-01-01' AS date_born, DATE '2026-01-01' AS data_as_of,
+                       NULL AS image_url, (i % 3) * 1000000 AS market_value_eur FROM range(10) t(i)""")
+        con.execute("""CREATE TABLE fct_transfer AS SELECT i::VARCHAR AS transfer_id, i::VARCHAR AS player_id,
+                       'P' || i::VARCHAR AS player_name, DATE '2025-07-01' AS transfer_date,
+                       '25/26' AS transfer_season, 2025 AS season, 'A' AS from_club_name, 'B' AS to_club_name,
+                       NULL::DOUBLE AS transfer_fee, (i % 2) * 5 AS market_value_eur, 'E0' AS from_competition,
+                       'E0' AS to_competition, NULL AS image_url FROM range(7) t(i)""")
+    with ReadOnlyStore(db) as store:
+        for sort_by in (None, "market_value"):
+            seen, cursor = [], None
+            while True:
+                page = queries.list_players(store, sort_by=sort_by, cursor=cursor, limit=3)
+                seen += [p.player_id for p in page.players]
+                cursor = page.page.next_cursor
+                if not cursor:
+                    break
+            assert len(seen) == len(set(seen)) == 10, sort_by
+        with pytest.raises(ValueError):  # a name-sorted cursor cannot continue a value-sorted list
+            queries.list_players(store, sort_by="market_value", cursor=encode_cursor({"n": "A", "id": "p1"}))
+        seen, cursor = [], None
+        while True:
+            page = queries.list_transfers(store, competition="E0", cursor=cursor, limit=3)
+            seen += [t.transfer_id for t in page.transfers]
+            cursor = page.page.next_cursor
+            if not cursor:
+                break
+        assert sorted(seen) == [str(i) for i in range(7)] and page.total_count == 7
+
+
+def test_malformed_cursors_are_bad_requests(tmp_path):
+    from football_analysis.api.pagination import encode_cursor
+
+    api = client(tmp_path)
+    for cursor in (encode_cursor({"x": 1}), "WzFd", "!!!"):  # wrong keys, a JSON list, not base64
+        assert api.get("/api/v1/matches", params={"cursor": cursor}).status_code == 400
+        assert api.get("/api/v1/players", params={"cursor": cursor}).status_code == 400
+        assert api.get("/api/v1/transfers", params={"cursor": cursor}).status_code == 400

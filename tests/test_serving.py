@@ -105,12 +105,19 @@ def test_publish_swaps_only_changed_tables(match_db, postgres_server, tmp_path):
         assert "mart_dashboard_match" in first["changed"] and not first["unchanged"]
         assert "matches" not in first["changed"]  # raw tables behind the marts stay in DuckDB
         assert publish_postgres(postgres_server, schema, match_db)["changed"] == {}
+        live = PostgresReadOnlyStore(postgres_server, schema)
+        before = live.generation
         with connect(match_db) as con:
             con.execute("UPDATE matches SET home_goals = 9 WHERE league = 'SP1' AND season = 2024 "
                         "AND home_team = (SELECT min(home_team) FROM matches WHERE league = 'SP1')")
         build_marts(match_db)
         assert set(publish_postgres(postgres_server, schema, match_db)["changed"]) == {
             "mart_dashboard_match", "mart_dashboard_team_match", "mart_dashboard_team_season"}
+        live._generation_checked = float("-inf")  # skip the 60 s re-check interval
+        assert live.generation != before  # a publish from another process changes ETags and cache keys
+        live._con.close()  # the pooler drops the idle connection
+        assert live.scalar("SELECT max(home_goals) FROM mart_dashboard_match") == 9
+        live.close()
         with PostgresReadOnlyStore(postgres_server, schema) as store:
             assert store.scalar("SELECT max(home_goals) FROM mart_dashboard_match") == 9
             assert store.scalar("SELECT count(*) FROM mart_dashboard_team_season") > 0
@@ -118,7 +125,11 @@ def test_publish_swaps_only_changed_tables(match_db, postgres_server, tmp_path):
         with pg_connect(postgres_server, autocommit=True) as conn:
             conn.execute(f'CREATE TABLE "{schema}".event_lineups (x int)')
             conn.execute(f"INSERT INTO \"{schema}\".snapshot_manifest VALUES ('event_lineups', 0, 0, 0, 'old')")
+            conn.execute(f'CREATE TABLE "{schema}".mart_dashboard_match__next (x int)')  # left by a failed publish
         assert publish_postgres(postgres_server, schema, match_db)["retired"] == ["event_lineups"]
+        with pg_connect(postgres_server, autocommit=True) as conn:
+            assert not conn.execute("SELECT 1 FROM information_schema.tables WHERE table_schema = %s "
+                                    "AND table_name LIKE '%%next'", [schema]).fetchall()
         with PostgresReadOnlyStore(postgres_server, schema) as store:
             assert "event_lineups" not in store.tables()
         local = tmp_path / "fallback.sqlite3"

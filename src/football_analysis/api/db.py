@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import threading
 import sqlite3
+import threading
+import time
 from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
@@ -62,25 +63,43 @@ class PostgresReadOnlyStore:
     """Read the verified snapshot through the API's existing DataFrame queries."""
 
     def __init__(self, dsn: str, schema: str):
-        from football_analysis.pg import connect as _connect, driver as _driver, schema_name as _schema_name
+        from football_analysis.pg import driver as _driver, schema_name as _schema_name
 
         if not dsn:
             raise ValueError("FOOTBALL_POSTGRES_DSN is required")
-        psycopg = _driver()
+        self._psycopg = _driver()
+        self._dsn = dsn
         self.schema = _schema_name(schema)
         self.path = f"postgresql:{self.schema}"
-        self._con = _connect(dsn, autocommit=True, connect_timeout=5)
-        self._con.execute(psycopg.sql.SQL("SET search_path TO {}").format(psycopg.sql.Identifier(self.schema)))
-        self._con.execute("SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY")
         self._lock = threading.Lock()
+        self._connect()
         self.opened_at = datetime.now().replace(microsecond=0)
-        self.generation = uuid4().hex
         self._tables = set(self.query(
             "SELECT table_name FROM information_schema.tables WHERE table_schema = ?", [self.schema],
         ).table_name.astype(str))
         if "snapshot_manifest" not in self._tables:
             self._con.close()
-            raise ValueError("PostgreSQL schema has no verified snapshot; run football-migrate-postgres first")
+            raise ValueError("PostgreSQL schema has no verified snapshot; run football-publish first")
+        self._generation, self._generation_checked = None, float("-inf")
+
+    def _connect(self) -> None:
+        from football_analysis.pg import connect as _connect
+
+        sql = self._psycopg.sql
+        self._con = _connect(self._dsn, autocommit=True, connect_timeout=5)
+        self._con.execute(sql.SQL("SET search_path TO {}").format(sql.Identifier(self.schema)))
+        self._con.execute("SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY")
+
+    @property
+    def generation(self) -> str:
+        """Digest of the published manifest, so a publish from another process changes every
+        ETag and cache key. Re-read at most once a minute to keep cache hits query-free."""
+        now = time.monotonic()
+        if now - self._generation_checked >= 60:
+            self._generation = self.scalar(
+                "SELECT md5(string_agg(table_name || ':' || row_digest, ',' ORDER BY table_name)) FROM snapshot_manifest")
+            self._generation_checked = now
+        return self._generation
 
     def tables(self) -> set[str]:
         return set(self._tables)
@@ -91,9 +110,17 @@ class PostgresReadOnlyStore:
             "CASE WHEN minute ~ '^[0-9]+$' THEN minute::integer END",
         ).replace("?", "%s")
         with self._lock:
-            with self._con.cursor() as cursor:
-                cursor.execute(sql, params or ())
-                return pd.DataFrame(cursor.fetchall(), columns=[column.name for column in cursor.description])
+            try:
+                return self._run(sql, params)
+            except (self._psycopg.OperationalError, self._psycopg.InterfaceError):
+                # Poolers drop idle connections; reconnect once, then let the app fall back.
+                self._connect()
+                return self._run(sql, params)
+
+    def _run(self, sql: str, params) -> pd.DataFrame:
+        with self._con.cursor() as cursor:
+            cursor.execute(sql, params or ())
+            return pd.DataFrame(cursor.fetchall(), columns=[column.name for column in cursor.description])
 
     def scalar(self, sql: str, params: list | tuple | None = None):
         frame = self.query(sql, params)
