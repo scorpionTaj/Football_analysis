@@ -18,7 +18,8 @@ TEAM_FEATURES = (
     "ewm_shots_for", "ewm_corners_for", "venue_ewm_points", "venue_ewm_gd", "rest_days",
     "season_matches", "promoted",
 )
-MATCH_FEATURES = ("elo_diff", "pi_expected_gd", "league_home_rate", "league_draw_rate", "league_goals", "season_progress")
+MATCH_FEATURES = ("elo_diff", "pi_expected_gd", "league_home_rate", "league_draw_rate", "league_goals", "season_progress",
+                  "market_strength_diff")
 FEATURES = (*MATCH_FEATURES, *(f"{side}_{name}" for side in ("home", "away") for name in TEAM_FEATURES))
 MARKET_FEATURES = ("mkt_p_home", "mkt_p_draw", "mkt_p_away")
 PASSTHROUGH = ("close_p_home", "close_p_draw", "close_p_away")
@@ -33,6 +34,7 @@ class Params:
     pi_lambda: float = 0.035
     pi_gamma: float = 0.7
     half_life: float = 6.0  # matches
+    market_k: float = 0.25  # step of the market-implied rating towards past opening prices
     league_window: int = 400  # matches for league-level base rates
     priors: dict = field(default_factory=lambda: {"gf": 1.35, "ga": 1.35, "sot": 4.3, "shots": 12.0, "corners": 5.0})
 
@@ -42,7 +44,7 @@ def _pi_goals(rating):
 
 
 class _Team:
-    __slots__ = ("elo", "pi_h", "pi_a", "ewm", "venue", "last", "season", "season_n", "league", "prev_league")
+    __slots__ = ("elo", "pi_h", "pi_a", "ewm", "venue", "last", "season", "season_n", "league", "prev_league", "market", "scheduled", "scheduled_n")
 
     def __init__(self, elo, priors):
         self.elo = elo
@@ -55,6 +57,10 @@ class _Team:
         self.season_n = 0
         self.league = None
         self.prev_league = None  # league of the previous season played, fixed for the whole season
+        # Fixtures never update state, so a match three rounds ahead would see the last *played*
+        # date (rest of 20-30 days) and an old match count; listed earlier fixtures roll these forward.
+        self.scheduled, self.scheduled_n = None, 0
+        self.market = 0.0  # market-implied strength (log-odds scale), learned from past opening prices only
 
 
 def _outcome(hg, ag):
@@ -97,6 +103,9 @@ def build_features(matches: pd.DataFrame, params: Params | None = None) -> pd.Da
     teams: dict[tuple, _Team] = {}
     league_members: dict[tuple, set] = defaultdict(set)  # (league, season) -> teams
     league_final: dict[tuple, dict] = defaultdict(dict)  # (league, season) -> team -> latest elo
+    market_final: dict[tuple, dict] = defaultdict(dict)  # (league, season) -> team -> latest market strength
+    market_home: dict[str, float] = defaultdict(lambda: 0.4)  # league home advantage in market log-odds
+    opening = _market(frame).to_numpy()
     tiers = dict(zip(frame.league, frame.tier))
     league_recent: dict[str, deque] = defaultdict(lambda: deque(maxlen=p.league_window))
     league_size: dict[tuple, int] = {}
@@ -107,7 +116,8 @@ def build_features(matches: pd.DataFrame, params: Params | None = None) -> pd.Da
         final = sorted(league_final.get((league, season - 1), {}).values())
         if len(final) < 6:
             return 1500.0
-        return float(np.mean(final[-3:] if from_tier < tiers[league] else final[:3]))
+        entry = float(np.mean(final[-3:] if from_tier < tiers[league] else final[:3]))
+        return 1500 + p.elo_regress * (entry - 1500)  # regressed like every staying club
 
     def team(country, name, league, season):
         key = (country, name)
@@ -117,9 +127,14 @@ def build_features(matches: pd.DataFrame, params: Params | None = None) -> pd.Da
         if state.season != season:
             if state.league is not None and state.league != league:
                 state.elo = entry_elo(league, season, tiers[state.league])
+                # Market strength is relative to a league's prices: re-enter at its edge too.
+                final = sorted(market_final.get((league, season - 1), {}).values())
+                if len(final) >= 6:
+                    state.market = float(np.mean(final[-3:] if tiers[state.league] < tiers[league] else final[:3]))
             elif state.season is not None:
                 state.elo = 1500 + p.elo_regress * (state.elo - 1500)
             state.season, state.season_n, state.prev_league = season, 0, state.league
+            state.scheduled, state.scheduled_n = None, 0
         return state
 
     for (match_date,), day in frame.groupby(["match_date"], sort=True):
@@ -134,13 +149,15 @@ def build_features(matches: pd.DataFrame, params: Params | None = None) -> pd.Da
             size = league_size.get((league, season - 1)) or 20
             features = {
                 "elo_diff": (home.elo + p.elo_home - away.elo) / 400,
+                "market_strength_diff": home.market - away.market + market_home[league],
                 "pi_expected_gd": _pi_goals(home.pi_h) - _pi_goals(away.pi_a),
                 "league_home_rate": np.mean([r[0] == "H" for r in recent]) if len(recent) > 50 else 0.45,
                 "league_draw_rate": np.mean([r[0] == "D" for r in recent]) if len(recent) > 50 else 0.26,
                 "league_goals": np.mean([r[1] for r in recent]) if len(recent) > 50 else 2.7,
-                "season_progress": min(1.0, home.season_n / (2 * (size - 1))),
+                "season_progress": min(1.0, (home.season_n + home.scheduled_n) / (2 * (size - 1))),
             }
             for side, state, venue in (("home", home, "Home"), ("away", away, "Away")):
+                last = max((d for d in (state.last, state.scheduled) if d is not None), default=None)
                 features.update({
                     f"{side}_elo": state.elo / 400,
                     f"{side}_pi_rating": state.pi_h if venue == "Home" else state.pi_a,
@@ -149,15 +166,26 @@ def build_features(matches: pd.DataFrame, params: Params | None = None) -> pd.Da
                     f"{side}_ewm_sot_for": state.ewm["sot_for"], f"{side}_ewm_sot_against": state.ewm["sot_against"],
                     f"{side}_ewm_shots_for": state.ewm["shots_for"], f"{side}_ewm_corners_for": state.ewm["corners_for"],
                     f"{side}_venue_ewm_points": state.venue[venue][0], f"{side}_venue_ewm_gd": state.venue[venue][1],
-                    f"{side}_rest_days": 14.0 if state.last is None else float(min(30, max(1, (match_date - state.last).days))),
-                    f"{side}_season_matches": float(state.season_n),
+                    f"{side}_rest_days": 14.0 if last is None else float(min(30, max(1, (match_date - last).days))),
+                    f"{side}_season_matches": float(state.season_n + state.scheduled_n),
                     f"{side}_promoted": float(state.prev_league not in (None, league)),
                 })
             out[index] = [features[name] for name in FEATURES]
             if not row.is_future:
-                updates.append((row, home, away, league))
+                updates.append((row, home, away, league, index))
+            else:
+                for state in (home, away):
+                    state.scheduled, state.scheduled_n = match_date, state.scheduled_n + 1
 
-        for row, home, away, league in updates:
+        for row, home, away, league, index in updates:
+            # Market-implied strength: move towards this match's opening log-odds (home vs away).
+            # Used only for later match days, so no match ever sees its own prices.
+            p_home, _, p_away = opening[index]
+            if p_home > 0 and p_away > 0:
+                error = np.log(p_home / p_away) - (home.market - away.market + market_home[league])
+                home.market += p.market_k * error
+                away.market -= p.market_k * error
+                market_home[league] += 0.01 * error
             hg, ag = int(row.home_goals), int(row.away_goals)
             result = _outcome(hg, ag)
             # Elo with goal-margin multiplier
@@ -194,6 +222,8 @@ def build_features(matches: pd.DataFrame, params: Params | None = None) -> pd.Da
             league_recent[league].append((result, hg + ag))
             league_final[(league, int(row.season))][row.home_team] = home.elo
             league_final[(league, int(row.season))][row.away_team] = away.elo
+            market_final[(league, int(row.season))][row.home_team] = home.market
+            market_final[(league, int(row.season))][row.away_team] = away.market
         for (league, season), members in league_members.items():
             league_size[(league, season)] = len(members)
 

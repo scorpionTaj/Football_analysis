@@ -133,3 +133,28 @@ def test_play_off_rematches_keep_fixtures_and_resolve_by_meeting():
     rematch = dict(played.iloc[0], match_date=pd.Timestamp("2026-04-10"), home_goals=0, away_goals=1)
     _reconcile_forecast_history(con, pd.concat([played, pd.DataFrame([rematch])]))
     assert con.sql("SELECT actual_result FROM forecast_history").fetchone()[0] == "Away"
+
+
+def test_fixtures_further_ahead_roll_rest_days_and_match_count_forward():
+    played = _league(seasons=2)
+    last = played.match_date.max()
+    fixtures = pd.DataFrame([
+        dict(league="X1", country="X", tier=1, season=2019, match_date=last + pd.Timedelta(days=7 * i),
+             home_team=a, away_team=b, home_goals=np.nan, away_goals=np.nan, is_future=True)
+        for i, (a, b) in enumerate([("T0", "T1"), ("T1", "T0"), ("T0", "T1")], start=1)])
+    frame = build_features(pd.concat([played.assign(is_future=False), fixtures], ignore_index=True))
+    future = frame[frame.is_future].sort_values("match_date")
+    assert (future.home_rest_days == 7).all()  # not 14, 21, 28 days since the last played match
+    assert list(future.home_season_matches.diff().dropna()) == [1, 1]
+
+
+def test_market_strength_never_sees_its_own_match_prices():
+    matches = _league().assign(odds_open_home=2.0, odds_open_draw=3.4, odds_open_away=3.8)
+    base = build_features(matches)
+    changed = matches.copy()
+    last_day = changed.match_date.max()
+    changed.loc[changed.match_date == last_day, "odds_open_home"] = 1.2  # reprice the final day only
+    again = build_features(changed)
+    on_last = base.match_date == last_day
+    np.testing.assert_allclose(base.loc[on_last, "market_strength_diff"], again.loc[on_last, "market_strength_diff"])
+    assert base.market_strength_diff.std() > 0  # the rating actually learns from earlier prices
