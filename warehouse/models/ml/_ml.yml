@@ -11,3 +11,17 @@ models:
           - accepted_values: {values: [-1, 0, 1, 2], quote: false}
       - name: elo_diff
         tests: [not_null]
+      - name: home_elo
+        tests: [not_null]
+      - name: away_elo
+        tests: [not_null]
+      - name: pi_expected_gd
+        tests: [not_null]
+      - name: home_ewm_points
+        tests: [not_null]
+      - name: away_ewm_points
+        tests: [not_null]
+  - name: ml_elo_ratings
+    description: "Grain: one row per (league, season, match_date, team): the team's Elo before and after that match."
+    tests:
+      - unique_combination: {columns: [league, season, match_date, team]}

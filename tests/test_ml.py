@@ -76,3 +76,10 @@ def test_stacking_meta_features_never_see_their_own_season():
     out_of_fold = seen[:2]  # the two fold predictions; later calls score calib with refitted members
     assert out_of_fold and all(not (trained & predicted) for trained, predicted in out_of_fold)
     assert all(max(trained) < min(predicted) for trained, predicted in out_of_fold)
+
+
+def test_walk_forward_with_no_test_seasons_returns_empty():
+    from football_analysis.ml.evaluate import walk_forward
+
+    predictions, _ = walk_forward(build_features(_league(seasons=3)), candidates()[0].__class__, [])
+    assert predictions.empty
