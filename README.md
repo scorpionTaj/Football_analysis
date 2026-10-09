@@ -28,13 +28,8 @@ Day to day, one command does everything (extract → dbt build → champion refi
 | `uv run football-sync` | all sources (standings, cups, players, media, event details) + the same | ~10 min |
 | `uv run football-train-models` | full 9-model walk-forward leaderboard (auto-runs weekly anyway) | ~10 min |
 
-Automatic schedule (installed as systemd **user** timers; copies in `scripts/systemd/`):
-quick refresh every 6 hours, full refresh daily at 04:30, missed runs catch up at boot, runs never overlap.
-
-```bash
-systemctl --user list-timers 'football-*'
-journalctl --user -u football-sync-quick.service -n 50
-```
+Refreshes run when you start them. For an automatic schedule, use the containers below: their
+`scheduler` service runs a quick refresh every 6 hours and a full one once a day.
 
 Failure alerts: set `NTFY_TOPIC` in `.env` and subscribe to that topic in the [ntfy](https://ntfy.sh) app;
 a failed or crashed refresh, or Supabase above 85% of its quota, sends a notification.
@@ -115,7 +110,7 @@ The 2026/27 campaign is integrated into every match-driven page and adds the Ere
 - `src/football_analysis/orchestration/`: Dagster assets, jobs and schedules.
 - `src/football_analysis/publish.py`: incremental PostgreSQL publish (only changed tables, one-transaction swap, size alert) and SQLite fallback.
 - `src/football_analysis/pg.py`: shared PostgreSQL helpers (TLS for Supabase, private schema names, row digests).
-- `scripts/systemd/`, `Dockerfile`, `frontend/Dockerfile`, `compose.yaml`: scheduled refreshes and container deployment.
+- `Dockerfile`, `frontend/Dockerfile`, `compose.yaml`: container deployment, including the scheduled refreshes.
 - `frontend/`: responsive Next.js and HeroUI application using the versioned FastAPI contracts.
 - `docs/`: `MODELLING.md`, `VALIDATION.md` (current checks), `openapi_v1.json` (generated API contract) and `architecture.svg`/`.png` (full pipeline diagram).
 - `tests/`: data-quality, idempotency and dashboard tests.
