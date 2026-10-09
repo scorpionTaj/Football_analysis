@@ -83,3 +83,17 @@ def test_recent_reports_optional_event_failures_with_cached_results(monkeypatch,
     assert report[0]["source"] == recent.SOURCE_CSV
     assert [row["event_kind"] for row in report[1:]] == ["past", "next"]
     assert all(row["source"] == recent.SOURCE_EVENTS and row["status"] == "failed" for row in report[1:])
+
+
+def test_new_season_csv_missing_before_kickoff_is_pending_not_failed():
+    from datetime import date
+
+    import requests
+
+    from football_analysis.recent import _season_not_started
+
+    missing = requests.HTTPError(response=type("R", (), {"status_code": 404})())
+    empty = ValueError("No completed matches are available for this season")
+    assert _season_not_started(missing, date(2026, 7, 5)) and _season_not_started(empty, date(2026, 8, 10))
+    assert not _season_not_started(missing, date(2026, 11, 1))  # mid-season a missing file is a real failure
+    assert not _season_not_started(ValueError("Unexpected league in source"), date(2026, 7, 5))

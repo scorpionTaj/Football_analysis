@@ -4,7 +4,8 @@
 
 Extraction assets wrap the existing `sync_*` functions unchanged; their freshness gates
 (`sync_state.py`) still decide whether a provider is actually contacted. Every asset that
-writes DuckDB carries the `duckdb_writer` tag, limited to one concurrent run in dagster.yaml.
+writes DuckDB runs in a job tagged `duckdb_writer` (a run tag), limited to one concurrent run in
+dagster.yaml.
 """
 
 import os
@@ -24,10 +25,14 @@ dbt_project = DbtProject(project_dir=ROOT / "warehouse", profiles_dir=ROOT / "wa
 dbt_project.prepare_if_dev()
 
 
-def _report(result) -> dg.MaterializeResult:
+def _report(result, required: bool = False) -> dg.MaterializeResult:
     """Turn a sync report (dict or list of dicts) into Dagster metadata; fail on required errors."""
     rows = result if isinstance(result, list) else [result] if isinstance(result, dict) else []
     statuses = [str(row.get("status", "success")) for row in rows if isinstance(row, dict)]
+    if required and "failed" in statuses:
+        # Stops downstream assets, so serving_stores never publishes a partial refresh.
+        raise dg.Failure(description=f"{statuses.count('failed')} required partition(s) failed",
+                         metadata={"detail": dg.MetadataValue.json([r for r in rows if r.get("status") == "failed"][:50])})
     return dg.MaterializeResult(metadata={
         "partitions": len(rows),
         "failed": sum(s == "failed" for s in statuses),
@@ -50,14 +55,14 @@ def landing_football_data():
 def app_matches():
     from ..adapters import FootballDataCSV
     from ..ingest import ingest
-    return _report(ingest(FootballDataCSV(DATA / "raw"), db=DB, years=seasons()))
+    return _report(ingest(FootballDataCSV(DATA / "raw"), db=DB, years=seasons()), required=True)
 
 
 @dg.asset(key=["app", "recent_matches"], group_name="extract", op_tags=WRITER,
           description="Current-season results for ten leagues (6-hour freshness gate).")
 def app_recent_matches():
     from ..recent import sync_recent
-    return _report(sync_recent(db=DB, year=current_season(), leagues=list(RECENT_LEAGUES)))
+    return _report(sync_recent(db=DB, year=current_season(), leagues=list(RECENT_LEAGUES)), required=True)
 
 
 @dg.asset(key=["app", "recent_events"], deps=[app_recent_matches], group_name="extract", op_tags=WRITER,
@@ -107,7 +112,8 @@ def app_media():
                     sync_event_details(db=DB) or {}])
 
 
-@dg.asset(key=["app", "analytics_cache"], deps=[app_matches, app_recent_matches], group_name="extract",
+@dg.asset(key=["app", "analytics_cache"], deps=[app_matches, app_recent_matches, dg.AssetKey(["ml", "ml_elo_ratings"])],
+          group_name="extract",
           op_tags=WRITER, description="Legacy Elo/shot caches still read by the API (until Phase 6 cutover).")
 def app_analytics_cache():
     from ..ingest import refresh_analytics_cache
@@ -124,7 +130,11 @@ class Translator(DagsterDbtTranslator):
 @dbt_assets(manifest=dbt_project.manifest_path, project=dbt_project, dagster_dbt_translator=Translator(),
             op_tags=WRITER)
 def warehouse(context: dg.AssetExecutionContext, dbt: DbtCliResource):
-    yield from dbt.cli(["build"], context=context).stream()
+    from ..warehouse import record_status
+    try:
+        yield from dbt.cli(["build"], context=context).stream()
+    finally:
+        record_status(DB)  # also after failures: the health page should show what broke
 
 
 # ── Modelling and serving ─────────────────────────────────────────────────────
@@ -162,14 +172,15 @@ def serving_stores():
 core = dg.AssetSelection.assets(app_recent_matches, app_recent_events)
 downstream = dg.AssetSelection.assets(warehouse, champion_model, app_analytics_cache, serving_stores)
 jobs = [
-    dg.define_asset_job("hourly_fixtures", selection=dg.AssetSelection.assets(app_recent_events)),
+    dg.define_asset_job("hourly_fixtures", selection=dg.AssetSelection.assets(app_recent_events), tags=WRITER),
     dg.define_asset_job("six_hourly_refresh", selection=core | dg.AssetSelection.assets(
-        landing_football_data, app_reference_standings) | downstream),
+        landing_football_data, app_reference_standings) | downstream, tags=WRITER),
     # The API reads dbt marts, so every job that publishes rebuilds the warehouse first.
     dg.define_asset_job("daily_details", selection=dg.AssetSelection.assets(
-        app_tournament_matches, app_media, warehouse, serving_stores)),
-    dg.define_asset_job("weekly_players", selection=dg.AssetSelection.assets(app_open_players, warehouse, serving_stores)),
-    dg.define_asset_job("bootstrap", selection=dg.AssetSelection.all()),
+        app_tournament_matches, app_media, warehouse, serving_stores), tags=WRITER),
+    dg.define_asset_job("weekly_players", selection=dg.AssetSelection.assets(app_open_players, warehouse, serving_stores),
+                         tags=WRITER),
+    dg.define_asset_job("bootstrap", selection=dg.AssetSelection.all(), tags=WRITER),
 ]
 by_name = {job.name: job for job in jobs}
 schedules = [

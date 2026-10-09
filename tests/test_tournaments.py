@@ -80,3 +80,32 @@ def test_sync_replaces_only_requested_partition(tmp_path):
     assert sync_tournaments(db, [("UCL", 2025)], adapter)[0]["status"] == "success"
     with connect(db) as con:
         assert con.sql("SELECT count(*), max(home_goals) FROM tournament_matches").fetchone() == (1, 2)
+
+
+def test_running_editions_are_redownloaded_daily_and_completed_ones_never(tmp_path, monkeypatch):
+    import os
+    import time
+
+    from football_analysis import tournaments
+
+    calls = []
+
+    class Session:
+        def get(self, url, timeout):
+            calls.append(url)
+            raise RuntimeError("network used")
+
+    adapter = tournaments.OpenFootballTournaments(cache=tmp_path, session=Session())
+    monkeypatch.setattr(tournaments, "parse_champions_league", lambda raw, year, url: raw)
+    for season in (2022, tournaments.current_season()):
+        path = tmp_path / "ucl" / f"{season}.txt"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"cached")
+        old = time.time() - 2 * 86400
+        os.utime(path, (old, old))
+    assert adapter.fetch("UCL", 2022) == b"cached" and not calls
+    try:
+        adapter.fetch("UCL", tournaments.current_season())
+    except RuntimeError:
+        pass
+    assert len(calls) == 1 and tournaments.current_season() in tournaments.UCL_SEASONS
