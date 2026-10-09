@@ -132,7 +132,7 @@ def _publish(db, frame, board, champion, oos, current):
         actual = con.sql("SELECT league, season, match_date, home_team, away_team, home_goals, away_goals "
                          "FROM marts.fct_match WHERE season >= ?", params=[current - 1]).df()
         print(json.dumps(publish_to_app(con, champion, board, oos, predictions, actual,
-                                        len(train_rows), len(FEATURES))), flush=True)
+                                        len(train_rows), list(getattr(model, "features", FEATURES)))), flush=True)
 
 
 def forecast(db=DB, max_age_days=7):

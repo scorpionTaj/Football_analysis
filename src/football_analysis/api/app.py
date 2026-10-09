@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import hmac
 import json
 import os
+import time
 from contextlib import asynccontextmanager
 from datetime import date
 from pathlib import Path
@@ -79,7 +81,7 @@ def create_app(
                     return PostgresReadOnlyStore(
                         postgres_dsn, os.environ.get("FOOTBALL_POSTGRES_SCHEMA", "football_analysis_next"),
                     )
-                except OperationalError:
+                except (OperationalError, ValueError):  # unreachable, or schema not published yet
                     pass
             return SQLiteReadOnlyStore(local_snapshot)
         return ReadOnlyStore(path)
@@ -132,6 +134,7 @@ def create_app(
         expose_headers=["ETag", "Cache-Control"],
     )
     app.state.store = store
+    app.state.fallback_since = time.monotonic()
     app.state.database_path = path
     app.state.refresh = RefreshCoordinator(path.with_suffix(".refresh.json"))
     response_cache = response_cache if response_cache is not None else RedisResponseCache.from_environment()
@@ -140,7 +143,41 @@ def create_app(
         current = app.state.store
         if current is None:
             raise HTTPException(status_code=503, detail="Database is unavailable")
+        # Serving the SQLite fallback in postgres mode: retry PostgreSQL every five minutes.
+        if (read_backend == "postgres" and postgres_dsn and isinstance(current, SQLiteReadOnlyStore)
+                and time.monotonic() - app.state.fallback_since >= 300):
+            replace_store()
+            current = app.state.store
         return current
+
+    def replace_store() -> None:
+        app.state.fallback_since = time.monotonic()
+        try:
+            fresh = open_store()
+        except (FileNotFoundError, ValueError):
+            return
+        old, app.state.store = app.state.store, fresh
+        if old is not None:
+            old.close()
+
+    if read_backend == "postgres" and postgres_dsn:
+        from psycopg import Error as PostgresError
+
+        @app.exception_handler(PostgresError)
+        async def postgres_unavailable(_request: Request, _exc: PostgresError):
+            # The store already reconnected once; switch to whatever open_store() can reach.
+            replace_store()
+            return JSONResponse({"detail": "Database connection lost; retry"}, status_code=503)
+
+    def authorize_refresh(request: Request) -> None:
+        """Refresh runs downloads and rewrites data: loopback callers, or a matching admin token."""
+        token = os.environ.get("FOOTBALL_ADMIN_TOKEN")
+        supplied = request.headers.get("x-admin-token")
+        if token and supplied and hmac.compare_digest(token.encode(), supplied.encode()):
+            return
+        if not token and request.client and request.client.host in {"127.0.0.1", "::1"}:
+            return
+        raise HTTPException(status_code=403, detail="Refresh requires FOOTBALL_ADMIN_TOKEN (X-Admin-Token header)")
 
     def with_cache(payload, request: Request, cache: str = CACHE_SHORT, etag: str | None = None) -> Response:
         body = payload.model_dump(mode="json")
@@ -348,15 +385,18 @@ def create_app(
                 season_val = int(season)
             except ValueError:
                 season_val = None
-        payload = queries.list_transfers(
-            require_store(),
-            season=season_val,
-            competition=competition,
-            club=club,
-            query=q,
-            cursor=cursor,
-            limit=limit,
-        )
+        try:
+            payload = queries.list_transfers(
+                require_store(),
+                season=season_val,
+                competition=competition,
+                club=club,
+                query=q,
+                cursor=cursor,
+                limit=limit,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         return with_cache(payload, request)
 
     @app.get("/api/v1/refresh", response_model=RefreshStatusResponse)
@@ -364,11 +404,13 @@ def create_app(
         return app.state.refresh.status()
 
     @app.post("/api/v1/refresh", response_model=RefreshStatusResponse, status_code=202)
-    def start_refresh(body: RefreshRequest):
+    def start_refresh(body: RefreshRequest, request: Request):
+        authorize_refresh(request)
+
         def execute(refresh_request: RefreshRequest, progress):
-            current = app.state.store
-            if current is not None:
-                current.close()
+            # Only a DuckDB read store conflicts with the writer; PostgreSQL/SQLite keep serving.
+            if read_backend == "duckdb" and app.state.store is not None:
+                app.state.store.close()
                 app.state.store = None
             try:
                 runner = refresh_runner or (
@@ -376,7 +418,10 @@ def create_app(
                 )
                 return runner(refresh_request, progress)
             finally:
-                app.state.store = open_store()
+                if app.state.store is None:
+                    app.state.store = open_store()
+                else:
+                    replace_store()
 
         try:
             return app.state.refresh.start(body, execute)

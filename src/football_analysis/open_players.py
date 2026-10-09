@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -52,7 +53,8 @@ def download_snapshot(directory, refresh=False):
     paths = {}
     for name in FILES:
         path = directory / f"{name}.csv.gz"
-        if refresh or not path.exists():
+        # The dataset republishes weekly; re-download a snapshot older than that.
+        if refresh or not path.exists() or time.time() - path.stat().st_mtime > 7 * 86400:
             response = session.get(
                 f"{DOWNLOAD_BASE}/{name}.csv.gz", timeout=(10, 180), stream=True,
             )
