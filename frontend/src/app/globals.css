@@ -90,22 +90,21 @@
   --subtext0: #44475d; /* darkened for 4.5:1 on surface1 */
   --subtext1: #484b62; /* darkened from #5c5f77 for 4.5:1 on surface1 */
   --text: #3c3f55; /* darkened from #4c4f69 for 4.5:1 on surface1 */
-  --lavender: #46539c; /* from #7287fd: 4.5:1 on surface0 */
+  --lavender: #3b4684; /* from #7287fd: 4.5:1 on surface0 and on its own 15% tint */
   --blue: #164bbd; /* darkened from #1e66f5 for 4.5:1 on base/mantle/surface0 */
-  --sapphire: #136270; /* from #209fb5: 4.5:1 on surface0 */
-  --sky: #025f84; /* from #04a5e5: 4.5:1 on surface0 */
-  --teal: #0f6368; /* from #179299: 4.5:1 on surface0 */
-  --green: #28661b; /* from #40a02b: 4.5:1 on surface0 */
-  --yellow: #7c4f10; /* from #df8e1d: 4.5:1 on surface0 */
-  --peach: #983b06; /* from #fe640b: 4.5:1 on surface0 */
-  --maroon: #a0303a; /* from #e64553: 4.5:1 on surface0 */
-  --red: #b20c30; /* from #d20f39: 4.5:1 on surface0 */
-  --mauve: #7330cb; /* from #8839ef: 4.5:1 on surface0 */
-  --pink: #834271; /* from #ea76cb: 4.5:1 on surface0 */
-  --flamingo: #844747; /* from #dd7878: 4.5:1 on surface0 */
-  --rosewater: #7b4d43; /* from #dc8a78: 4.5:1 on surface0 */
+  --sapphire: #11535e; /* from #209fb5: 4.5:1 on surface0 and on its own 15% tint */
+  --sky: #025170; /* from #04a5e5: 4.5:1 on surface0 and on its own 15% tint */
+  --teal: #0d5357; /* from #179299: 4.5:1 on surface0 and on its own 15% tint */
+  --green: #235617; /* from #40a02b: 4.5:1 on surface0 and on its own 15% tint */
+  --yellow: #69430e; /* from #df8e1d: 4.5:1 on surface0 and on its own 15% tint */
+  --peach: #7f3205; /* from #fe640b: 4.5:1 on surface0 and on its own 15% tint */
+  --maroon: #852830; /* from #e64553: 4.5:1 on surface0 and on its own 15% tint */
+  --red: #930a28; /* from #d20f39: 4.5:1 on surface0 and on its own 15% tint */
+  --mauve: #6128aa; /* from #8839ef: 4.5:1 on surface0 and on its own 15% tint */
+  --pink: #6e375f; /* from #ea76cb: 4.5:1 on surface0 and on its own 15% tint */
+  --flamingo: #713d3d; /* from #dd7878: 4.5:1 on surface0 and on its own 15% tint */
+  --rosewater: #6a423a; /* from #dc8a78: 4.5:1 on surface0 and on its own 15% tint */
   --success-soft-foreground: #1f5c33; /* HeroUI soft success chip text, 6.4:1 */
-  --accent: var(--blue); /* HeroUI primary buttons: white text on the darkened blue */
 }
 
 /* 3. Tokyo Night (Dark) */
@@ -237,6 +236,11 @@ html {
 html.light {
   color-scheme: light;
 }
+
+/* HeroUI primary buttons follow the active palette (not HeroUI's own light/dark detection):
+   white text on the light themes' dark blue, base-dark text on the dark themes' light blue. */
+html.light { --accent: var(--blue); --accent-foreground: #fcfcfc; }
+html.dark { --accent: var(--blue); --accent-foreground: var(--crust); }
 
 body {
   min-width: 320px;
