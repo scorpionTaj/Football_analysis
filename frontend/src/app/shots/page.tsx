@@ -26,8 +26,9 @@ import { ErrorMessage, EmptyState, LoadingSkeleton } from '@/components/ui/loadi
 import { PageHeader } from '@/components/ui/page-header';
 import { SourceBadge } from '@/components/ui/source-badge';
 import { usePagination } from '@/components/ui/pagination';
+import { tooltipProps } from '@/lib/chart-theme';
 
-const COLORS = ['#89b4fa', '#94e2d5', '#a6e3a1', '#f9e2af', '#fab387', '#cba6f7'];
+const COLORS = ['var(--series-1)', 'var(--teal)', 'var(--green)', 'var(--yellow)', 'var(--series-2)', 'var(--series-3)'];
 
 function ShotIntelligenceContent() {
   const filters = useFilterParams();
@@ -107,8 +108,8 @@ function ShotIntelligenceContent() {
                   <XAxis type="number" dataKey="shot_accuracy_pct" name="On target" unit="%" stroke="var(--overlay1)" fontSize={11} />
                   <YAxis type="number" dataKey="goals_per_shot_pct" name="Goals per shot" unit="%" stroke="var(--overlay1)" fontSize={11} />
                   <ZAxis type="number" dataKey="shots_per_match" range={[70, 420]} />
-                  <Tooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ background: 'var(--mantle)', border: '1px solid var(--surface1)', borderRadius: 12 }} />
-                  <Scatter data={scatterTeams} name="Club-seasons" fill="#89b4fa">
+                  <Tooltip {...tooltipProps} cursor={{ strokeDasharray: '3 3' }} />
+                  <Scatter data={scatterTeams} name="Club-seasons" fill="var(--series-1)">
                     {scatterTeams.map((row, index) => <Cell key={`${row.team.team_id}-${row.season}`} fill={COLORS[index % COLORS.length]} />)}
                   </Scatter>
                 </ScatterChart>
@@ -127,8 +128,8 @@ function ShotIntelligenceContent() {
                   <CartesianGrid stroke="var(--surface1)" strokeDasharray="3 3" horizontal={false} />
                   <XAxis type="number" stroke="var(--overlay1)" fontSize={11} />
                   <YAxis type="category" dataKey="team.name" width={100} stroke="var(--overlay1)" fontSize={10} />
-                  <Tooltip contentStyle={{ background: 'var(--mantle)', border: '1px solid var(--surface1)', borderRadius: 12 }} />
-                  <Bar dataKey="shots_per_match" name="Shots / match" fill="#94e2d5" radius={[0, 8, 8, 0]} />
+                  <Tooltip {...tooltipProps} />
+                  <Bar dataKey="shots_per_match" name="Shots / match" fill="var(--teal)" radius={[0, 8, 8, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>

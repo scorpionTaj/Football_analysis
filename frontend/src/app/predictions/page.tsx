@@ -21,6 +21,7 @@ import {
   CartesianGrid,
   Legend,
 } from 'recharts';
+import { tooltipProps } from '@/lib/chart-theme';
 
 const LEAGUE_NAMES: Record<string, string> = {
   E0: 'Premier League', SP1: 'La Liga', D1: 'Bundesliga', I1: 'Serie A', F1: 'Ligue 1',
@@ -390,16 +391,16 @@ function PredictionsContent() {
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={calibrationChartData} margin={{ top: 10, right: 20, left: -10, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#313244" vertical={false} />
-                <XAxis dataKey="outcome" stroke="#7f849c" fontSize={11} />
-                <YAxis stroke="#7f849c" fontSize={11} unit="%" />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
+                <XAxis dataKey="outcome" stroke="var(--chart-axis)" fontSize={11} />
+                <YAxis stroke="var(--chart-axis)" fontSize={11} unit="%" />
                 <Tooltip
-                  contentStyle={{ backgroundColor: '#181825', borderColor: '#45475a', borderRadius: '8px', color: '#cdd6f4' }}
+                  {...tooltipProps}
                   formatter={(val) => [`${val}%`]}
                 />
-                <Legend wrapperStyle={{ fontSize: '11px', color: '#bac2de' }} />
-                <Bar dataKey="Predicted Probability" fill="#89b4fa" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Observed Win Rate" fill="#a6e3a1" radius={[4, 4, 0, 0]} />
+                <Legend wrapperStyle={{ fontSize: '11px', color: 'var(--subtext1)' }} />
+                <Bar dataKey="Predicted Probability" fill="var(--series-1)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Observed Win Rate" fill="var(--green)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

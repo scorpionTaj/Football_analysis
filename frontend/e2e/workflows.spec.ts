@@ -204,9 +204,10 @@ test('muted text tokens retain readable contrast across themes', async ({ page }
   await mockApi(page);
   await page.goto('/matches?competition=E0&season=2026');
   const values = await page.evaluate(() => {
-    const themes = ['mocha', 'latte', 'tokyo-night', 'nord', 'dracula', 'github-light'];
+    const themes = ['dark', 'light'];
     return themes.map((theme) => {
-      document.documentElement.dataset.theme = theme;
+      document.documentElement.classList.toggle('light', theme === 'light');
+      document.documentElement.classList.toggle('dark', theme === 'dark');
       const style = getComputedStyle(document.documentElement);
       return {
         theme,
@@ -215,7 +216,9 @@ test('muted text tokens retain readable contrast across themes', async ({ page }
       };
     });
   });
-  const luminance = (hex: string) => {
+  const luminance = (value: string) => {
+    // Minified CSS may shorten #ffffff to #fff.
+    const hex = value.length === 4 ? `#${[...value.slice(1)].map((digit) => digit + digit).join('')}` : value;
     const [red, green, blue] = [1, 3, 5].map((start) => parseInt(hex.slice(start, start + 2), 16) / 255)
       .map((channel) => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4);
     return 0.2126 * red + 0.7152 * green + 0.0722 * blue;

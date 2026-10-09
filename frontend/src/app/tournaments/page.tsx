@@ -23,6 +23,7 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from 'recharts';
+import { tooltipProps } from '@/lib/chart-theme';
 
 const calendarYearTournaments = new Set(['WC', 'CWC', 'EURO', 'COPA', 'AFCON', 'ASIAN']);
 
@@ -295,15 +296,15 @@ function TournamentsContent() {
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={stageChartData} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#313244" vertical={false} />
-                <XAxis dataKey="stage" stroke="#7f849c" fontSize={11} angle={-25} textAnchor="end" />
-                <YAxis stroke="#7f849c" fontSize={11} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
+                <XAxis dataKey="stage" stroke="var(--chart-axis)" fontSize={11} angle={-25} textAnchor="end" />
+                <YAxis stroke="var(--chart-axis)" fontSize={11} />
                 <Tooltip
-                  contentStyle={{ backgroundColor: '#181825', borderColor: '#45475a', borderRadius: '8px', color: '#cdd6f4' }}
+                  {...tooltipProps}
                   formatter={(value) => [`${value} goals/match`, 'Scoring Rate']}
                   labelFormatter={(lbl) => `Stage: ${lbl}`}
                 />
-                <Bar dataKey="goalsPerMatch" fill="#89b4fa" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="goalsPerMatch" fill="var(--series-1)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

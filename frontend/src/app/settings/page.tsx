@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { useTheme, AVAILABLE_THEMES } from '@/components/theme-provider';
+import { useTheme } from '@/components/theme-provider';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Card } from '@heroui/react';
 import { api } from '@/lib/api/client';
@@ -12,7 +12,6 @@ import {
   Sun,
   Moon,
   Laptop,
-  Check,
   Server,
   Activity,
   Database,
@@ -30,7 +29,7 @@ const REFRESH_STEPS = [
 ];
 
 export default function SettingsPage() {
-  const { theme, mode, setTheme, setMode } = useTheme();
+  const { mode, setMode } = useTheme();
   const [pingLatency, setPingLatency] = useState<number | null>(null);
   const [isPinging, setIsPinging] = useState(false);
   const [refreshDepth, setRefreshDepth] = useState(4);
@@ -83,17 +82,17 @@ export default function SettingsPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-8">
-      <PageHeader icon={Sliders} eyebrow="Workspace preferences" title="Application Settings" description="Choose an accessible theme, verify the API and guide a safe source-data refresh from one place." />
+      <PageHeader icon={Sliders} eyebrow="Workspace preferences" title="Application Settings" description="Choose light or dark mode, verify the API and guide a safe source-data refresh from one place." />
 
       {/* Section 1: Appearance Mode */}
       <div className="rounded-xl border border-surface1 bg-surface0 p-6 space-y-4">
         <div className="flex items-center gap-2.5 pb-2 border-b border-surface1">
           <Palette className="h-5 w-5 text-blue" />
-          <h2 className="text-base font-semibold text-text">Theme Mode & Auto-Detection</h2>
+          <h2 className="text-base font-semibold text-text">Appearance</h2>
         </div>
 
         <p className="text-xs text-subtext0">
-          Select whether the theme automatically adapts to your operating system or stays permanently dark or light.
+          Follow your system setting, or keep the interface dark or light.
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
@@ -150,73 +149,6 @@ export default function SettingsPage() {
               <p className="text-xs text-subtext0 mt-0.5">Light background</p>
             </div>
           </button>
-        </div>
-      </div>
-
-      {/* Section 2: 6 Theme Palettes */}
-      <div className="rounded-xl border border-surface1 bg-surface0 p-6 space-y-4">
-        <div className="flex items-center justify-between pb-2 border-b border-surface1">
-          <div className="flex items-center gap-2.5">
-            <Sliders className="h-5 w-5 text-teal" />
-            <h2 className="text-base font-semibold text-text">Color Palettes ({AVAILABLE_THEMES.length} Available)</h2>
-          </div>
-          <span className="text-xs text-subtext0">
-            Active: <strong className="text-text capitalize">{theme.replace('-', ' ')}</strong>
-          </span>
-        </div>
-
-        <p className="text-xs text-subtext0">
-          Choose from custom tailored designer palettes with carefully balanced contrast and accent colors.
-        </p>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5 pt-2">
-          {AVAILABLE_THEMES.map((opt) => {
-            const isSelected = theme === opt.id;
-            return (
-              <button
-                key={opt.id}
-                type="button"
-                aria-pressed={isSelected}
-                onClick={() => setTheme(opt.id)}
-                className={`flex flex-col justify-between p-4 rounded-xl border transition-all text-left cursor-pointer ${
-                  isSelected
-                    ? 'border-blue ring-2 ring-blue/30 shadow-md'
-                    : 'border-surface1 hover:border-surface2'
-                }`}
-                style={{ backgroundColor: opt.previewBg }}
-              >
-                <div className="flex items-center justify-between w-full mb-3">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="h-3 w-3 rounded-full"
-                      style={{ backgroundColor: opt.accent }}
-                    />
-                    <span
-                      className="text-xs font-bold"
-                      style={{ color: opt.previewText }}
-                    >
-                      {opt.name}
-                    </span>
-                  </div>
-                  {isSelected && (
-                    <span className="p-0.5 rounded-full bg-blue text-crust">
-                      <Check className="h-3 w-3" />
-                    </span>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-between text-[11px]">
-                  <span style={{ color: opt.previewText }} className="capitalize font-mono">
-                    {opt.type}
-                  </span>
-                  <div className="flex gap-1">
-                    <span className="h-2 w-4 rounded-xs" style={{ backgroundColor: opt.accent }} />
-                    <span className="h-2 w-2 rounded-xs" style={{ backgroundColor: opt.previewText }} />
-                  </div>
-                </div>
-              </button>
-            );
-          })}
         </div>
       </div>
 

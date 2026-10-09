@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { queryKeys } from '@/lib/api/query-keys';
 import { useFilterParams } from '@/lib/hooks/use-filter-params';
+import { Select } from '@/components/ui/select';
 
 const noop = () => () => {};
 
@@ -42,7 +43,7 @@ export function FilterBar({ showVenue = true }: { showVenue?: boolean }) {
   ).sort((a, b) => a.name.localeCompare(b.name));
 
   return (
-    <div className="flex flex-wrap items-center gap-3">
+    <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-end">
       {/* Competition selector */}
       <Select
         label="Competition"
@@ -106,58 +107,6 @@ export function FilterBar({ showVenue = true }: { showVenue?: boolean }) {
           placeholder="Any venue"
         />
       )}
-    </div>
-  );
-}
-
-interface SelectOption {
-  value: string;
-  label: string;
-  group?: string;
-  badge?: string;
-}
-
-function Select({
-  label,
-  value,
-  onChange,
-  options,
-  placeholder,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: SelectOption[];
-  placeholder: string;
-}) {
-  // Deduplicate options by value to guarantee unique keys and options
-  const uniqueOptions = Array.from(
-    new Map(options.map((opt) => [opt.value, opt])).values(),
-  );
-  const groupedOptions = Array.from(
-    uniqueOptions.reduce((groups, option) => {
-      const group = option.group || '';
-      groups.set(group, [...(groups.get(group) || []), option]);
-      return groups;
-    }, new Map<string, SelectOption[]>()).entries(),
-  );
-
-  return (
-    <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-subtext0">{label}</label>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="rounded-lg border border-surface1 bg-surface0 px-3 py-2 text-sm text-text outline-none transition-colors hover:border-surface2 focus:border-blue focus:ring-1 focus:ring-blue/30 cursor-pointer"
-        aria-label={label}
-      >
-        <option value="">{placeholder}</option>
-        {groupedOptions.map(([group, entries]) => group ? (
-          <optgroup key={group} label={group}>
-            {entries.map((opt) => <option key={opt.value} value={opt.value}>{opt.badge ? `${opt.badge} ${opt.label}` : opt.label}</option>)}
-          </optgroup>
-        ) : entries.map((opt) => <option key={opt.value} value={opt.value}>{opt.badge ? `${opt.badge} ${opt.label}` : opt.label}</option>))}
-      </select>
     </div>
   );
 }

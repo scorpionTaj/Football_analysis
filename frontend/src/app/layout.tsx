@@ -1,7 +1,10 @@
 import type { Metadata, Viewport } from 'next';
+import { Inter } from 'next/font/google';
 import { Navigation } from '@/components/navigation';
 import Providers from './providers';
 import './globals.css';
+
+const inter = Inter({ subsets: ['latin', 'latin-ext'], variable: '--font-inter', display: 'swap' });
 
 export const metadata: Metadata = {
   title: {
@@ -13,15 +16,15 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: '(prefers-color-scheme: dark)', color: '#1e1e2e' },
-    { media: '(prefers-color-scheme: light)', color: '#eff1f5' },
+    { media: '(prefers-color-scheme: dark)', color: '#0b0d12' },
+    { media: '(prefers-color-scheme: light)', color: '#f7f8fa' },
   ],
   colorScheme: 'dark light',
 };
 
-// Applies the saved/system theme before first paint (same rules as ThemeProvider's activeTheme),
-// so light-mode users never see the dark default flash and colour transitions.
-const themeScript = `(function(){try{var m=localStorage.getItem('fa_theme_mode')||'auto',t=localStorage.getItem('fa_theme_id')||'mocha',l=t==='latte'||t==='github-light',s=matchMedia('(prefers-color-scheme: dark)').matches,a=m==='auto'?(s?(l?'mocha':t):'latte'):m==='dark'?(l?'mocha':t):(l?t:'latte'),d=a!=='latte'&&a!=='github-light',r=document.documentElement;r.setAttribute('data-theme',a);r.classList.toggle('dark',d);r.classList.toggle('light',!d)}catch(e){}})()`;
+// Applies the saved/system mode before first paint (same rule as ThemeProvider), so light-mode
+// users never see the dark default flash.
+const themeScript = `(function(){try{var m=localStorage.getItem('fa_theme_mode')||'auto',d=m==='dark'||(m!=='light'&&matchMedia('(prefers-color-scheme: dark)').matches),r=document.documentElement;r.classList.toggle('dark',d);r.classList.toggle('light',!d)}catch(e){}})()`;
 
 export default function RootLayout({
   children,
@@ -29,7 +32,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark" data-scroll-behavior="smooth" suppressHydrationWarning>
+    <html lang="en" className={`dark ${inter.variable}`} data-scroll-behavior="smooth" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
@@ -37,8 +40,8 @@ export default function RootLayout({
         <Providers>
           <a href="#main-content" className="skip-link">Skip to content</a>
           <Navigation />
-          <main id="main-content" className="min-h-screen pb-24 lg:pl-72 lg:pb-0">
-            <div className="mx-auto max-w-[1600px] px-3 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8">
+          <main id="main-content" className="min-h-screen pb-20 lg:pl-60 lg:pb-0">
+            <div className="mx-auto max-w-[1440px] px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
               {children}
             </div>
           </main>

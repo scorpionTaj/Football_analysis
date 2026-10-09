@@ -9,16 +9,17 @@ import {
 } from 'recharts';
 import { FootballBadge } from '@/lib/media-utils';
 import type { Competition, OverviewResponse } from '@/lib/api/types';
+import { tooltipProps } from '@/lib/chart-theme';
 
 const CHART_COLORS = [
-  '#89b4fa', // blue
-  '#a6e3a1', // green
-  '#fab387', // peach
-  '#f38ba8', // red
-  '#cba6f7', // mauve
-  '#94e2d5', // teal
-  '#f9e2af', // yellow
-  '#74c7ec', // sapphire
+  'var(--series-1)', // blue
+  'var(--green)', // green
+  'var(--series-2)', // peach
+  'var(--red)', // red
+  'var(--series-3)', // mauve
+  'var(--teal)', // teal
+  'var(--yellow)', // yellow
+  'var(--sapphire)', // sapphire
 ];
 
 /**
@@ -231,17 +232,11 @@ export function ClubTrends({
             <div className="h-80 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={trendChartData} margin={{ top: 10, right: 20, left: -15, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#313244" vertical={false} />
-                  <XAxis dataKey="season" stroke="#7f849c" fontSize={12} />
-                  <YAxis domain={[0, 3]} stroke="#7f849c" fontSize={12} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
+                  <XAxis dataKey="season" stroke="var(--chart-axis)" fontSize={12} />
+                  <YAxis domain={[0, 3]} stroke="var(--chart-axis)" fontSize={12} />
                   <RechartsTooltip
-                    contentStyle={{
-                      backgroundColor: '#181825',
-                      borderColor: '#45475a',
-                      borderRadius: '12px',
-                      color: '#cdd6f4',
-                      fontSize: '12px',
-                    }}
+                    {...tooltipProps}
                   />
                   <Legend wrapperStyle={{ paddingTop: '10px', fontSize: '12px' }} />
                   {topClubs.map((club, idx) => (
@@ -324,13 +319,13 @@ export function ClubTrends({
             <div className="h-80 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <ScatterChart margin={{ top: 10, right: 30, left: -10, bottom: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#313244" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                   <XAxis
                     type="number"
                     dataKey="goalsPerMatch"
                     name="Goals Scored"
                     unit=" G/M"
-                    stroke="#7f849c"
+                    stroke="var(--chart-axis)"
                     fontSize={12}
                   />
                   <YAxis
@@ -339,7 +334,7 @@ export function ClubTrends({
                     name="Goals Conceded"
                     unit=" G/M"
                     reversed
-                    stroke="#7f849c"
+                    stroke="var(--chart-axis)"
                     fontSize={12}
                   />
                   <ZAxis type="number" dataKey="ppg" range={[60, 400]} name="PPG" />
@@ -363,8 +358,8 @@ export function ClubTrends({
                     {scatterData.map((entry, index) => (
                       <Cell
                         key={`cell-${index}`}
-                        fill={entry.club === activeClub ? '#89b4fa' : entry.ppg >= 2.0 ? '#94e2d5' : '#f38ba8'}
-                        stroke="#ffffff"
+                        fill={entry.club === activeClub ? 'var(--series-1)' : entry.ppg >= 2.0 ? 'var(--teal)' : 'var(--red)'}
+                        stroke="var(--text)"
                         strokeWidth={entry.club === activeClub ? 2 : 0}
                       />
                     ))}
@@ -389,17 +384,11 @@ export function ClubTrends({
             <div className="h-80 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={eloChartData} margin={{ top: 10, right: 20, left: -5, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#313244" vertical={false} />
-                  <XAxis dataKey="season" stroke="#7f849c" fontSize={12} />
-                  <YAxis domain={['auto', 'auto']} stroke="#7f849c" fontSize={12} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
+                  <XAxis dataKey="season" stroke="var(--chart-axis)" fontSize={12} />
+                  <YAxis domain={['auto', 'auto']} stroke="var(--chart-axis)" fontSize={12} />
                   <RechartsTooltip
-                    contentStyle={{
-                      backgroundColor: '#181825',
-                      borderColor: '#45475a',
-                      borderRadius: '12px',
-                      color: '#cdd6f4',
-                      fontSize: '12px',
-                    }}
+                    {...tooltipProps}
                   />
                   <Legend wrapperStyle={{ paddingTop: '10px', fontSize: '12px' }} />
                   {topClubs.map((club, idx) => (

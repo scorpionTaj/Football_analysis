@@ -13,6 +13,7 @@ import type { ModelRun } from '@/lib/api/types';
 import { PageHeader } from '@/components/ui/page-header';
 import { SourceBadge } from '@/components/ui/source-badge';
 import { EmptyState, ErrorMessage, LoadingSkeleton } from '@/components/ui/loading';
+import { tooltipProps } from '@/lib/chart-theme';
 
 const NAMES: Record<string, string> = {
   prevalence_baseline: 'Base-rate guess',
@@ -117,7 +118,7 @@ function SeasonChart({ runs, champion }: { runs: ModelRun[]; champion: string })
         <XAxis dataKey="season" stroke="var(--overlay0)" fontSize={12} tickLine={false} />
         <YAxis stroke="var(--overlay0)" fontSize={12} tickLine={false} domain={['auto', 'auto']} width={52}
                tickFormatter={(v: number) => v.toFixed(3)} />
-        <Tooltip contentStyle={{ background: 'var(--mantle)', border: '1px solid var(--surface1)', borderRadius: 12 }}
+        <Tooltip {...tooltipProps}
                  labelStyle={{ color: 'var(--text)' }} itemStyle={{ color: 'var(--subtext1)' }}
                  formatter={(v, key) => [Number(v).toFixed(4), name(String(key))]} />
         <Legend formatter={(key: string) => <span className="text-xs text-subtext1">{name(key)}</span>} />
@@ -141,7 +142,7 @@ function Reliability({ run }: { run: ModelRun }) {
         <YAxis type="number" dataKey="observed" domain={[0, 0.9]} stroke="var(--overlay0)" fontSize={12}
                tickFormatter={(v: number) => pct(v, 0)} name="Observed" width={52} />
         <ZAxis type="number" dataKey="n" range={[40, 160]} name="Matches" />
-        <Tooltip contentStyle={{ background: 'var(--mantle)', border: '1px solid var(--surface1)', borderRadius: 12 }}
+        <Tooltip {...tooltipProps}
                  itemStyle={{ color: 'var(--subtext1)' }}
                  formatter={(v, key) => (key === 'Matches' ? Number(v).toLocaleString() : pct(Number(v)))} />
         <Legend formatter={(key: string) => <span className="text-xs text-subtext1">{key === 'Draw' ? 'Draw' : `${key} win`}</span>} />

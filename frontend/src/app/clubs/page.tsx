@@ -24,6 +24,7 @@ import {
   CartesianGrid,
   Legend,
 } from 'recharts';
+import { tooltipProps } from '@/lib/chart-theme';
 
 function ClubLabContent() {
   const filters = useFilterParams();
@@ -427,16 +428,16 @@ function ClubLabContent() {
               <div className="h-72 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={chartData} margin={{ top: 10, right: 20, left: -10, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#313244" vertical={false} />
-                    <XAxis dataKey="season" stroke="#7f849c" fontSize={11} />
-                    <YAxis stroke="#7f849c" fontSize={11} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
+                    <XAxis dataKey="season" stroke="var(--chart-axis)" fontSize={11} />
+                    <YAxis stroke="var(--chart-axis)" fontSize={11} />
                     <Tooltip
-                      contentStyle={{ backgroundColor: '#181825', borderColor: '#45475a', borderRadius: '8px', color: '#cdd6f4' }}
+                      {...tooltipProps}
                     />
-                    <Legend wrapperStyle={{ fontSize: '11px', color: '#bac2de' }} />
-                    <Line type="monotone" dataKey="Points" stroke="#89b4fa" strokeWidth={2.5} dot={{ fill: '#89b4fa', r: 4 }} />
-                    <Line type="monotone" dataKey="GoalsScored" stroke="#a6e3a1" strokeWidth={2} dot={{ fill: '#a6e3a1', r: 3 }} />
-                    <Line type="monotone" dataKey="GoalsConceded" stroke="#f38ba8" strokeWidth={2} dot={{ fill: '#f38ba8', r: 3 }} />
+                    <Legend wrapperStyle={{ fontSize: '11px', color: 'var(--subtext1)' }} />
+                    <Line type="monotone" dataKey="Points" stroke="var(--series-1)" strokeWidth={2.5} dot={{ fill: 'var(--series-1)', r: 4 }} />
+                    <Line type="monotone" dataKey="GoalsScored" stroke="var(--green)" strokeWidth={2} dot={{ fill: 'var(--green)', r: 3 }} />
+                    <Line type="monotone" dataKey="GoalsConceded" stroke="var(--red)" strokeWidth={2} dot={{ fill: 'var(--red)', r: 3 }} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -447,7 +448,7 @@ function ClubLabContent() {
             <div className="rounded-xl border border-surface1 bg-surface0 p-5">
               <h3 className="mb-4 font-semibold text-text">Rolling {formWindow}-match form</h3>
               <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%"><LineChart data={rollingForm} margin={{ top: 8, right: 12, left: -20, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" stroke="#313244" /><XAxis dataKey="date" stroke="#7f849c" fontSize={10} /><YAxis domain={[0, 3]} stroke="#7f849c" fontSize={11} /><Tooltip contentStyle={{ backgroundColor: '#181825', borderColor: '#45475a', borderRadius: 8 }} /><Line type="monotone" dataKey="PPG" stroke="#94e2d5" strokeWidth={2.5} dot={false} /></LineChart></ResponsiveContainer>
+                <ResponsiveContainer width="100%" height="100%"><LineChart data={rollingForm} margin={{ top: 8, right: 12, left: -20, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" /><XAxis dataKey="date" stroke="var(--chart-axis)" fontSize={10} /><YAxis domain={[0, 3]} stroke="var(--chart-axis)" fontSize={11} /><Tooltip {...tooltipProps} /><Line type="monotone" dataKey="PPG" stroke="var(--teal)" strokeWidth={2.5} dot={false} /></LineChart></ResponsiveContainer>
               </div>
             </div>
             <div className="rounded-xl border border-surface1 bg-surface0 p-5">

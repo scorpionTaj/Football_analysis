@@ -28,203 +28,96 @@
   --color-pink: var(--pink);
   --color-flamingo: var(--flamingo);
   --color-rosewater: var(--rosewater);
+  /* Semantic names for new components; the palette names above remain as the bridge. */
+  --color-accent: var(--blue);
+  --color-positive: var(--green);
+  --color-negative: var(--red);
+  --color-warning: var(--yellow);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
-/* Chart series tokens (validated with the dataviz palette checker: lightness band,
-   CVD separation and contrast pass on the dark #1e1e2e and light #eff1f5 surfaces).
-   Fixed order: series-1 blue, series-2 orange, series-3 violet, series-4 green. */
+/* Pro analytics palette: one dark and one light mode. Values generated so every text and
+   accent token reaches 4.5:1 on surface0, surface1, base and mantle and on its own 15% tint
+   (WCAG AA small text), so chips like bg-green/15 text-green always pass. */
 :root {
+  --crust: #07080b;
+  --mantle: #0e1117;
+  --base: #0b0d12;
+  --surface0: #12151c;
+  --surface1: #232835;
+  --surface2: #323949;
+  --overlay0: #9da6b4;
+  --overlay1: #9da6b6;
+  --overlay2: #9ea7b4;
+  --subtext0: #a6aebd;
+  --subtext1: #c4c9d4;
+  --text: #e6e9f0;
+  --lavender: #90a0ff;
+  --blue: #79a3ff;
+  --sapphire: #48b0da;
+  --sky: #4ab3e6;
+  --teal: #2fb5a3;
+  --green: #34c38f;
+  --yellow: #e8a93a;
+  --peach: #ec8a4b;
+  --maroon: #e68893;
+  --red: #f1808e;
+  --mauve: #b496f1;
+  --pink: #e87fc7;
+  --flamingo: #ea8b86;
+  --rosewater: #e7a48f;
+
+  /* Data colours: fixed order series 1-4 (blue, orange, violet, green); outcomes H / D / A. */
   --series-1: #4f86ea;
   --series-2: #d06c3f;
   --series-3: #9b6ae0;
   --series-4: #33a06f;
-}
-[data-theme="latte"], [data-theme="github-light"] {
-  --series-1: #1e66f5;
-  --series-2: #d0541a;
-  --series-3: #8839ef;
-  --series-4: #2c8a3e;
-}
-
-/* 1. Catppuccin Mocha (Dark Default) */
-:root, [data-theme="mocha"] {
-  --crust: #11111b;
-  --mantle: #181825;
-  --base: #1e1e2e;
-  --surface0: #313244;
-  --surface1: #45475a;
-  --surface2: #585b70;
-  --overlay0: #989fbb;
-  --overlay1: #a6adc8;
-  --overlay2: #9399b2;
-  --subtext0: #b0b7d1; /* lifted from #a6adc8: 4.6:1 on surface1 (WCAG AA small text) */
-  --subtext1: #bac2de;
-  --text: #cdd6f4;
-  --lavender: #b4befe;
-  --blue: #89b4fa;
-  --sapphire: #74c7ec;
-  --sky: #89dceb;
-  --teal: #94e2d5;
-  --green: #a6e3a1;
-  --yellow: #f9e2af;
-  --peach: #fab387;
-  --maroon: #eba0ac;
-  --red: #f38ba8;
-  --mauve: #cba6f7;
-  --pink: #f5c2e7;
-  --flamingo: #f2cdcd;
-  --rosewater: #f5e0dc;
+  --outcome-home: #4f86ea;
+  --outcome-draw: #7d8597;
+  --outcome-away: #d06c3f;
+  --chart-grid: #232835;
+  --chart-axis: #9da6b4;
+  --success-soft-foreground: #34c38f;
 }
 
-/* 2. Catppuccin Latte (Light) */
-[data-theme="latte"] {
-  --crust: #dce0e8;
-  --mantle: #e6e9ef;
-  --base: #eff1f5;
-  --surface0: #ccd0da;
-  --surface1: #bcc0cc;
-  --surface2: #acb0be;
-  --overlay0: #454862;
-  --overlay1: #454862;
-  --overlay2: #7c7f93;
-  --subtext0: #44475d; /* darkened for 4.5:1 on surface1 */
-  --subtext1: #484b62; /* darkened from #5c5f77 for 4.5:1 on surface1 */
-  --text: #3c3f55; /* darkened from #4c4f69 for 4.5:1 on surface1 */
-  --lavender: #3b4684; /* from #7287fd: 4.5:1 on surface0 and on its own 15% tint */
-  --blue: #164bbd; /* darkened from #1e66f5 for 4.5:1 on base/mantle/surface0 */
-  --sapphire: #11535e; /* from #209fb5: 4.5:1 on surface0 and on its own 15% tint */
-  --sky: #025170; /* from #04a5e5: 4.5:1 on surface0 and on its own 15% tint */
-  --teal: #0d5357; /* from #179299: 4.5:1 on surface0 and on its own 15% tint */
-  --green: #235617; /* from #40a02b: 4.5:1 on surface0 and on its own 15% tint */
-  --yellow: #69430e; /* from #df8e1d: 4.5:1 on surface0 and on its own 15% tint */
-  --peach: #7f3205; /* from #fe640b: 4.5:1 on surface0 and on its own 15% tint */
-  --maroon: #852830; /* from #e64553: 4.5:1 on surface0 and on its own 15% tint */
-  --red: #930a28; /* from #d20f39: 4.5:1 on surface0 and on its own 15% tint */
-  --mauve: #6128aa; /* from #8839ef: 4.5:1 on surface0 and on its own 15% tint */
-  --pink: #6e375f; /* from #ea76cb: 4.5:1 on surface0 and on its own 15% tint */
-  --flamingo: #713d3d; /* from #dd7878: 4.5:1 on surface0 and on its own 15% tint */
-  --rosewater: #6a423a; /* from #dc8a78: 4.5:1 on surface0 and on its own 15% tint */
-  --success-soft-foreground: #1f5c33; /* HeroUI soft success chip text, 6.4:1 */
-}
+html.light {
+  --crust: #e9ecf1;
+  --mantle: #f1f3f6;
+  --base: #f7f8fa;
+  --surface0: #ffffff;
+  --surface1: #e3e6ec;
+  --surface2: #cdd3dc;
+  --overlay0: #505966;
+  --overlay1: #515a69;
+  --overlay2: #515964;
+  --subtext0: #4a5263;
+  --subtext1: #343b49;
+  --text: #141820;
+  --lavender: #3b47d0;
+  --blue: #2850c1;
+  --sapphire: #1a607b;
+  --sky: #18607f;
+  --teal: #1b6055;
+  --green: #1a6643;
+  --yellow: #6c520c;
+  --peach: #8c4414;
+  --maroon: #98343c;
+  --red: #a42138;
+  --mauve: #6433cd;
+  --pink: #942d70;
+  --flamingo: #983a35;
+  --rosewater: #8b4429;
 
-/* 3. Tokyo Night (Dark) */
-[data-theme="tokyo-night"] {
-  --crust: #13141c;
-  --mantle: #16161e;
-  --base: #1a1b26;
-  --surface0: #24283b;
-  --surface1: #2f3549;
-  --surface2: #414868;
-  --overlay0: #8793bd;
-  --overlay1: #9aa5ce;
-  --overlay2: #7aa2f7;
-  --subtext0: #9aa5ce;
-  --subtext1: #a9b1d6;
-  --text: #c0caf5;
-  --lavender: #b4f9f8;
-  --blue: #7aa2f7;
-  --sapphire: #2ac3de;
-  --sky: #7dcfff;
-  --teal: #1abc9c;
-  --green: #9ece6a;
-  --yellow: #e0af68;
-  --peach: #ff9e64;
-  --maroon: #f7768e;
-  --red: #f7768e;
-  --mauve: #bb9af7;
-  --pink: #ff007c;
-  --flamingo: #f7768e;
-  --rosewater: #ff9e64;
-}
-
-/* 4. Nord Frost (Dark) */
-[data-theme="nord"] {
-  --crust: #242933;
-  --mantle: #292e39;
-  --base: #2e3440;
-  --surface0: #3b4252;
-  --surface1: #434c5e;
-  --surface2: #4c566a;
-  --overlay0: #a6b1c7;
-  --overlay1: #bdc6d6;
-  --overlay2: #96a5c1;
-  --subtext0: #d8dee9;
-  --subtext1: #e5e9f0;
-  --text: #eceff4;
-  --lavender: #81a1c1;
-  --blue: #88c0d0;
-  --sapphire: #81a1c1;
-  --sky: #88c0d0;
-  --teal: #8fbcbb;
-  --green: #a3be8c;
-  --yellow: #ebcb8b;
-  --peach: #d08770;
-  --maroon: #bf616a;
-  --red: #bf616a;
-  --mauve: #b48ead;
-  --pink: #b48ead;
-  --flamingo: #d08770;
-  --rosewater: #eceff4;
-}
-
-/* 5. Dracula (Dark) */
-[data-theme="dracula"] {
-  --crust: #191a21;
-  --mantle: #21222c;
-  --base: #282a36;
-  --surface0: #343746;
-  --surface1: #44475a;
-  --surface2: #6272a4;
-  --overlay0: #91a3d6;
-  --overlay1: #b1bde3;
-  --overlay2: #91a3d6;
-  --subtext0: #bfbfbf;
-  --subtext1: #e2e2dc;
-  --text: #f8f8f2;
-  --lavender: #bd93f9;
-  --blue: #8be9fd;
-  --sapphire: #8be9fd;
-  --sky: #8be9fd;
-  --teal: #50fa7b;
-  --green: #50fa7b;
-  --yellow: #f1fa8c;
-  --peach: #ffb86c;
-  --maroon: #ff5555;
-  --red: #ff5555;
-  --mauve: #bd93f9;
-  --pink: #ff79c6;
-  --flamingo: #ff79c6;
-  --rosewater: #f8f8f2;
-}
-
-/* 6. GitHub Clean (Light) */
-[data-theme="github-light"] {
-  --crust: #eaedf0;
-  --mantle: #f6f8fa;
-  --base: #ffffff;
-  --surface0: #e1e4e8;
-  --surface1: #d1d5da;
-  --surface2: #c6cbd1;
-  --overlay0: #586069;
-  --overlay1: #444d56;
-  --overlay2: #586069;
-  --subtext0: #444d56;
-  --subtext1: #2f363d;
-  --text: #24292e;
-  --lavender: #0366d6;
-  --blue: #0366d6;
-  --sapphire: #005cc5;
-  --sky: #0366d6;
-  --teal: #0086b3;
-  --green: #28a745;
-  --yellow: #ffd33d;
-  --peach: #f66a0a;
-  --maroon: #d73a49;
-  --red: #d73a49;
-  --mauve: #6f42c1;
-  --pink: #ea4aaa;
-  --flamingo: #f66a0a;
-  --rosewater: #24292e;
+  --series-1: #2f62d6;
+  --series-2: #c2571f;
+  --series-3: #7a45d8;
+  --series-4: #23804f;
+  --outcome-home: #2f62d6;
+  --outcome-draw: #8a92a3;
+  --outcome-away: #c2571f;
+  --chart-grid: #e3e6ec;
+  --chart-axis: #505966;
+  --success-soft-foreground: #1a6643;
 }
 
 html {
@@ -237,23 +130,19 @@ html.light {
   color-scheme: light;
 }
 
-/* HeroUI primary buttons follow the active palette (not HeroUI's own light/dark detection):
-   white text on the light themes' dark blue, base-dark text on the dark themes' light blue. */
-html.light { --accent: var(--blue); --accent-foreground: #fcfcfc; }
+/* HeroUI primary buttons follow the palette (not HeroUI's own light/dark detection). */
+html.light { --accent: var(--blue); --accent-foreground: #ffffff; }
 html.dark { --accent: var(--blue); --accent-foreground: var(--crust); }
 
 body {
   min-width: 320px;
   overflow-x: clip;
-  background:
-    radial-gradient(circle at 78% -10%, color-mix(in srgb, var(--blue) 13%, transparent) 0, transparent 28rem),
-    radial-gradient(circle at 15% 12%, color-mix(in srgb, var(--teal) 7%, transparent) 0, transparent 24rem),
-    linear-gradient(180deg, var(--base), color-mix(in srgb, var(--base) 94%, var(--crust)) 70%);
-  background-attachment: fixed;
+  background: var(--base);
   color: var(--text);
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-size: 16px;
+  font-family: var(--font-sans);
+  font-size: 14px;
   line-height: 1.5;
+  font-feature-settings: "cv11", "ss01";
   text-rendering: optimizeLegibility;
 }
 
@@ -283,33 +172,16 @@ textarea {
   top: 1rem;
   z-index: 100;
   transform: translateY(-200%);
-  border-radius: 0.75rem;
-  background: var(--blue);
-  color: var(--crust);
-  padding: 0.65rem 1rem;
-  font-weight: 800;
+  border-radius: 0.5rem;
+  background: var(--accent);
+  color: var(--accent-foreground);
+  padding: 0.5rem 0.875rem;
+  font-weight: 600;
   transition: transform 150ms ease;
 }
 
 .skip-link:focus {
   transform: translateY(0);
-}
-
-.page-intro::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0.13;
-  background-image:
-    linear-gradient(color-mix(in srgb, var(--blue) 30%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in srgb, var(--blue) 30%, transparent) 1px, transparent 1px);
-  background-size: 28px 28px;
-  mask-image: linear-gradient(to left, black, transparent 72%);
-}
-
-main [class*="bg-surface0"] {
-  box-shadow: 0 1px 0 color-mix(in srgb, var(--text) 4%, transparent), 0 14px 38px color-mix(in srgb, var(--crust) 18%, transparent);
 }
 
 main table {
@@ -320,12 +192,9 @@ main th {
   white-space: nowrap;
 }
 
+/* Until every table uses the shared DataTable (which sets its own min width), keep wide
+   tables scrolling inside their containers on phones. */
 @media (max-width: 639px) {
-  main [class*="rounded-xl"],
-  main [class*="rounded-2xl"] {
-    border-radius: 1rem;
-  }
-
   main table {
     min-width: 42rem;
   }
