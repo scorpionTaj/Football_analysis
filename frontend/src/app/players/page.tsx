@@ -83,7 +83,7 @@ function PlayersContent() {
   const effectivePlayerId = selectedPlayerId || (players.length > 0 ? players[0].player_id : null);
 
   // Fetch selected player profile
-  const { data: profile, isLoading: isProfileLoading } = useQuery({
+  const { data: profile, isLoading: isProfileLoading, error: profileError, refetch: refetchProfile } = useQuery({
     queryKey: queryKeys.player(effectivePlayerId || ''),
     queryFn: () => api.player(effectivePlayerId || ''),
     enabled: !!effectivePlayerId,
@@ -423,6 +423,8 @@ function PlayersContent() {
         <div className="lg:col-span-7">
           {isProfileLoading ? (
             <LoadingSkeleton lines={8} />
+          ) : profileError ? (
+            <ErrorMessage title="Player profile unavailable" detail={profileError.message} retry={() => refetchProfile()} />
           ) : !profile ? (
             <div className="rounded-xl border border-surface1 bg-surface0 p-12 text-center">
               <p className="text-subtext0">Select a player from the list to view profile.</p>

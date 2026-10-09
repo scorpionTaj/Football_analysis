@@ -47,7 +47,7 @@ function CompetitionChoice({ comp, selected, onSelect }: { comp: Competition; se
 
 function OverviewContent() {
   const [selectedComp, setSelectedComp] = useState<string>('E0');
-  const [selectedSeason, setSelectedSeason] = useState<number>(2026);
+  const [pickedSeason, setSelectedSeason] = useState<number | null>(null);
   const [selectedClub, setSelectedClub] = useState<string>('');
   const [showAllCompetitions, setShowAllCompetitions] = useState(false);
   const [competitionSearch, setCompetitionSearch] = useState('');
@@ -65,9 +65,11 @@ function OverviewContent() {
 
   // Available seasons for this competition (sorted newest first)
   const availableSeasons = useMemo(() => {
-    if (!currentComp) return [2026, 2025, 2024, 2023, 2022, 2021];
+    if (!currentComp) return [];
     return [...currentComp.seasons.map((s) => s.season)].sort((a, b) => b - a);
   }, [currentComp]);
+  // Default to the competition's latest season from the catalog, not a hard-coded year.
+  const selectedSeason = pickedSeason ?? availableSeasons[0] ?? catalog?.current_season;
 
   // 2. Fetch Health
   const { data: health } = useQuery({
@@ -79,13 +81,14 @@ function OverviewContent() {
   const { data: teamsData } = useQuery({
     queryKey: queryKeys.teams(selectedComp, selectedSeason),
     queryFn: () => api.teams(selectedComp, selectedSeason),
-    enabled: Boolean(selectedComp),
+    enabled: Boolean(selectedComp) && selectedSeason != null,
   });
 
   // 4. Fetch Overview Spotlight & Trends
-  const { data: overviewData } = useQuery({
+  const { data: overviewData, error: overviewError, refetch: refetchOverview } = useQuery({
     queryKey: queryKeys.overview({ team: selectedClub || undefined, competition: selectedComp, season: selectedSeason }),
     queryFn: () => api.overview({ team: selectedClub || undefined, competition: selectedComp, season: selectedSeason }),
+    enabled: selectedSeason != null,
   });
 
   // Available clubs in this competition
@@ -185,6 +188,10 @@ function OverviewContent() {
         </div>
         </div>
       </Card>
+
+      {overviewError ? (
+        <ErrorMessage title="Overview unavailable" detail={overviewError.message} retry={() => refetchOverview()} />
+      ) : null}
 
       {/* 2. Featured competitions and full catalog */}
       <div>

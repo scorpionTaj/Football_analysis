@@ -36,7 +36,7 @@ function TournamentsContent() {
       years: [...competition.seasons].sort((a, b) => b.season - a.season).map((season) => season.season),
       defaultYear: Math.max(...competition.seasons.map((season) => season.season)),
     })), [catalog?.competitions]);
-  const fallbackConfig = { code: 'UCL', name: 'UEFA Champions League', group: 'Continental clubs', years: [2025], defaultYear: 2025 };
+  const fallbackConfig = { code: 'UCL', name: 'UEFA Champions League', group: 'Continental clubs', years: [] as number[], defaultYear: 0 };
   const currentTournamentConfig = tournamentConfigs.find((competition) => competition.code === filters.competition)
     || tournamentConfigs.find((competition) => competition.code === 'UCL')
     || tournamentConfigs[0]
@@ -56,6 +56,7 @@ function TournamentsContent() {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: queryKeys.tournament(selectedTournament, selectedYear),
     queryFn: () => api.tournament(selectedTournament, selectedYear),
+    enabled: selectedYear > 0,  // wait for the catalog instead of guessing an edition
   });
 
   const matches = useMemo(() => data?.matches || [], [data?.matches]);

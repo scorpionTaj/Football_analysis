@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTheme, AVAILABLE_THEMES } from '@/components/theme-provider';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Card } from '@heroui/react';
@@ -54,11 +54,18 @@ export default function SettingsPage() {
     onSuccess: (status) => queryClient.setQueryData(queryKeys.refreshStatus, status),
   });
 
+  // Refetch app data only when a refresh finishes while this page is open; the stored status of
+  // an earlier run (seen on first load) must not invalidate every query on each visit.
+  const seenFinish = useRef<string | null | undefined>(undefined);
   useEffect(() => {
-    if (refreshStatus?.status === 'success' || refreshStatus?.status === 'degraded' || refreshStatus?.status === 'failed') {
+    const finished = refreshStatus?.status === 'success' || refreshStatus?.status === 'degraded' || refreshStatus?.status === 'failed';
+    if (refreshStatus === undefined) return;
+    const stamp = finished ? refreshStatus.finished_at : null;
+    if (seenFinish.current !== undefined && stamp && stamp !== seenFinish.current) {
       queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] !== 'refresh-status' });
     }
-  }, [queryClient, refreshStatus?.finished_at, refreshStatus?.status]);
+    seenFinish.current = stamp;
+  }, [queryClient, refreshStatus]);
 
   const testPing = async () => {
     setIsPinging(true);
@@ -92,6 +99,8 @@ export default function SettingsPage() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
           {/* Auto */}
           <button
+            type="button"
+            aria-pressed={mode === 'auto'}
             onClick={() => setMode('auto')}
             className={`flex items-center gap-3 p-4 rounded-xl border text-left transition-all cursor-pointer ${
               mode === 'auto'
@@ -108,6 +117,8 @@ export default function SettingsPage() {
 
           {/* Dark */}
           <button
+            type="button"
+            aria-pressed={mode === 'dark'}
             onClick={() => setMode('dark')}
             className={`flex items-center gap-3 p-4 rounded-xl border text-left transition-all cursor-pointer ${
               mode === 'dark'
@@ -124,6 +135,8 @@ export default function SettingsPage() {
 
           {/* Light */}
           <button
+            type="button"
+            aria-pressed={mode === 'light'}
             onClick={() => setMode('light')}
             className={`flex items-center gap-3 p-4 rounded-xl border text-left transition-all cursor-pointer ${
               mode === 'light'
@@ -162,6 +175,8 @@ export default function SettingsPage() {
             return (
               <button
                 key={opt.id}
+                type="button"
+                aria-pressed={isSelected}
                 onClick={() => setTheme(opt.id)}
                 className={`flex flex-col justify-between p-4 rounded-xl border transition-all text-left cursor-pointer ${
                   isSelected

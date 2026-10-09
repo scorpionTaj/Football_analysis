@@ -21,7 +21,10 @@ export function GlobalSearch({ onNavigate }: { onNavigate?: () => void }) {
   }, [query]);
 
   const { data: catalog, isLoading: catalogLoading } = useQuery({ queryKey: queryKeys.catalog, queryFn: api.catalog });
-  const { data: teams, isLoading: teamsLoading } = useQuery({ queryKey: queryKeys.teams(), queryFn: () => api.teams() });
+  // The full club list is large; only fetch it once someone actually searches.
+  const { data: teams, isLoading: teamsLoading } = useQuery({
+    queryKey: queryKeys.teams(), queryFn: () => api.teams(), enabled: debounced.length >= 2,
+  });
   const { data: players, isFetching: playersFetching } = useQuery({
     queryKey: queryKeys.players({ q: debounced, limit: 5 }),
     queryFn: () => api.players({ q: debounced, limit: 5 }),
