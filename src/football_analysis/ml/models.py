@@ -7,6 +7,12 @@ season) for early stopping, temperature calibration or blend weights.
 
 from __future__ import annotations
 
+import contextlib
+import functools
+import os
+import shutil
+import subprocess
+
 import numpy as np
 import pandas as pd
 from scipy.optimize import minimize, minimize_scalar
@@ -103,6 +109,59 @@ class Logit(Model):
         return {**super().params(), "C": self.C, "n_features": len(self.features), "half_life": self.half_life}
 
 
+def _nvidia_gpu_present() -> bool:
+    """An NVIDIA driver answering nvidia-smi (the only GPUs LightGBM's CUDA/OpenCL paths target here)."""
+    if not shutil.which("nvidia-smi"):
+        return False
+    try:
+        return subprocess.run(["nvidia-smi", "-L"], capture_output=True, timeout=10).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+@functools.cache
+def lightgbm_device() -> str:
+    """LightGBM device: 'cuda' or 'gpu' (OpenCL) when an NVIDIA GPU is detected and this LightGBM
+    build can train on it (checked with a tiny fit), else 'cpu'. FOOTBALL_ML_DEVICE=cpu|gpu|cuda
+    forces a choice; 'auto' (default) detects. Logistic regression and Poisson stay on CPU
+    (scikit-learn/SciPy have no GPU path)."""
+    choice = os.environ.get("FOOTBALL_ML_DEVICE", "auto").strip().lower()
+    if choice == "cpu":
+        return "cpu"
+    candidates = [choice] if choice in ("cuda", "gpu") else ["cuda", "gpu"] if _nvidia_gpu_present() else []
+    if not candidates:
+        return "cpu"
+    import lightgbm as lgb
+
+    rng = np.random.default_rng(0)
+    probe_x, probe_y = rng.normal(size=(256, 4)), rng.integers(0, 3, 256)
+    for device in candidates:
+        try:
+            with _quiet_native_stderr():  # LightGBM prints [Fatal] lines natively before raising
+                lgb.LGBMClassifier(objective="multiclass", n_estimators=2, device_type=device, verbose=-1).fit(probe_x, probe_y)
+            return device
+        except Exception:  # e.g. "CUDA Tree Learner was not enabled in this build"
+            continue
+    return "cpu"
+
+
+@contextlib.contextmanager
+def _quiet_native_stderr():
+    """Silence C-level stderr (not just sys.stderr) for the duration of a device probe."""
+    try:
+        saved, devnull = os.dup(2), os.open(os.devnull, os.O_WRONLY)
+    except OSError:
+        yield
+        return
+    try:
+        os.dup2(devnull, 2)
+        yield
+    finally:
+        os.dup2(saved, 2)
+        os.close(saved)
+        os.close(devnull)
+
+
 class LightGBM(Model):
     name = "lightgbm"
 
@@ -116,7 +175,7 @@ class LightGBM(Model):
     def _fit(self, train, calib):
         import lightgbm as lgb
 
-        self.model = lgb.LGBMClassifier(**self.config)
+        self.model = lgb.LGBMClassifier(**{"device_type": lightgbm_device(), **self.config})
         self.model.fit(self._X(train), train.outcome, sample_weight=recency_weights(train, self.half_life),
                        eval_X=self._X(calib), eval_y=calib.outcome,
                        callbacks=[lgb.early_stopping(100, verbose=False)])
@@ -125,7 +184,7 @@ class LightGBM(Model):
         return self.model.predict_proba(self._X(frame))
 
     def params(self):
-        return {**super().params(), "best_iteration": int(self.model.best_iteration_ or 0),
+        return {**super().params(), "best_iteration": int(self.model.best_iteration_ or 0), "device": lightgbm_device(),
                 **{k: v for k, v in self.config.items() if k in ("learning_rate", "num_leaves", "min_child_samples")}}
 
 

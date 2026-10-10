@@ -33,6 +33,13 @@ meta-learner on member log-probabilities, fitted on out-of-fold predictions from
 training window only); logistic regression and LightGBM use recency-weighted training · model + opening odds ·
 bookmaker closing line (benchmark only). Each model gets temperature calibration on the calibration season.
 
+**Hardware.** LightGBM trains on an NVIDIA GPU when one is detected (`nvidia-smi`) and the installed
+build supports it: CUDA first, then OpenCL (`device_type="gpu"`, which the pip wheel includes). A two-tree
+probe fit confirms the device, otherwise training stays on CPU; `FOOTBALL_ML_DEVICE=cpu|gpu|cuda` overrides.
+Logistic regression and the Poisson model have no GPU path. On this data (~100k matches, 35 features) the
+walk-forward LightGBM run takes 23.5 s on an RTX 3060 (OpenCL) versus 14.5 s on CPU, with identical scores:
+the table is too small for GPU training to pay off, so set `FOOTBALL_ML_DEVICE=cpu` when speed matters.
+
 ## Evaluation (`football_analysis/ml/evaluate.py`)
 
 Walk-forward by season: to predict season S, train on seasons < S−1 and calibrate on S−1. Scored on the

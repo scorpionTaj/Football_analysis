@@ -158,3 +158,34 @@ def test_market_strength_never_sees_its_own_match_prices():
     on_last = base.match_date == last_day
     np.testing.assert_allclose(base.loc[on_last, "market_strength_diff"], again.loc[on_last, "market_strength_diff"])
     assert base.market_strength_diff.std() > 0  # the rating actually learns from earlier prices
+
+
+def test_lightgbm_uses_a_detected_gpu_and_falls_back_to_cpu(monkeypatch):
+    from football_analysis.ml import models
+
+    def device(env, gpu_present, working):
+        monkeypatch.setenv("FOOTBALL_ML_DEVICE", env)
+        monkeypatch.setattr(models, "_nvidia_gpu_present", lambda: gpu_present)
+
+        class FakeClassifier:
+            def __init__(self, device_type, **_):
+                self.device_type = device_type
+
+            def fit(self, *_):
+                if self.device_type not in working:
+                    raise RuntimeError(f"{self.device_type} not enabled in this build")
+                return self
+
+        import lightgbm
+        monkeypatch.setattr(lightgbm, "LGBMClassifier", FakeClassifier)
+        models.lightgbm_device.cache_clear()
+        try:
+            return models.lightgbm_device()
+        finally:
+            models.lightgbm_device.cache_clear()
+
+    assert device("auto", True, {"gpu"}) == "gpu"          # pip build: CUDA missing, OpenCL works
+    assert device("auto", True, {"cuda", "gpu"}) == "cuda"  # CUDA build preferred when present
+    assert device("auto", True, set()) == "cpu"            # GPU present but unusable
+    assert device("auto", False, {"gpu"}) == "cpu"          # no NVIDIA GPU detected
+    assert device("cpu", True, {"gpu"}) == "cpu"            # explicit override
