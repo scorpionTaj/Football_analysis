@@ -1,6 +1,6 @@
 'use client';
 
-import { Card, Button } from '@heroui/react';
+import { Button } from '@heroui/react';
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
@@ -10,6 +10,9 @@ import { useFilterParams } from '@/lib/hooks/use-filter-params';
 import { SourceBadge } from '@/components/ui/source-badge';
 import { LoadingSkeleton, ErrorMessage, EmptyState } from '@/components/ui/loading';
 import { PageHeader } from '@/components/ui/page-header';
+import { Panel } from '@/components/ui/panel';
+import { Stat, StatGrid } from '@/components/ui/stat';
+import { Chip } from '@/components/ui/chip';
 import { FilterBar } from '@/components/filters';
 import { FootballBadge } from '@/lib/media-utils';
 import { ArrowLeft, Calendar, Download, ChevronRight, ChevronLeft, Search, UserCheck } from 'lucide-react';
@@ -133,186 +136,131 @@ function MatchesContent() {
     if (detail) return <MatchDetailCentre detail={detail} onBack={() => filters.set({ match_date: null, home: null, away: null })} />;
   }
 
+  const share = (count: number) => `${filteredMatches.length ? Math.round((count / filteredMatches.length) * 100) : 0}% of this page`;
+  const dateGroups = filteredMatches.reduce<{ date: string; matches: Match[] }[]>((groups, match) => {
+    const last = groups.at(-1);
+    if (last && last.date === match.match_date) last.matches.push(match);
+    else groups.push({ date: match.match_date, matches: [match] });
+    return groups;
+  }, []);
+
   return (
-    <div className="space-y-6">
-      {/* Global Filter Bar */}
-      <Card className="rounded-xl bg-surface0 border border-surface1 p-4 space-y-3 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-surface1 pb-3">
+    <div className="space-y-4">
+      <Panel bodyClassName="space-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-3">
           <FilterBar />
           {data?.source && <SourceBadge meta={data.source} />}
         </div>
-
-        {/* Secondary search and action bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
-          <div className="relative w-full sm:w-72">
-            <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-overlay0" />
+        <div className="flex flex-col justify-between gap-3 border-t border-surface1 pt-3 sm:flex-row sm:items-center">
+          <div className="relative w-full sm:w-80">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-overlay0" aria-hidden="true" />
             <input
               type="text"
               aria-label="Search matches by club or referee"
               placeholder="Search club or referee..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-lg border border-surface1 bg-mantle pl-9 pr-20 py-1.5 text-xs text-text outline-none focus:border-blue"
+              className="h-9 w-full rounded-lg border border-surface1 bg-surface0 pl-9 pr-20 text-[13px] text-text placeholder:text-overlay0 focus:border-accent"
             />
-            {isFetching && <span role="status" className="absolute right-3 top-2 text-[10px] text-blue">Searching…</span>}
+            {isFetching && <span role="status" className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-subtext0">Searching…</span>}
           </div>
-
           <div className="flex items-center gap-2">
             {currentCursor && (
-              <Button
-                size="sm"
-                variant="outline"
-                onPress={handleResetPagination}
-                className="px-2.5 py-1 text-xs cursor-pointer"
-              >
-                Back to First Page
-              </Button>
+              <Button size="sm" variant="ghost" onPress={handleResetPagination}>Back to first page</Button>
             )}
-            <Button
-              size="sm"
-              variant="outline"
-              onPress={exportCsv}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium cursor-pointer"
-            >
-              <Download className="h-3.5 w-3.5 text-blue" />
-              <span>Export CSV</span>
+            <Button size="sm" variant="outline" onPress={exportCsv}>
+              <Download className="size-3.5" aria-hidden="true" /> Export CSV
             </Button>
           </div>
         </div>
-      </Card>
+      </Panel>
 
-      {/* KPI Stats for current page */}
       <p className="text-xs text-subtext0 sm:hidden">{filteredMatches.length} {filteredMatches.length === 1 ? 'fixture' : 'fixtures'} on this page</p>
-      <div className="hidden grid-cols-2 gap-4 sm:grid sm:grid-cols-4">
-        <Card className="rounded-xl bg-surface0 border border-surface1 p-4 shadow-sm">
-          <p className="text-xs text-subtext0 uppercase font-medium">Matches on Page</p>
-          <p className="text-2xl font-bold text-text mt-1">{filteredMatches.length}</p>
-        </Card>
-        <Card className="rounded-xl bg-surface0 border border-surface1 p-4 shadow-sm">
-          <p className="text-xs text-subtext0 uppercase font-medium">Home Wins</p>
-          <p className="text-2xl font-bold text-blue mt-1">
-            {homeWins} <span className="text-xs text-subtext0 font-normal">({filteredMatches.length > 0 ? ((homeWins / filteredMatches.length) * 100).toFixed(0) : 0}%)</span>
-          </p>
-        </Card>
-        <Card className="rounded-xl bg-surface0 border border-surface1 p-4 shadow-sm">
-          <p className="text-xs text-subtext0 uppercase font-medium">Draws</p>
-          <p className="text-2xl font-bold text-yellow mt-1">
-            {draws} <span className="text-xs text-subtext0 font-normal">({filteredMatches.length > 0 ? ((draws / filteredMatches.length) * 100).toFixed(0) : 0}%)</span>
-          </p>
-        </Card>
-        <Card className="rounded-xl bg-surface0 border border-surface1 p-4 shadow-sm">
-          <p className="text-xs text-subtext0 uppercase font-medium">Away Wins</p>
-          <p className="text-2xl font-bold text-peach mt-1">
-            {awayWins} <span className="text-xs text-subtext0 font-normal">({filteredMatches.length > 0 ? ((awayWins / filteredMatches.length) * 100).toFixed(0) : 0}%)</span>
-          </p>
-        </Card>
-      </div>
+      <StatGrid className="hidden sm:grid">
+        <Stat label="Matches on page" value={filteredMatches.length} />
+        <Stat label="Home wins" value={homeWins} hint={share(homeWins)} />
+        <Stat label="Draws" value={draws} hint={share(draws)} />
+        <Stat label="Away wins" value={awayWins} hint={share(awayWins)} />
+      </StatGrid>
 
-      {/* Match Cards */}
       {error ? (
         <ErrorMessage title="Failed to load matches" detail={error.message} retry={() => refetch()} />
       ) : isLoading ? (
         <LoadingSkeleton lines={6} />
       ) : filteredMatches.length === 0 && !isPlaceholderData ? (
-        <EmptyState icon="📅" message="No matches match the filter parameters." suggestion="Try clearing or broadening the filter selection." />
+        <Panel><EmptyState icon={Calendar} message="No matches match the filter parameters." suggestion="Try clearing or broadening the filter selection." /></Panel>
       ) : (
-        <div className="space-y-2.5">
-          {filteredMatches.map((m, idx) => (
-            <button
-              type="button"
-              key={`${m.match_date}_${m.home.team_id}_${m.away.team_id}_${idx}`}
-              onClick={() => openMatchCentre(m)}
-              className="flex w-full cursor-pointer flex-col gap-3 rounded-xl border border-surface1 bg-surface0 p-4 text-left transition-colors hover:border-blue/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)] lg:items-center"
-              aria-label={`Open ${m.home.name} versus ${m.away.name} match centre`}
-            >
-              {/* Date & Competition */}
-              <div className="flex min-w-0 flex-wrap items-center gap-2.5 text-xs text-subtext0">
-                <span className="font-medium text-subtext1">{m.match_date}{m.kickoff_time ? ` · Kickoff ${m.kickoff_time}` : ''}</span>
-                <span className="rounded bg-surface1 px-2 py-0.5 text-subtext1 font-medium text-[11px]">
-                  {m.competition}
-                </span>
-              </div>
-
-              {/* Match Scoreline */}
-              <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:gap-4">
-                <div className="flex min-w-0 flex-col items-center gap-1 text-center font-semibold leading-tight text-text sm:flex-row-reverse sm:justify-start sm:gap-2 sm:text-right">
-                  <FootballBadge url={m.home.badge_url} name={m.home.name} size={22} />
-                  <span className="min-w-0 [overflow-wrap:anywhere]">{m.home.name}</span>
-                </div>
-                <div className="flex min-w-14 items-center justify-center">
-                  <span className="whitespace-nowrap rounded-md border border-surface1 bg-mantle px-2 py-1 text-sm font-bold tracking-wider text-blue sm:px-3">
-                    {m.home_goals !== null ? m.home_goals : '-'} : {m.away_goals !== null ? m.away_goals : '-'}
-                  </span>
-                </div>
-                <div className="flex min-w-0 flex-col items-center gap-1 text-center font-semibold leading-tight text-text sm:flex-row sm:justify-start sm:gap-2 sm:text-left">
-                  <FootballBadge url={m.away.badge_url} name={m.away.name} size={22} />
-                  <span className="min-w-0 [overflow-wrap:anywhere]">{m.away.name}</span>
-                </div>
-              </div>
-
-              {/* Referee & Venue */}
-              <div className="flex min-w-0 items-center justify-end gap-3 text-xs text-subtext0">
-                {m.home_shots !== null && m.away_shots !== null ? (
-                  <span className="rounded-lg bg-mantle px-2 py-1 font-mono text-[11px] text-subtext1" title="Shots (home–away)">
-                    Shots {m.home_shots}–{m.away_shots}
-                  </span>
-                ) : null}
-                {m.referee && (
-                  <span className="flex items-center gap-1 text-overlay1 truncate" title={`Referee: ${m.referee}`}>
-                    <UserCheck className="h-3 w-3 text-overlay0" />
-                    {m.referee}
-                  </span>
-                )}
-                {m.venue && (
-                  <span className="text-overlay0 text-[11px] hidden md:inline">
-                    {m.venue}
-                  </span>
-                )}
-                <ChevronRight className="size-4 shrink-0 text-blue" aria-hidden="true" />
-              </div>
-            </button>
+        <div className="overflow-hidden rounded-xl border border-surface1 bg-surface0">
+          {dateGroups.map((group) => (
+            <section key={group.date} aria-label={group.date}>
+              <h2 className="sticky top-14 z-[1] border-b border-surface1 bg-mantle px-4 py-1.5 text-xs font-medium tabular-nums text-subtext0 lg:top-0">{group.date}</h2>
+              <ul>
+                {group.matches.map((m, idx) => (
+                  <li key={`${m.match_date}_${m.home.team_id}_${m.away.team_id}_${idx}`} className="border-b border-surface1 last:border-b-0">
+                    <button
+                      type="button"
+                      onClick={() => openMatchCentre(m)}
+                      className="grid w-full grid-cols-1 gap-2 px-4 py-2.5 text-left transition-colors hover:bg-surface1/40 lg:grid-cols-[7rem_minmax(0,1fr)_12rem] lg:items-center"
+                      aria-label={`Open ${m.home.name} versus ${m.away.name} match centre`}
+                    >
+                      <span className="flex items-center gap-2 text-xs text-subtext0">
+                        <span className="tabular-nums">{m.kickoff_time || '—'}</span>
+                        <Chip>{m.competition}</Chip>
+                      </span>
+                      <span className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
+                        <span className="flex min-w-0 flex-col items-center gap-1 text-center text-[13px] font-medium leading-tight text-text sm:flex-row-reverse sm:justify-start sm:gap-2 sm:text-right">
+                          <FootballBadge url={m.home.badge_url} name={m.home.name} size={20} />
+                          <span className="min-w-0 [overflow-wrap:anywhere]">{m.home.name}</span>
+                        </span>
+                        <span className={`min-w-14 rounded-md px-2 py-0.5 text-center text-sm font-semibold tabular-nums ${m.home_goals === null ? 'text-subtext0' : 'bg-mantle text-text'}`}>
+                          {m.home_goals !== null ? m.home_goals : '–'} : {m.away_goals !== null ? m.away_goals : '–'}
+                        </span>
+                        <span className="flex min-w-0 flex-col items-center gap-1 text-center text-[13px] font-medium leading-tight text-text sm:flex-row sm:justify-start sm:gap-2 sm:text-left">
+                          <FootballBadge url={m.away.badge_url} name={m.away.name} size={20} />
+                          <span className="min-w-0 [overflow-wrap:anywhere]">{m.away.name}</span>
+                        </span>
+                      </span>
+                      <span className="flex min-w-0 items-center justify-end gap-3 text-xs text-subtext0">
+                        {m.home_shots !== null && m.away_shots !== null ? (
+                          <span className="tabular-nums" title="Shots (home–away)">Shots {m.home_shots}–{m.away_shots}</span>
+                        ) : null}
+                        {m.referee && (
+                          <span className="flex min-w-0 items-center gap-1 truncate" title={`Referee: ${m.referee}`}>
+                            <UserCheck className="size-3 shrink-0 text-overlay0" aria-hidden="true" />
+                            <span className="truncate">{m.referee}</span>
+                          </span>
+                        )}
+                        <ChevronRight className="size-4 shrink-0 text-overlay0" aria-hidden="true" />
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
           ))}
         </div>
       )}
 
-      {/* Pagination Footer */}
-      <div className="flex items-center justify-between pt-2 border-t border-surface1 text-xs text-subtext0">
-        <div>
-          Showing {filteredMatches.length} matches (limit {page?.limit || 10})
-        </div>
-
+      <div className="flex items-center justify-between text-xs text-subtext0">
+        <span className="tabular-nums">Showing {filteredMatches.length} matches (limit {page?.limit || 10})</span>
         <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            isDisabled={cursorHistory.length === 0}
-            onPress={handlePrevPage}
-            className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium cursor-pointer"
-          >
-            <ChevronLeft className="h-3.5 w-3.5" />
+          <Button size="sm" variant="outline" isDisabled={cursorHistory.length === 0} onPress={handlePrevPage}>
+            <ChevronLeft className="size-3.5" aria-hidden="true" />
             <span>Previous</span>
           </Button>
-
-          <Button
-            size="sm"
-            variant="outline"
-            isDisabled={isFetching || !page?.next_cursor}
-            onPress={handleNextPage}
-            className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium cursor-pointer"
-          >
+          <Button size="sm" variant="outline" isDisabled={isFetching || !page?.next_cursor} onPress={handleNextPage}>
             <span>Next</span>
-            <ChevronRight className="h-3.5 w-3.5" />
+            <ChevronRight className="size-3.5" aria-hidden="true" />
           </Button>
         </div>
       </div>
-
     </div>
   );
 }
 
 export default function MatchesPage() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader icon={Calendar} eyebrow="Fixtures and results" title="Match Centre" description="Open any result for its factual match story, technical plan, verified lineup roles, timeline and statistics." />
 
       <Suspense fallback={<LoadingSkeleton lines={10} />}>

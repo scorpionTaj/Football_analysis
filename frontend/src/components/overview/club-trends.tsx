@@ -1,15 +1,22 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Card } from '@heroui/react';
-import { TrendingUp } from 'lucide-react';
 import {
   CartesianGrid, Cell, Legend, Line, LineChart, ResponsiveContainer, Scatter, ScatterChart,
   Tooltip as RechartsTooltip, XAxis, YAxis, ZAxis,
 } from 'recharts';
 import { FootballBadge } from '@/lib/media-utils';
 import type { Competition, OverviewResponse } from '@/lib/api/types';
-import { tooltipProps } from '@/lib/chart-theme';
+import { axisProps, gridProps, tooltipProps } from '@/lib/chart-theme';
+import { Panel } from '@/components/ui/panel';
+import { Segmented } from '@/components/ui/segmented';
+
+const CHART_VIEWS = [
+  { value: 'trend', label: 'Over time' },
+  { value: 'matrix', label: 'Strength map' },
+  { value: 'scatter', label: 'Attack vs defence' },
+  { value: 'elo', label: 'Season-end Elo' },
+] as const;
 
 const CHART_COLORS = [
   'var(--series-1)', // blue
@@ -160,64 +167,11 @@ export function ClubTrends({
 
   return (
     <>
-      {/* 5. Analytics Visualizations */}
-      <Card className="rounded-2xl bg-surface0 border border-surface1/80 p-6 shadow-sm">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-surface1/60 pb-4 mb-6">
-          <div>
-            <h2 className="text-lg font-bold text-text flex items-center gap-2">
-              <TrendingUp size={18} className="text-blue" />
-              Advanced Performance Analytics
-            </h2>
-            <p className="text-xs text-subtext0">
-              Comparative metrics across {currentComp?.name || selectedComp} seasons
-            </p>
-          </div>
-
-          {/* Visualization Tab Switcher */}
-          <div className="flex flex-wrap items-center gap-1.5 p-1 bg-mantle rounded-xl border border-surface1 text-xs">
-            <button
-              onClick={() => setChartView('trend')}
-              className={`px-3 py-1.5 rounded-lg font-semibold transition-colors cursor-pointer ${
-                chartView === 'trend'
-                  ? 'bg-base text-blue shadow-sm'
-                  : 'text-subtext0 hover:text-text'
-              }`}
-            >
-              Performance Over Time
-            </button>
-            <button
-              onClick={() => setChartView('matrix')}
-              className={`px-3 py-1.5 rounded-lg font-semibold transition-colors cursor-pointer ${
-                chartView === 'matrix'
-                  ? 'bg-base text-blue shadow-sm'
-                  : 'text-subtext0 hover:text-text'
-              }`}
-            >
-              Season Strength Map
-            </button>
-            <button
-              onClick={() => setChartView('scatter')}
-              className={`px-3 py-1.5 rounded-lg font-semibold transition-colors cursor-pointer ${
-                chartView === 'scatter'
-                  ? 'bg-base text-blue shadow-sm'
-                  : 'text-subtext0 hover:text-text'
-              }`}
-            >
-              Attack vs Defense
-            </button>
-            <button
-              onClick={() => setChartView('elo')}
-              className={`px-3 py-1.5 rounded-lg font-semibold transition-colors cursor-pointer ${
-                chartView === 'elo'
-                  ? 'bg-base text-blue shadow-sm'
-                  : 'text-subtext0 hover:text-text'
-              }`}
-            >
-              Season-End Elo
-            </button>
-          </div>
-        </div>
-
+      <Panel
+        title="Performance analytics"
+        description={`Comparative metrics across ${currentComp?.name || selectedComp} seasons`}
+        actions={<Segmented label="Chart view" value={chartView} onChange={setChartView} options={CHART_VIEWS} />}
+      >
         {/* View 1: Performance Over Time (PPG Line Chart) */}
         {chartView === 'trend' && (
           <div>
@@ -232,9 +186,9 @@ export function ClubTrends({
             <div className="h-80 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={trendChartData} margin={{ top: 10, right: 20, left: -15, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
-                  <XAxis dataKey="season" stroke="var(--chart-axis)" fontSize={12} />
-                  <YAxis domain={[0, 3]} stroke="var(--chart-axis)" fontSize={12} />
+                  <CartesianGrid {...gridProps} vertical={false} />
+                  <XAxis dataKey="season" {...axisProps} />
+                  <YAxis domain={[0, 3]} {...axisProps} />
                   <RechartsTooltip
                     {...tooltipProps}
                   />
@@ -261,10 +215,10 @@ export function ClubTrends({
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-surface1 bg-mantle text-subtext0 uppercase tracking-wider">
-                  <th className="py-3 px-4 font-bold">Club</th>
+                <tr className="text-subtext0">
+                  <th className="h-9 px-3 font-medium">Club</th>
                   {matrixData.seasons.map((yr) => (
-                    <th key={yr} className="py-3 px-3 text-center font-bold">
+                    <th key={yr} className="h-9 px-3 text-center font-medium">
                       {selectedComp === 'WC' ? `${yr}` : `${yr}/${String(yr + 1).slice(-2)}`}
                     </th>
                   ))}
@@ -272,27 +226,27 @@ export function ClubTrends({
               </thead>
               <tbody className="divide-y divide-surface1">
                 {matrixData.clubs.map((row) => (
-                  <tr key={row.club} className="hover:bg-surface1/30 transition-colors">
-                    <td className="py-3 px-4 font-semibold text-text flex items-center gap-2">
+                  <tr key={row.club} className="border-t border-surface1 hover:bg-surface1/40">
+                    <td className="flex h-10 items-center gap-2 px-3 text-text">
                       <FootballBadge name={row.club} size={20} />
-                      <span className={row.club === activeClub ? 'text-blue font-bold' : ''}>
+                      <span className={row.club === activeClub ? 'font-semibold text-accent' : ''}>
                         {row.club}
                       </span>
                     </td>
                     {matrixData.seasons.map((yr) => {
                       const ppg = row.values[yr];
-                      let bgClass = 'bg-surface0 text-overlay0';
+                      // Single-hue sequential scale: stronger accent tint = more points per game.
+                      let bgClass = 'text-overlay0';
                       if (ppg !== undefined) {
-                        if (ppg >= 2.2) bgClass = 'bg-teal/30 text-teal font-bold border border-teal/40';
-                        else if (ppg >= 1.8) bgClass = 'bg-blue/25 text-blue font-semibold border border-blue/30';
-                        else if (ppg >= 1.4) bgClass = 'bg-yellow/20 text-yellow border border-yellow/25';
-                        else if (ppg >= 1.0) bgClass = 'bg-peach/20 text-peach border border-peach/25';
-                        else bgClass = 'bg-red/20 text-red border border-red/25';
+                        if (ppg >= 2.2) bgClass = 'bg-accent/30 text-text font-semibold';
+                        else if (ppg >= 1.8) bgClass = 'bg-accent/20 text-text';
+                        else if (ppg >= 1.4) bgClass = 'bg-accent/10 text-text';
+                        else bgClass = 'text-subtext0';
                       }
 
                       return (
-                        <td key={yr} className="py-3 px-3 text-center">
-                          <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-mono ${bgClass}`}>
+                        <td key={yr} className="px-3 text-center">
+                          <span className={`inline-block min-w-12 rounded-md px-2 py-1 text-xs tabular-nums ${bgClass}`}>
                             {ppg !== undefined ? ppg.toFixed(2) : '—'}
                           </span>
                         </td>
@@ -319,14 +273,13 @@ export function ClubTrends({
             <div className="h-80 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <ScatterChart margin={{ top: 10, right: 30, left: -10, bottom: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                  <CartesianGrid {...gridProps} />
                   <XAxis
                     type="number"
                     dataKey="goalsPerMatch"
                     name="Goals Scored"
                     unit=" G/M"
-                    stroke="var(--chart-axis)"
-                    fontSize={12}
+                    {...axisProps}
                   />
                   <YAxis
                     type="number"
@@ -334,8 +287,7 @@ export function ClubTrends({
                     name="Goals Conceded"
                     unit=" G/M"
                     reversed
-                    stroke="var(--chart-axis)"
-                    fontSize={12}
+                    {...axisProps}
                   />
                   <ZAxis type="number" dataKey="ppg" range={[60, 400]} name="PPG" />
                   <RechartsTooltip
@@ -384,9 +336,9 @@ export function ClubTrends({
             <div className="h-80 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={eloChartData} margin={{ top: 10, right: 20, left: -5, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
-                  <XAxis dataKey="season" stroke="var(--chart-axis)" fontSize={12} />
-                  <YAxis domain={['auto', 'auto']} stroke="var(--chart-axis)" fontSize={12} />
+                  <CartesianGrid {...gridProps} vertical={false} />
+                  <XAxis dataKey="season" {...axisProps} />
+                  <YAxis domain={['auto', 'auto']} {...axisProps} />
                   <RechartsTooltip
                     {...tooltipProps}
                   />
@@ -407,7 +359,7 @@ export function ClubTrends({
             </div>
           </div>
         )}
-      </Card>
+      </Panel>
     </>
   );
 }

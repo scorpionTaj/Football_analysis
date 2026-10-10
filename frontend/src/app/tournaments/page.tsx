@@ -10,10 +10,10 @@ import { SourceBadge } from '@/components/ui/source-badge';
 import { LoadingSkeleton, ErrorMessage, EmptyState } from '@/components/ui/loading';
 import { PageHeader } from '@/components/ui/page-header';
 import { usePagination } from '@/components/ui/pagination';
-import { Trophy, Users, Goal, Calendar, Download, Search } from 'lucide-react';
+import { Trophy, Download, Search } from 'lucide-react';
 import { FootballBadge, CompetitionBadge, PlayerAvatar } from '@/lib/media-utils';
 import { fuzzyMatch } from '@/lib/fuzzy';
-import { Card } from '@heroui/react';
+import { Button } from '@heroui/react';
 import {
   BarChart,
   Bar,
@@ -23,7 +23,13 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from 'recharts';
-import { tooltipProps } from '@/lib/chart-theme';
+import { axisProps, gridProps, tooltipProps } from '@/lib/chart-theme';
+import { Panel } from '@/components/ui/panel';
+import { Select } from '@/components/ui/select';
+import { Segmented } from '@/components/ui/segmented';
+import { Stat, StatGrid } from '@/components/ui/stat';
+import { Chip, FormChip } from '@/components/ui/chip';
+import { DataTable, TBody, THead, Td, Th } from '@/components/ui/data-table';
 
 const calendarYearTournaments = new Set(['WC', 'CWC', 'EURO', 'COPA', 'AFCON', 'ASIAN']);
 
@@ -202,339 +208,168 @@ function TournamentsContent() {
     return <ErrorMessage title="Failed to load tournament" detail={error.message} retry={() => refetch()} />;
   }
 
+  const editionLabel = (yr: number) => calendarYearTournaments.has(selectedTournament) ? `${yr}` : `${yr}/${(yr + 1).toString().slice(2)}`;
+  const tabs = [
+    { value: 'matches' as const, label: `Matches (${filteredMatches.length})` },
+    ...(scorers.length > 0 ? [{ value: 'scorers' as const, label: `Top scorers (${topScorers.length})` }] : []),
+    { value: 'performance' as const, label: `Team performance (${teamPerformance.length})` },
+    { value: 'stages' as const, label: `Stages (${stages.length})` },
+  ];
+
   return (
-    <div className="space-y-6">
-      {/* Tournament Selector Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-surface0 pb-5">
+    <div className="space-y-4">
+      <Panel bodyClassName="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
         <div className="flex min-w-0 items-center gap-3">
           <CompetitionBadge code={currentTournamentConfig.code} name={currentTournamentConfig.name} size={36} />
           <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue">{currentTournamentConfig.group}</p>
-            <p className="truncate text-base font-black text-text">{currentTournamentConfig.name}</p>
+            <p className="text-xs text-subtext0">{currentTournamentConfig.group}</p>
+            <p className="truncate text-base font-semibold text-text">{currentTournamentConfig.name}</p>
           </div>
         </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <select
-            value={selectedTournament}
-            onChange={(event) => {
-              const competition = tournamentConfigs.find((item) => item.code === event.target.value);
+        <div className="flex flex-wrap items-end gap-2">
+          <Select hideLabel label="Tournament" value={selectedTournament}
+            onChange={(value) => {
+              const competition = tournamentConfigs.find((item) => item.code === value);
               if (!competition) return;
               filters.set({ competition: competition.code, season: competition.defaultYear, team: null });
               setStageFilter('all');
               setTeamFilter('all');
             }}
-            className="max-w-[18rem] rounded-lg border border-surface1 bg-surface0 px-3 py-2 text-sm text-text outline-none hover:border-surface2 focus:border-blue"
-            aria-label="Tournament"
-          >
-            {Array.from(groupedTournaments.entries()).map(([group, competitions]) => (
-              <optgroup key={group} label={group}>
-                {competitions.map((competition) => <option key={competition.code} value={competition.code}>{competition.name}</option>)}
-              </optgroup>
-            ))}
-          </select>
-          {/* Year selector for current tournament */}
-          <select
-            value={selectedYear}
-            onChange={(e) => filters.set({ season: Number(e.target.value) })}
-            className="rounded-lg border border-surface1 bg-surface0 px-3 py-2 text-sm text-text outline-none hover:border-surface2 focus:border-blue cursor-pointer"
-            aria-label="Tournament Edition"
-          >
-            {currentTournamentConfig.years.map((yr) => (
-              <option key={yr} value={yr}>
-                {calendarYearTournaments.has(selectedTournament)
-                  ? `${yr}`
-                  : `${yr}/${(yr + 1).toString().slice(2)}`}
-              </option>
-            ))}
-          </select>
+            options={Array.from(groupedTournaments.entries()).flatMap(([group, competitions]) => competitions.map((competition) => ({ value: competition.code, label: competition.name, group })))}
+            className="w-64" />
+          <Select hideLabel label="Tournament Edition" value={String(selectedYear)} onChange={(value) => filters.set({ season: Number(value) })}
+            options={currentTournamentConfig.years.map((yr) => ({ value: String(yr), label: editionLabel(yr) }))} className="w-28" />
           {data?.source && <SourceBadge meta={data.source} />}
         </div>
-      </div>
+      </Panel>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="rounded-xl bg-surface0 border border-surface1 p-4">
-          <div className="flex items-center justify-between text-subtext0 mb-1">
-            <span className="text-xs uppercase font-medium">Matches</span>
-            <Calendar className="h-4 w-4 text-blue" />
-          </div>
-          <p className="text-2xl font-bold text-text">{filteredMatches.length}</p>
-        </div>
+      <StatGrid>
+        <Stat label="Matches" value={filteredMatches.length} />
+        <Stat label="Teams" value={filteredTeamCount} />
+        <Stat label="Total goals" value={totalGoals} />
+        <Stat label="Goals / match" value={avgGoals} />
+      </StatGrid>
 
-        <div className="rounded-xl bg-surface0 border border-surface1 p-4">
-          <div className="flex items-center justify-between text-subtext0 mb-1">
-            <span className="text-xs uppercase font-medium">Teams</span>
-            <Users className="h-4 w-4 text-teal" />
-          </div>
-          <p className="text-2xl font-bold text-text">{filteredTeamCount}</p>
-        </div>
-
-        <div className="rounded-xl bg-surface0 border border-surface1 p-4">
-          <div className="flex items-center justify-between text-subtext0 mb-1">
-            <span className="text-xs uppercase font-medium">Total Goals</span>
-            <Goal className="h-4 w-4 text-peach" />
-          </div>
-          <p className="text-2xl font-bold text-text">{totalGoals}</p>
-        </div>
-
-        <div className="rounded-xl bg-surface0 border border-surface1 p-4">
-          <div className="flex items-center justify-between text-subtext0 mb-1">
-            <span className="text-xs uppercase font-medium">Goals / Match</span>
-            <Trophy className="h-4 w-4 text-mauve" />
-          </div>
-          <p className="text-2xl font-bold text-blue">{avgGoals}</p>
-        </div>
-      </div>
-
-      {/* Stage scoring chart */}
       {stageChartData.length > 0 && (
-        <div className="rounded-xl bg-surface0 border border-surface1 p-5">
-          <h2 className="text-base font-semibold text-text mb-4 flex items-center gap-2">
-            <Trophy className="h-4 w-4 text-blue" /> Goals per Match by Stage
-          </h2>
-          <div className="h-64 w-full">
+        <Panel title="Goals per match by stage">
+          <div className="h-60 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={stageChartData} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
-                <XAxis dataKey="stage" stroke="var(--chart-axis)" fontSize={11} angle={-25} textAnchor="end" />
-                <YAxis stroke="var(--chart-axis)" fontSize={11} />
-                <Tooltip
-                  {...tooltipProps}
-                  formatter={(value) => [`${value} goals/match`, 'Scoring Rate']}
-                  labelFormatter={(lbl) => `Stage: ${lbl}`}
-                />
-                <Bar dataKey="goalsPerMatch" fill="var(--series-1)" radius={[4, 4, 0, 0]} />
+              <BarChart data={stageChartData} margin={{ top: 4, right: 8, left: -20, bottom: 20 }}>
+                <CartesianGrid {...gridProps} />
+                <XAxis dataKey="stage" {...axisProps} angle={-25} textAnchor="end" />
+                <YAxis {...axisProps} />
+                <Tooltip {...tooltipProps} formatter={(value) => [`${value} goals/match`, 'Scoring rate']} labelFormatter={(lbl) => `Stage: ${lbl}`} />
+                <Bar dataKey="goalsPerMatch" fill="var(--series-1)" radius={[3, 3, 0, 0]} maxBarSize={48} />
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </Panel>
       )}
 
-      {/* Filter and Tab Bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-mantle p-3 rounded-xl border border-surface0">
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={() => setActiveTab('matches')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-              activeTab === 'matches' ? 'bg-surface1 text-text' : 'text-subtext0 hover:text-text'
-            }`}
-          >
-            Matches ({filteredMatches.length})
-          </button>
-          {scorers.length > 0 && (
-            <button
-              onClick={() => setActiveTab('scorers')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-                activeTab === 'scorers' ? 'bg-surface1 text-text' : 'text-subtext0 hover:text-text'
-              }`}
-            >
-              Top Scorers ({topScorers.length})
-            </button>
-          )}
-          <button
-            onClick={() => setActiveTab('performance')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-              activeTab === 'performance' ? 'bg-surface1 text-text' : 'text-subtext0 hover:text-text'
-            }`}
-          >
-            Team performance ({teamPerformance.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('stages')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-              activeTab === 'stages' ? 'bg-surface1 text-text' : 'text-subtext0 hover:text-text'
-            }`}
-          >
-            Stages ({stages.length})
-          </button>
-        </div>
-
-        {/* Local Search and Export */}
-        <div className="flex min-w-0 flex-wrap items-center gap-2.5">
-          <>
-              {/* Stage filter */}
-              <select
-                value={stageFilter}
-                onChange={(e) => setStageFilter(e.target.value)}
-                className="max-w-full rounded-lg border border-surface1 bg-surface0 px-2.5 py-1.5 text-xs text-text outline-none cursor-pointer"
-                aria-label="Filter stage"
-              >
-                <option value="all">All Stages</option>
-                {availableStages.map((st) => (
-                  <option key={st} value={st}>{st}</option>
-                ))}
-              </select>
-
-              {/* Team filter */}
-              <select
-                value={teamFilter}
-                onChange={(e) => setTeamFilter(e.target.value)}
-                className="max-w-full rounded-lg border border-surface1 bg-surface0 px-2.5 py-1.5 text-xs text-text outline-none cursor-pointer"
-                aria-label="Filter team"
-              >
-                <option value="all">All Teams</option>
-                {availableTeams.map(([id, name]) => (
-                  <option key={id} value={id}>{name}</option>
-                ))}
-              </select>
-
-              {/* Search input */}
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-overlay0" />
-                <input
-                  type="text"
-                  placeholder="Search..."
-                  value={matchSearch}
-                  onChange={(e) => setMatchSearch(e.target.value)}
-                  className="rounded-lg border border-surface1 bg-surface0 pl-8 pr-3 py-1.5 text-xs text-text outline-none focus:border-blue w-32 sm:w-44"
-                />
-              </div>
-
-              {/* Download CSV */}
-              <button
-                onClick={exportCsv}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface0 border border-surface1 hover:border-surface2 text-xs font-medium text-text transition-colors cursor-pointer"
-                title="Export matches to CSV"
-              >
-                <Download className="h-3.5 w-3.5 text-blue" />
-                <span>Export</span>
-              </button>
-          </>
+      <div className="flex flex-col justify-between gap-3 xl:flex-row xl:items-center">
+        <Segmented label="Tournament view" value={activeTab} onChange={setActiveTab} options={tabs} />
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <Select hideLabel label="Filter stage" value={stageFilter} onChange={setStageFilter}
+            options={[{ value: 'all', label: 'All stages' }, ...availableStages.map((stage) => ({ value: stage, label: stage }))]} className="w-40" />
+          <Select hideLabel label="Filter team" value={teamFilter} onChange={setTeamFilter}
+            options={[{ value: 'all', label: 'All teams' }, ...availableTeams.map(([id, name]) => ({ value: id, label: name }))]} className="w-44" />
+          <span className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-overlay0" aria-hidden="true" />
+            <input type="text" aria-label="Search tournament matches" placeholder="Search…" value={matchSearch} onChange={(e) => setMatchSearch(e.target.value)}
+              className="h-9 w-40 rounded-lg border border-surface1 bg-surface0 pl-8 pr-3 text-[13px] text-text placeholder:text-overlay0 focus:border-accent sm:w-48" />
+          </span>
+          <Button size="sm" variant="outline" onPress={exportCsv}>
+            <Download className="size-3.5" aria-hidden="true" /> Export
+          </Button>
         </div>
       </div>
 
-      {/* Tab 1: Matches View */}
       {activeTab === 'matches' && (
-        <div className="space-y-2">
-          {filteredMatches.length === 0 ? (
-            <EmptyState icon="⚽" message="No matches match the selected criteria" />
-          ) : (
-            <>
+        filteredMatches.length === 0 ? (
+          <Panel><EmptyState icon={Trophy} message="No matches match the selected criteria" /></Panel>
+        ) : (
+          <Panel bodyClassName="p-0">
+            <ul>
               {paginatedMatches.map((m, idx) => (
-                <div
-                  key={`${m.match_date}_${m.home.team_id}_${m.away.team_id}_${idx}`}
-                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl bg-surface0 border border-surface1 hover:border-surface2 transition-colors"
-                >
-                  {/* Match Metadata */}
-                  <div className="flex items-center gap-3 text-xs text-subtext0">
-                    <span className="font-mono text-overlay1">{m.match_date}</span>
-                    {m.stage && (
-                      <span className="rounded bg-surface1 px-2 py-0.5 text-subtext1 font-medium">
-                        {m.stage}
-                      </span>
-                    )}
-                    {m.venue && <span className="hidden md:inline text-overlay0">📍 {m.venue}</span>}
-                  </div>
-
-                  {/* Scoreline */}
-                  <div className="flex items-center justify-center gap-3 sm:gap-6 flex-1 sm:px-8">
-                    <div className="w-1/2 flex items-center justify-end gap-2 font-semibold text-text truncate">
-                      <span className="truncate">{m.home.name}</span>
-                      <FootballBadge url={m.home.badge_url} name={m.home.name} size={22} />
-                    </div>
-                    <div className="flex flex-col items-center justify-center min-w-[70px]">
-                      <span className="rounded-md bg-mantle border border-surface1 px-3 py-1 text-sm font-bold text-blue tracking-wider">
-                        {m.home_goals !== null ? m.home_goals : '-'} : {m.away_goals !== null ? m.away_goals : '-'}
+                <li key={`${m.match_date}_${m.home.team_id}_${m.away.team_id}_${idx}`}
+                  className="grid grid-cols-1 gap-2 border-b border-surface1 px-4 py-2.5 last:border-b-0 sm:grid-cols-[11rem_minmax(0,1fr)_5rem] sm:items-center">
+                  <span className="flex min-w-0 items-center gap-2 text-xs text-subtext0">
+                    <span className="tabular-nums">{m.match_date}</span>
+                    {m.stage && <Chip className="truncate">{m.stage}</Chip>}
+                  </span>
+                  <span className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 text-[13px] font-medium text-text">
+                    <span className="flex min-w-0 items-center justify-end gap-2"><span className="truncate">{m.home.name}</span><FootballBadge url={m.home.badge_url} name={m.home.name} size={20} /></span>
+                    <span className="flex min-w-16 flex-col items-center">
+                      <span className="rounded-md bg-mantle px-2 py-0.5 text-sm font-semibold tabular-nums">
+                        {m.home_goals !== null ? m.home_goals : '–'} : {m.away_goals !== null ? m.away_goals : '–'}
                       </span>
                       {m.home_penalties !== null && m.away_penalties !== null && (
-                        <span className="text-[10px] text-yellow font-medium mt-0.5">
-                          ({m.home_penalties}-{m.away_penalties} pens)
-                        </span>
+                        <span className="mt-0.5 text-xs tabular-nums text-subtext0">({m.home_penalties}–{m.away_penalties} pens)</span>
                       )}
-                    </div>
-                    <div className="w-1/2 flex items-center justify-start gap-2 font-semibold text-text truncate">
-                      <FootballBadge url={m.away.badge_url} name={m.away.name} size={22} />
-                      <span className="truncate">{m.away.name}</span>
-                    </div>
-                  </div>
-
-                  {/* Source or status */}
-                  <div className="text-right text-xs text-overlay0 hidden sm:block min-w-[80px]">
-                    {m.status || 'FT'}
-                  </div>
-                </div>
+                    </span>
+                    <span className="flex min-w-0 items-center gap-2"><FootballBadge url={m.away.badge_url} name={m.away.name} size={20} /><span className="truncate">{m.away.name}</span></span>
+                  </span>
+                  <span className="hidden text-right text-xs text-subtext0 sm:block">{m.status || 'FT'}</span>
+                </li>
               ))}
-              {MatchesPagination}
-            </>
-          )}
-        </div>
+            </ul>
+            <div className="px-4 pb-3">{MatchesPagination}</div>
+          </Panel>
+        )
       )}
 
-      {/* Tab 2: Scorers View */}
       {activeTab === 'scorers' && scorers.length > 0 && (
-        <Card className="rounded-2xl border border-surface1 bg-surface0 overflow-hidden shadow-sm">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-surface1 bg-mantle text-xs uppercase text-subtext0">
-              <tr>
-                <th className="py-3 px-4 w-16">Rank</th>
-                <th className="py-3 px-4">Player</th>
-                <th className="py-3 px-4">Team</th>
-                <th className="py-3 px-4 text-center">Penalties</th>
-                <th className="py-3 px-4 text-right">Goals</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-surface1/60">
-              {paginatedScorers.map((sc, index) => {
-                const rank = (scorersPage - 1) * scorersPageSize + index + 1;
-                return (
-                  <tr key={`${sc.player}_${sc.team}`} className="hover:bg-surface1/40 transition-colors">
-                    <td className="py-3 px-4 font-mono text-xs font-bold text-subtext0">#{rank}</td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-3">
-                        <PlayerAvatar name={sc.player} size={36} ring={false} />
-                        <span className="font-bold text-text">{sc.player}</span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 text-subtext1 font-medium">{sc.team}</td>
-                    <td className="py-3 px-4 text-center text-xs text-subtext0 font-mono">
-                      {sc.penalties ? `${sc.penalties}` : '—'}
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue/15 text-blue font-mono">
-                        {sc.goals} {sc.goals === 1 ? 'goal' : 'goals'}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          <div className="p-3 bg-mantle border-t border-surface1">
-            {ScorersPagination}
-          </div>
-        </Card>
+        <Panel bodyClassName="p-0">
+          <DataTable minWidth={520} caption="Top scorers">
+            <THead><tr><Th className="w-16">Rank</Th><Th>Player</Th><Th>Team</Th><Th align="right">Penalties</Th><Th align="right">Goals</Th></tr></THead>
+            <TBody>
+              {paginatedScorers.map((sc, index) => (
+                <tr key={`${sc.player}_${sc.team}`}>
+                  <Td className="text-subtext0">{(scorersPage - 1) * scorersPageSize + index + 1}</Td>
+                  <Td><span className="flex items-center gap-2.5 font-medium"><PlayerAvatar name={sc.player} size={26} ring={false} />{sc.player}</span></Td>
+                  <Td className="text-subtext1">{sc.team}</Td>
+                  <Td align="right" className="text-subtext0">{sc.penalties ? sc.penalties : '—'}</Td>
+                  <Td align="right" className="font-semibold">{sc.goals}</Td>
+                </tr>
+              ))}
+            </TBody>
+          </DataTable>
+          <div className="px-4 pb-3">{ScorersPagination}</div>
+        </Panel>
       )}
 
       {activeTab === 'performance' && (
-        <Card className="overflow-hidden rounded-2xl border border-surface1 bg-surface0 shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="border-b border-surface1 bg-mantle uppercase text-subtext0"><tr><th className="px-4 py-3">Rank</th><th className="px-4 py-3">Team</th><th className="px-3 py-3 text-center">P</th><th className="px-3 py-3 text-center">W</th><th className="px-3 py-3 text-center">D</th><th className="px-3 py-3 text-center">L</th><th className="px-3 py-3 text-center">GF</th><th className="px-3 py-3 text-center">GA</th><th className="px-3 py-3 text-center">GD</th><th className="px-3 py-3 text-center">Form</th></tr></thead>
-              <tbody className="divide-y divide-surface1">
-                {teamPerformance.slice(0, 20).map((row, index) => <tr key={row.id}><td className="px-4 py-3 font-mono">{index + 1}</td><td className="px-4 py-3"><span className="flex items-center gap-2 font-semibold text-text"><FootballBadge name={row.name} url={row.badge} size={22} />{row.name}</span></td><td className="px-3 py-3 text-center">{row.played}</td><td className="px-3 py-3 text-center text-green">{row.wins}</td><td className="px-3 py-3 text-center text-yellow">{row.draws}</td><td className="px-3 py-3 text-center text-red">{row.losses}</td><td className="px-3 py-3 text-center">{row.goalsFor}</td><td className="px-3 py-3 text-center">{row.goalsAgainst}</td><td className="px-3 py-3 text-center font-mono">{row.goalsFor - row.goalsAgainst > 0 ? '+' : ''}{row.goalsFor - row.goalsAgainst}</td><td className="px-3 py-3 text-center font-mono">{row.form.slice(-5).join(' ')}</td></tr>)}
-              </tbody>
-            </table>
-          </div>
-          <p className="border-t border-surface1 p-3 text-xs text-subtext0">Performance ranking describes the selected tournament matches; it is not an official group table.</p>
-        </Card>
+        <Panel bodyClassName="p-0">
+          <DataTable minWidth={680} caption="Team performance">
+            <THead><tr><Th>Rank</Th><Th>Team</Th><Th align="right">P</Th><Th align="right">W</Th><Th align="right">D</Th><Th align="right">L</Th><Th align="right">GF</Th><Th align="right">GA</Th><Th align="right">GD</Th><Th align="center">Form</Th></tr></THead>
+            <TBody>
+              {teamPerformance.slice(0, 20).map((row, index) => {
+                const gd = row.goalsFor - row.goalsAgainst;
+                return (
+                  <tr key={row.id}>
+                    <Td className="text-subtext0">{index + 1}</Td>
+                    <Td><span className="flex items-center gap-2 font-medium"><FootballBadge name={row.name} url={row.badge} size={20} />{row.name}</span></Td>
+                    <Td align="right" className="text-subtext1">{row.played}</Td>
+                    <Td align="right" className="text-subtext1">{row.wins}</Td>
+                    <Td align="right" className="text-subtext1">{row.draws}</Td>
+                    <Td align="right" className="text-subtext1">{row.losses}</Td>
+                    <Td align="right" className="text-subtext1">{row.goalsFor}</Td>
+                    <Td align="right" className="text-subtext1">{row.goalsAgainst}</Td>
+                    <Td align="right" className={gd > 0 ? 'text-positive' : gd < 0 ? 'text-negative' : 'text-subtext0'}>{gd > 0 ? '+' : ''}{gd}</Td>
+                    <Td align="center"><span className="inline-flex gap-1">{row.form.slice(-5).map((result, i) => <FormChip key={i} result={result} />)}</span></Td>
+                  </tr>
+                );
+              })}
+            </TBody>
+          </DataTable>
+          <p className="border-t border-surface1 px-4 py-3 text-xs text-subtext0">Performance ranking describes the selected tournament matches; it is not an official group table.</p>
+        </Panel>
       )}
 
-      {/* Tab 3: Stages Summary View */}
       {activeTab === 'stages' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
           {stages.map((st) => (
-            <Card key={st.stage} className="p-5 rounded-2xl bg-surface0 border border-surface1 shadow-sm hover:border-blue/50 transition-all">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-base font-bold text-text">{st.stage}</p>
-                  <p className="text-xs text-subtext0 mt-1">{st.match_count} matches completed</p>
-                </div>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-surface1 text-blue font-bold">
-                  Stage
-                </span>
-              </div>
-            </Card>
+            <Stat key={st.stage} label={st.stage} value={st.match_count} hint="matches completed" />
           ))}
         </div>
       )}
@@ -544,7 +379,7 @@ function TournamentsContent() {
 
 export default function TournamentsPage() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader icon={Trophy} eyebrow="Knockout and international" title="Major Tournaments" description="Explore domestic cups, continental club competitions and international tournaments with stages, scorelines and scorer events." />
 
       <Suspense fallback={<LoadingSkeleton lines={8} />}>
