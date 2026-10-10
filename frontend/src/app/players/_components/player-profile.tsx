@@ -6,9 +6,10 @@ import { Panel } from '@/components/ui/panel';
 import { Chip } from '@/components/ui/chip';
 import { Stat } from '@/components/ui/stat';
 import { SectionHeading } from '@/components/ui/section-heading';
-import { DataTable, TBody, THead, Td, Th } from '@/components/ui/data-table';
+import { DataTable, SortTh, TableFilter, TBody, THead, Td } from '@/components/ui/data-table';
+import { useTableView } from '@/lib/hooks/use-table-view';
 import { usePagination } from '@/components/ui/pagination';
-import { FootballBadge, PlayerAvatar } from '@/lib/media-utils';
+import { CompetitionBadge, FootballBadge, PlayerAvatar } from '@/lib/media-utils';
 import { axisProps, gridProps, legendProps, SERIES, tooltipProps } from '@/lib/chart-theme';
 
 export function formatCurrency(eur: number | null | undefined): string {
@@ -103,22 +104,42 @@ export function PlayerProfile({
 }
 
 function PlayerStatsTable({ stats }: { stats: PlayerProfileResponse['stats'] }) {
-  const { paginatedItems, paginationControls } = usePagination(stats, 10);
+  const table = useTableView(stats, {
+    columns: {
+      season: (r) => r.season, competition: (r) => r.competition, apps: (r) => r.appearances, goals: (r) => r.goals,
+      assists: (r) => r.assists, minutes: (r) => r.minutes_played, yellow: (r) => r.yellow_cards, red: (r) => r.red_cards,
+    },
+    initial: { key: 'season', dir: 'desc' },
+    search: (r) => [String(r.season ?? ''), r.competition],
+  });
+  const { paginatedItems, paginationControls } = usePagination(table.rows, 10);
   if (stats.length === 0) {
     return <p className="py-4 text-xs text-subtext0">No historical competition stats recorded for this profile.</p>;
   }
   return (
     <div className="space-y-2">
+      <TableFilter label="Filter season statistics" placeholder="Season or competition…" value={table.query} onChange={table.setQuery} shown={table.rows.length} total={table.total} />
       <div className="overflow-hidden rounded-lg border border-surface1">
         <DataTable minWidth={520} caption="Season statistics">
           <THead>
-            <tr><Th>Season</Th><Th>Competition</Th><Th align="right">Apps</Th><Th align="right">Goals</Th><Th align="right">Assists</Th><Th align="right">Mins</Th><Th align="right">Yel</Th><Th align="right">Red</Th></tr>
+            <tr>
+              <SortTh {...table.sortProps('season')}>Season</SortTh>
+              <SortTh {...table.sortProps('competition')}>Competition</SortTh>
+              <SortTh align="right" {...table.sortProps('apps')}>Apps</SortTh>
+              <SortTh align="right" {...table.sortProps('goals')}>Goals</SortTh>
+              <SortTh align="right" {...table.sortProps('assists')}>Assists</SortTh>
+              <SortTh align="right" {...table.sortProps('minutes')}>Mins</SortTh>
+              <SortTh align="right" {...table.sortProps('yellow')}>Yel</SortTh>
+              <SortTh align="right" {...table.sortProps('red')}>Red</SortTh>
+            </tr>
           </THead>
           <TBody>
             {paginatedItems.map((st, i) => (
               <tr key={i}>
                 <Td className="font-medium">{st.season}</Td>
-                <Td className="capitalize text-subtext1">{st.competition || 'domestic'}</Td>
+                <Td className="capitalize text-subtext1">
+                  <span className="flex items-center gap-2"><CompetitionBadge code={st.competition || undefined} name={st.competition || 'domestic'} size={16} />{st.competition || 'domestic'}</span>
+                </Td>
                 <Td align="right">{st.appearances ?? '–'}</Td>
                 <Td align="right" className="font-semibold">{st.goals ?? 0}</Td>
                 <Td align="right">{st.assists ?? 0}</Td>

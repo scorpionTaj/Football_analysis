@@ -29,7 +29,8 @@ import { Select } from '@/components/ui/select';
 import { Segmented } from '@/components/ui/segmented';
 import { Stat, StatGrid } from '@/components/ui/stat';
 import { Chip, FormChip } from '@/components/ui/chip';
-import { DataTable, TBody, THead, Td, Th } from '@/components/ui/data-table';
+import { DataTable, SortTh, TableFilter, TBody, THead, Td, Th } from '@/components/ui/data-table';
+import { useTableView } from '@/lib/hooks/use-table-view';
 
 const calendarYearTournaments = new Set(['WC', 'CWC', 'EURO', 'COPA', 'AFCON', 'ASIAN']);
 
@@ -129,19 +130,21 @@ function TournamentsContent() {
 
   // Scorers ranking calculation
   const topScorers = useMemo(() => {
-    const scorerMap = new Map<string, { player: string; team: string; goals: number; penalties: number }>();
+    const scorerMap = new Map<string, { player: string; team: string; teamBadge: string | null | undefined; goals: number; penalties: number }>();
     const selectedDates = new Set(filteredMatches.map((match) => match.match_date));
     for (const g of scorers) {
       if (g.own_goal) continue;
       if ((stageFilter !== 'all' || teamFilter !== 'all') && !selectedDates.has(g.match_date)) continue;
       if (teamFilter !== 'all' && g.team.team_id !== teamFilter) continue;
       const key = `${g.player}_${g.team.name}`;
-      const existing = scorerMap.get(key) || { player: g.player, team: g.team.name, goals: 0, penalties: 0 };
+      const existing = scorerMap.get(key) || { player: g.player, team: g.team.name, teamBadge: g.team.badge_url, goals: 0, penalties: 0 };
       existing.goals += 1;
       if (g.penalty) existing.penalties += 1;
       scorerMap.set(key, existing);
     }
-    return Array.from(scorerMap.values()).sort((a, b) => b.goals - a.goals || a.player.localeCompare(b.player));
+    return Array.from(scorerMap.values())
+      .sort((a, b) => b.goals - a.goals || a.player.localeCompare(b.player))
+      .map((row, index) => ({ ...row, rank: index + 1 }));
   }, [scorers, filteredMatches, stageFilter, teamFilter]);
 
   const teamPerformance = useMemo(() => {
@@ -165,7 +168,9 @@ function TournamentsContent() {
         home.draws += 1; away.draws += 1; home.points += 1; away.points += 1; home.form.push('D'); away.form.push('D');
       }
     }
-    return Array.from(rows.values()).sort((a, b) => b.points - a.points || (b.goalsFor - b.goalsAgainst) - (a.goalsFor - a.goalsAgainst) || b.goalsFor - a.goalsFor);
+    return Array.from(rows.values())
+      .sort((a, b) => b.points - a.points || (b.goalsFor - b.goalsAgainst) - (a.goalsFor - a.goalsAgainst) || b.goalsFor - a.goalsFor)
+      .map((row, index) => ({ ...row, rank: index + 1, goalDifference: row.goalsFor - row.goalsAgainst }));
   }, [filteredMatches]);
 
   // CSV export handler
@@ -196,12 +201,23 @@ function TournamentsContent() {
     paginationControls: MatchesPagination,
   } = usePagination(filteredMatches, 10);
 
-  const {
-    paginatedItems: paginatedScorers,
-    paginationControls: ScorersPagination,
-    currentPage: scorersPage,
-    pageSize: scorersPageSize,
-  } = usePagination(topScorers, 10);
+  const scorerTable = useTableView(topScorers, {
+    columns: { rank: (r) => r.rank, player: (r) => r.player, team: (r) => r.team, penalties: (r) => r.penalties, goals: (r) => r.goals },
+    initial: { key: 'rank', dir: 'asc' },
+    search: (r) => [r.player, r.team],
+  });
+  const { paginatedItems: paginatedScorers, paginationControls: ScorersPagination } = usePagination(scorerTable.rows, 10);
+
+  const performanceTable = useTableView(teamPerformance, {
+    columns: {
+      rank: (r) => r.rank, team: (r) => r.name, played: (r) => r.played, wins: (r) => r.wins, draws: (r) => r.draws,
+      losses: (r) => r.losses, goalsFor: (r) => r.goalsFor, goalsAgainst: (r) => r.goalsAgainst, goalDifference: (r) => r.goalDifference,
+      points: (r) => r.points,
+    },
+    initial: { key: 'rank', dir: 'asc' },
+    search: (r) => [r.name],
+  });
+  const { paginatedItems: paginatedPerformance, paginationControls: PerformancePagination } = usePagination(performanceTable.rows, 10);
 
   if (isLoading) return <LoadingSkeleton lines={8} />;
   if (error) {
@@ -319,15 +335,21 @@ function TournamentsContent() {
       )}
 
       {activeTab === 'scorers' && scorers.length > 0 && (
-        <Panel bodyClassName="p-0">
-          <DataTable minWidth={520} caption="Top scorers">
-            <THead><tr><Th className="w-16">Rank</Th><Th>Player</Th><Th>Team</Th><Th align="right">Penalties</Th><Th align="right">Goals</Th></tr></THead>
+        <Panel title="Top scorers" actions={<TableFilter label="Filter scorers" placeholder="Player or team…" value={scorerTable.query} onChange={scorerTable.setQuery} shown={scorerTable.rows.length} total={scorerTable.total} />} bodyClassName="p-0">
+          <DataTable minWidth={560} caption="Top scorers">
+            <THead><tr>
+              <SortTh className="w-16" {...scorerTable.sortProps('rank')}>Rank</SortTh>
+              <SortTh {...scorerTable.sortProps('player')}>Player</SortTh>
+              <SortTh {...scorerTable.sortProps('team')}>Team</SortTh>
+              <SortTh align="right" {...scorerTable.sortProps('penalties')}>Penalties</SortTh>
+              <SortTh align="right" {...scorerTable.sortProps('goals')}>Goals</SortTh>
+            </tr></THead>
             <TBody>
-              {paginatedScorers.map((sc, index) => (
+              {paginatedScorers.map((sc) => (
                 <tr key={`${sc.player}_${sc.team}`}>
-                  <Td className="text-subtext0">{(scorersPage - 1) * scorersPageSize + index + 1}</Td>
+                  <Td className="text-subtext0">{sc.rank}</Td>
                   <Td><span className="flex items-center gap-2.5 font-medium"><PlayerAvatar name={sc.player} size={26} ring={false} />{sc.player}</span></Td>
-                  <Td className="text-subtext1">{sc.team}</Td>
+                  <Td><span className="flex items-center gap-2 text-subtext1"><FootballBadge url={sc.teamBadge} name={sc.team} size={18} />{sc.team}</span></Td>
                   <Td align="right" className="text-subtext0">{sc.penalties ? sc.penalties : '—'}</Td>
                   <Td align="right" className="font-semibold">{sc.goals}</Td>
                 </tr>
@@ -339,15 +361,26 @@ function TournamentsContent() {
       )}
 
       {activeTab === 'performance' && (
-        <Panel bodyClassName="p-0">
-          <DataTable minWidth={680} caption="Team performance">
-            <THead><tr><Th>Rank</Th><Th>Team</Th><Th align="right">P</Th><Th align="right">W</Th><Th align="right">D</Th><Th align="right">L</Th><Th align="right">GF</Th><Th align="right">GA</Th><Th align="right">GD</Th><Th align="center">Form</Th></tr></THead>
+        <Panel title="Team performance" actions={<TableFilter label="Filter teams" placeholder="Filter teams…" value={performanceTable.query} onChange={performanceTable.setQuery} shown={performanceTable.rows.length} total={performanceTable.total} />} bodyClassName="p-0">
+          <DataTable minWidth={720} caption="Team performance">
+            <THead><tr>
+              <SortTh {...performanceTable.sortProps('rank')}>Rank</SortTh>
+              <SortTh {...performanceTable.sortProps('team')}>Team</SortTh>
+              <SortTh align="right" {...performanceTable.sortProps('played')}>P</SortTh>
+              <SortTh align="right" {...performanceTable.sortProps('wins')}>W</SortTh>
+              <SortTh align="right" {...performanceTable.sortProps('draws')}>D</SortTh>
+              <SortTh align="right" {...performanceTable.sortProps('losses')}>L</SortTh>
+              <SortTh align="right" {...performanceTable.sortProps('goalsFor')}>GF</SortTh>
+              <SortTh align="right" {...performanceTable.sortProps('goalsAgainst')}>GA</SortTh>
+              <SortTh align="right" {...performanceTable.sortProps('goalDifference')}>GD</SortTh>
+              <Th align="center">Form</Th>
+            </tr></THead>
             <TBody>
-              {teamPerformance.slice(0, 20).map((row, index) => {
-                const gd = row.goalsFor - row.goalsAgainst;
+              {paginatedPerformance.map((row) => {
+                const gd = row.goalDifference;
                 return (
                   <tr key={row.id}>
-                    <Td className="text-subtext0">{index + 1}</Td>
+                    <Td className="text-subtext0">{row.rank}</Td>
                     <Td><span className="flex items-center gap-2 font-medium"><FootballBadge name={row.name} url={row.badge} size={20} />{row.name}</span></Td>
                     <Td align="right" className="text-subtext1">{row.played}</Td>
                     <Td align="right" className="text-subtext1">{row.wins}</Td>
@@ -362,6 +395,7 @@ function TournamentsContent() {
               })}
             </TBody>
           </DataTable>
+          <div className="px-4 pb-3">{PerformancePagination}</div>
           <p className="border-t border-surface1 px-4 py-3 text-xs text-subtext0">Performance ranking describes the selected tournament matches; it is not an official group table.</p>
         </Panel>
       )}

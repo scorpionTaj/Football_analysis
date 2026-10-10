@@ -9,7 +9,8 @@ import { queryKeys } from '@/lib/api/query-keys';
 import { SourceBadge } from '@/components/ui/source-badge';
 import { LoadingSkeleton, ErrorMessage, EmptyState } from '@/components/ui/loading';
 import { PageHeader } from '@/components/ui/page-header';
-import { FootballBadge } from '@/lib/media-utils';
+import { CompetitionBadge, FootballBadge } from '@/lib/media-utils';
+import { fuzzyMatch } from '@/lib/fuzzy';
 import { Target, Download } from 'lucide-react';
 import {
   BarChart,
@@ -27,7 +28,7 @@ import { Select } from '@/components/ui/select';
 import { Stat } from '@/components/ui/stat';
 import { Chip } from '@/components/ui/chip';
 import { ProbabilityBar } from '@/components/ui/probability-bar';
-import { DataTable, TBody, THead, Td, Th } from '@/components/ui/data-table';
+import { DataTable, TableFilter, TBody, THead, Td, Th } from '@/components/ui/data-table';
 
 const LEAGUE_NAMES: Record<string, string> = {
   E0: 'Premier League', SP1: 'La Liga', D1: 'Bundesliga', I1: 'Serie A', F1: 'Ligue 1',
@@ -37,6 +38,8 @@ const LEAGUE_NAMES: Record<string, string> = {
 
 function PredictionsContent() {
   const [forecastLeague, setForecastLeague] = useState('all');
+  const [forecastTeam, setForecastTeam] = useState('');
+  const [forecastSort, setForecastSort] = useState<'date' | 'confidence'>('date');
   const [visibleForecasts, setVisibleForecasts] = useState(30);
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: queryKeys.predictions,
@@ -48,11 +51,15 @@ function PredictionsContent() {
     () => Array.from(new Set(forecasts.map((row) => row.competition))).sort(),
     [forecasts],
   );
-  const filteredForecasts = useMemo(
-    () => forecasts
+  const filteredForecasts = useMemo(() => {
+    const strength = (row: typeof forecasts[number]) => Math.max(row.home_probability, row.draw_probability, row.away_probability);
+    return forecasts
       .filter((row) => forecastLeague === 'all' || row.competition === forecastLeague)
-      .sort((a, b) => a.match_date.localeCompare(b.match_date) || a.competition.localeCompare(b.competition)),
-    [forecasts, forecastLeague],
+      .filter((row) => !forecastTeam.trim() || fuzzyMatch(forecastTeam, [row.home.name, row.away.name]))
+      .sort((a, b) => forecastSort === 'confidence'
+        ? strength(b) - strength(a) || a.match_date.localeCompare(b.match_date)
+        : a.match_date.localeCompare(b.match_date) || a.competition.localeCompare(b.competition));
+  }, [forecasts, forecastLeague, forecastTeam, forecastSort],
   );
   const metrics = data?.metrics || {};
 
@@ -231,10 +238,14 @@ function PredictionsContent() {
           <EmptyState icon={Target} message="No current match forecasts available." suggestion="Forecasts update when upcoming domestic fixtures are ingested." />
         ) : (
           <>
-            <div className="flex flex-wrap items-end justify-between gap-3 border-b border-surface1 px-4 py-3 text-xs text-subtext0">
+            <div className="flex flex-wrap items-end gap-3 border-b border-surface1 px-4 py-3 text-xs text-subtext0">
               <Select label="League" value={forecastLeague} onChange={(value) => { setForecastLeague(value); setVisibleForecasts(30); }}
                 options={[{ value: 'all', label: 'All leagues' }, ...forecastLeagues.map((league) => ({ value: league, label: LEAGUE_NAMES[league] || league }))]} className="w-48" />
-              <span className="tabular-nums">Showing {Math.min(visibleForecasts, filteredForecasts.length)} of {filteredForecasts.length} forecasts</span>
+              <Select label="Sort by" value={forecastSort} onChange={(value) => setForecastSort(value as 'date' | 'confidence')}
+                options={[{ value: 'date', label: 'Kick-off (soonest)' }, { value: 'confidence', label: 'Confidence (highest)' }]} className="w-48" />
+              <TableFilter label="Filter forecasts by team" placeholder="Filter by team…" value={forecastTeam}
+                onChange={(value) => { setForecastTeam(value); setVisibleForecasts(30); }} className="self-end" />
+              <span className="ml-auto self-end tabular-nums">Showing {Math.min(visibleForecasts, filteredForecasts.length)} of {filteredForecasts.length} forecasts</span>
             </div>
             <ul className="grid grid-cols-1 lg:grid-cols-2">
               {filteredForecasts.slice(0, visibleForecasts).map((f, idx) => {
@@ -296,7 +307,7 @@ function PredictionsContent() {
             <TBody>
               {leagueBacktest.map((row) => (
                 <tr key={row.league}>
-                  <Td className="font-medium">{LEAGUE_NAMES[row.league] || row.league}</Td>
+                  <Td><span className="flex items-center gap-2 font-medium"><CompetitionBadge code={row.league} name={LEAGUE_NAMES[row.league] || row.league} size={18} />{LEAGUE_NAMES[row.league] || row.league}</span></Td>
                   <Td align="right" className="text-subtext1">{row.matches}</Td>
                   <Td align="right">{pct(row.accuracy)}</Td>
                   <Td align="right" className="text-subtext1">{row.log_loss.toFixed(3)}</Td>
@@ -366,7 +377,13 @@ function PredictionsContent() {
                 {forecastHistory.map((row) => (
                   <tr key={`${row.model_id}-${row.competition}-${row.match_date}-${row.home.team_id}-${row.away.team_id}`}>
                     <Td className="text-subtext0">{row.issued_at.slice(0, 10)}</Td>
-                    <Td>{row.home.name} – {row.away.name}</Td>
+                    <Td>
+                      <span className="flex items-center gap-1.5">
+                        <FootballBadge url={row.home.badge_url} name={row.home.name} size={16} />{row.home.name}
+                        <span className="text-overlay0">–</span>
+                        <FootballBadge url={row.away.badge_url} name={row.away.name} size={16} />{row.away.name}
+                      </span>
+                    </Td>
                     <Td className="text-subtext1">{row.predicted_result}</Td>
                     <Td>{row.actual_result ? <Chip tone={row.actual_result === row.predicted_result ? 'positive' : 'negative'}>{row.actual_result}</Chip> : <span className="text-subtext0">Pending</span>}</Td>
                   </tr>

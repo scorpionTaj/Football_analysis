@@ -151,6 +151,8 @@ export function MatchDetailCentre({ detail, onBack }: { detail: MatchCentreDetai
   const isFixturePreview = match.home_goals === null && match.away_goals === null
     && !detail.lineups.length && !detail.statistics.length && !detail.timeline.length
     && !detail.home_formation && !detail.away_formation;
+  // Lineup rows carry player photos; reuse them for the same players' timeline events.
+  const photos = useMemo(() => new Map(detail.lineups.filter((p) => p.player_id && p.cutout_url).map((p) => [p.player_id, p.cutout_url])), [detail.lineups]);
   const orderedTimeline = useMemo(() => [...detail.timeline].sort((a, b) => Number.parseInt(a.minute || '999', 10) - Number.parseInt(b.minute || '999', 10)), [detail.timeline]);
 
   return (
@@ -261,7 +263,9 @@ export function MatchDetailCentre({ detail, onBack }: { detail: MatchCentreDetai
                   <div className="rounded-xl border border-surface1 bg-mantle/60 p-3">
                     <div className="flex items-center gap-2">
                       <span className={`flex size-7 shrink-0 items-center justify-center rounded-lg border text-xs font-semibold ${timelineMark(item.event_type).tone}`}>{timelineMark(item.event_type).mark}</span>
-                      <FootballBadge name={item.team.name} url={item.team.badge_url} size={20} />
+                      {item.player_id && photos.get(item.player_id)
+                        ? <PlayerAvatar name={item.player || item.team.name} image_url={photos.get(item.player_id)} size={24} />
+                        : <FootballBadge name={item.team.name} url={item.team.badge_url} size={20} />}
                       <div className="min-w-0"><p className="truncate font-medium text-text">{item.player || item.event_type || 'Match event'}</p><p className="text-[10px] text-subtext0">{item.team.name}</p></div>
                     </div>
                     <p className="mt-2 text-xs text-subtext0">{item.event_type}{item.detail ? ` · ${item.detail}` : ''}{item.assist ? ` · ${item.event_type?.toLowerCase().includes('substitution') ? 'Player in' : 'Assist'}: ${item.assist}` : ''}</p>

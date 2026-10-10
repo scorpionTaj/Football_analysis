@@ -15,7 +15,8 @@ import { EmptyState, ErrorMessage, LoadingSkeleton } from '@/components/ui/loadi
 import { axisProps, gridProps, legendProps, OUTCOME, SERIES, tooltipProps } from '@/lib/chart-theme';
 import { Panel } from '@/components/ui/panel';
 import { Chip } from '@/components/ui/chip';
-import { DataTable, TBody, THead, Td, Th } from '@/components/ui/data-table';
+import { DataTable, SortTh, TBody, THead, Td } from '@/components/ui/data-table';
+import { useTableView } from '@/lib/hooks/use-table-view';
 
 const NAMES: Record<string, string> = {
   prevalence_baseline: 'Base-rate guess',
@@ -155,16 +156,27 @@ function Reliability({ run }: { run: ModelRun }) {
 }
 
 function Leaderboard({ runs }: { runs: ModelRun[] }) {
+  const table = useTableView(runs, {
+    columns: {
+      model: (r) => name(r.model), rps: (r) => r.rps, logLoss: (r) => r.log_loss, brier: (r) => r.brier,
+      accuracy: (r) => r.accuracy, ece: (r) => r.ece,
+    },
+    initial: { key: 'rps', dir: 'asc' },
+  });
   return (
     <DataTable minWidth={640} caption="All candidate models, walk-forward scores">
       <THead>
         <tr>
-          <Th>Model</Th>
-          {['RPS', 'Log loss', 'Brier', 'Accuracy', 'ECE'].map((h) => <Th key={h} align="right">{h}</Th>)}
+          <SortTh {...table.sortProps('model')}>Model</SortTh>
+          <SortTh align="right" {...table.sortProps('rps')}>RPS</SortTh>
+          <SortTh align="right" {...table.sortProps('logLoss')}>Log loss</SortTh>
+          <SortTh align="right" {...table.sortProps('brier')}>Brier</SortTh>
+          <SortTh align="right" {...table.sortProps('accuracy')}>Accuracy</SortTh>
+          <SortTh align="right" {...table.sortProps('ece')}>ECE</SortTh>
         </tr>
       </THead>
       <TBody>
-        {runs.map((run) => (
+        {table.rows.map((run) => (
           <tr key={run.model}>
             <th scope="row" className="h-9 px-3 text-left font-medium text-text">
               {name(run.model)}

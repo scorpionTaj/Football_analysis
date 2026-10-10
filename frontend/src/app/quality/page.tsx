@@ -13,7 +13,9 @@ import { ShieldCheck } from 'lucide-react';
 import { Panel } from '@/components/ui/panel';
 import { Stat } from '@/components/ui/stat';
 import { Chip } from '@/components/ui/chip';
-import { DataTable, TBody, THead, Td, Th } from '@/components/ui/data-table';
+import { DataTable, SortTh, TableFilter, TBody, THead, Td, Th } from '@/components/ui/data-table';
+import { useTableView } from '@/lib/hooks/use-table-view';
+import { CompetitionBadge } from '@/lib/media-utils';
 
 function QualityContent() {
   const { data, isLoading, error, refetch } = useQuery({
@@ -51,7 +53,12 @@ function QualityContent() {
     fetched_at?: string;
   };
   const checksums = useMemo(() => (data?.checksums || []) as ChecksumRow[], [data?.checksums]);
-  const { paginatedItems: paginatedChecksums, paginationControls: ChecksumsPagination } = usePagination(checksums, 10);
+  const runTable = useTableView(checksums, {
+    columns: { league: (r) => r.league, season: (r) => r.season, rows: (r) => r.row_count, status: (r) => r.status, fetched: (r) => r.fetched_at },
+    initial: { key: 'fetched', dir: 'desc' },
+    search: (r) => [r.league, r.status, String(r.season ?? '')],
+  });
+  const { paginatedItems: paginatedChecksums, paginationControls: ChecksumsPagination } = usePagination(runTable.rows, 10);
 
   if (isLoading) return <LoadingSkeleton lines={10} />;
   if (error) {
@@ -104,7 +111,7 @@ function QualityContent() {
           <TBody>
             {(data.fixture_coverage || []).map((row) => (
               <tr key={row.competition}>
-                <Td className="font-medium">{row.competition}</Td>
+<Td><span className="flex items-center gap-2 font-medium"><CompetitionBadge code={row.competition} name={row.competition} size={18} />{row.competition}</span></Td>
                 <Td align="right">{row.full_schedule}</Td>
                 <Td align="right" className="text-subtext1">{row.weekly_window}</Td>
                 <Td align="right" className="text-subtext1">{row.next_listed}</Td>
@@ -171,7 +178,7 @@ function QualityContent() {
           <TBody>
             {uniqueCompetitions.map((comp) => (
               <tr key={comp}>
-                <Td className="font-medium">{comp}</Td>
+<Td><span className="flex items-center gap-2 font-medium"><CompetitionBadge code={comp} name={comp} size={18} />{comp}</span></Td>
                 {uniqueSeasons.map((year) => {
                   const status = gridMatrix.get(`${comp}_${year}`) || 'missing';
                   return (
@@ -205,7 +212,7 @@ function QualityContent() {
             <TBody>
               {data.shot_coverage.map((row) => (
                 <tr key={`${row.competition}-${row.season}`}>
-                  <Td className="font-medium">{row.competition}</Td>
+  <Td><span className="flex items-center gap-2 font-medium"><CompetitionBadge code={row.competition} name={row.competition} size={18} />{row.competition}</span></Td>
                   <Td className="text-subtext1">{row.season}/{String(row.season + 1).slice(-2)}</Td>
                   <Td align="right" className="text-subtext1">{row.matches}</Td>
                   <Td align="right" className="text-subtext1">{row.shot_matches}</Td>
@@ -218,13 +225,21 @@ function QualityContent() {
       ) : null}
 
       {data.checksums && data.checksums.length > 0 && (
-        <Panel title="Recent ingestion runs and checksums" bodyClassName="p-0">
+        <Panel title="Recent ingestion runs and checksums" bodyClassName="p-0"
+          actions={<TableFilter label="Filter ingestion runs" placeholder="League or status…" value={runTable.query} onChange={runTable.setQuery} shown={runTable.rows.length} total={runTable.total} />}>
           <DataTable minWidth={720} caption="Ingestion runs">
-            <THead><tr><Th>League</Th><Th>Season</Th><Th align="right">Rows</Th><Th>Status</Th><Th>SHA-256</Th><Th>Ingested</Th></tr></THead>
+            <THead><tr>
+              <SortTh {...runTable.sortProps('league')}>League</SortTh>
+              <SortTh {...runTable.sortProps('season')}>Season</SortTh>
+              <SortTh align="right" {...runTable.sortProps('rows')}>Rows</SortTh>
+              <SortTh {...runTable.sortProps('status')}>Status</SortTh>
+              <Th>SHA-256</Th>
+              <SortTh {...runTable.sortProps('fetched')}>Ingested</SortTh>
+            </tr></THead>
             <TBody>
               {paginatedChecksums.map((chk, i) => (
                 <tr key={i}>
-                  <Td className="font-medium">{chk.league}</Td>
+                  <Td><span className="flex items-center gap-2 font-medium"><CompetitionBadge code={chk.league} name={chk.league || ''} size={18} />{chk.league}</span></Td>
                   <Td className="text-subtext1">{chk.season}</Td>
                   <Td align="right">{chk.row_count}</Td>
                   <Td><Chip tone={chk.status === 'success' || chk.status === 'cached' ? 'positive' : 'warning'}>{chk.status}</Chip></Td>

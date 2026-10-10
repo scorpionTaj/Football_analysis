@@ -19,6 +19,8 @@ import { Select } from '@/components/ui/select';
 import { Segmented } from '@/components/ui/segmented';
 import { Stat, StatGrid } from '@/components/ui/stat';
 import { fromClubSide, seasonLabel, summarize } from './_lib';
+import { useTableView } from '@/lib/hooks/use-table-view';
+import { RANKING_COLUMNS } from '@/lib/table-columns';
 import { ClubCharts } from './_components/club-charts';
 import { SeasonTable } from './_components/season-table';
 import { MatchLog } from './_components/match-log';
@@ -125,7 +127,8 @@ function ClubLabContent() {
   });
 
   // Paginated season history table (10 per page)
-  const { paginatedItems: paginatedSeasons, paginationControls: SeasonsPagination } = usePagination(seasonsList, 10);
+  const seasonTable = useTableView(seasonsList, { columns: RANKING_COLUMNS, initial: { key: 'season', dir: 'desc' } });
+  const { paginatedItems: paginatedSeasons, paginationControls: SeasonsPagination } = usePagination(seasonTable.rows, 10);
 
   const totals = useMemo(() => summarize(seasonsList), [seasonsList]);
   const opponentTotals = useMemo(() => summarize(opponentAnalysis?.rankings || []), [opponentAnalysis?.rankings]);
@@ -273,7 +276,7 @@ function ClubLabContent() {
             <Stat label="Points per game" value={totals.ppg} />
           </StatGrid>
           <ClubCharts club={selectedClub} trajectory={chartData} rollingForm={rollingForm} formWindow={formWindow} percentiles={percentileProfile} />
-          <SeasonTable seasons={paginatedSeasons} pagination={SeasonsPagination} />
+          <SeasonTable seasons={paginatedSeasons} pagination={SeasonsPagination} sortProps={seasonTable.sortProps} />
           <MatchLog matches={paginatedMatches} isClubHome={isClubHome} isLoading={isMatchesLoading}
             error={matchesError} retry={() => refetchMatches()} pagination={MatchesPagination} />
         </>

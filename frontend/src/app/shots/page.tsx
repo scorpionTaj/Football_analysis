@@ -28,7 +28,8 @@ import { axisProps, gridProps, SERIES, tooltipProps } from '@/lib/chart-theme';
 import { Panel } from '@/components/ui/panel';
 import { Stat, StatGrid } from '@/components/ui/stat';
 import { Chip } from '@/components/ui/chip';
-import { DataTable, TBody, THead, Td, Th } from '@/components/ui/data-table';
+import { DataTable, SortTh, TableFilter, TBody, THead, Td } from '@/components/ui/data-table';
+import { useTableView } from '@/lib/hooks/use-table-view';
 
 function ShotIntelligenceContent() {
   const filters = useFilterParams();
@@ -54,7 +55,15 @@ function ShotIntelligenceContent() {
   }, [teams]);
   const volume = useMemo(() => [...teams].sort((a, b) => (b.shots_per_match ?? 0) - (a.shots_per_match ?? 0)).slice(0, 12), [teams]);
   const scatterTeams = useMemo(() => teams.slice(0, 160), [teams]);
-  const { paginatedItems, paginationControls } = usePagination(teams, 10);
+  const table = useTableView(teams, {
+    columns: {
+      team: (r) => r.team.name, season: (r) => r.season, coverage: (r) => r.coverage_pct, shots: (r) => r.shots_per_match,
+      accuracy: (r) => r.shot_accuracy_pct, conversion: (r) => r.goals_per_shot_pct,
+    },
+    initial: { key: 'shots', dir: 'desc' },
+    search: (r) => [r.team.name, r.competition],
+  });
+  const { paginatedItems, paginationControls } = usePagination(table.rows, 10);
 
   const formatPercent = (value: number | null) => value === null ? '—' : `${value.toFixed(1)}%`;
 
@@ -115,12 +124,22 @@ function ShotIntelligenceContent() {
       <Panel
         title="Qualified club-seasons"
         description="Conversion and accuracy stay empty when the source cannot support them."
-        actions={<span className="text-xs tabular-nums text-subtext0">{coverage.length} coverage partitions</span>}
+        actions={<>
+          <TableFilter label="Filter clubs" placeholder="Filter clubs…" value={table.query} onChange={table.setQuery} shown={table.rows.length} total={table.total} />
+          <span className="text-xs tabular-nums text-subtext0">{coverage.length} coverage partitions</span>
+        </>}
         bodyClassName="p-0"
       >
         <DataTable minWidth={720} caption="Qualified club-seasons">
           <THead>
-            <tr><Th>Club</Th><Th>Season</Th><Th align="right">Coverage</Th><Th align="right">Shots / match</Th><Th align="right">On target</Th><Th align="right">Goals / shot</Th></tr>
+            <tr>
+              <SortTh {...table.sortProps('team')}>Club</SortTh>
+              <SortTh {...table.sortProps('season')}>Season</SortTh>
+              <SortTh align="right" {...table.sortProps('coverage')}>Coverage</SortTh>
+              <SortTh align="right" {...table.sortProps('shots')}>Shots / match</SortTh>
+              <SortTh align="right" {...table.sortProps('accuracy')}>On target</SortTh>
+              <SortTh align="right" {...table.sortProps('conversion')}>Goals / shot</SortTh>
+            </tr>
           </THead>
           <TBody>
             {paginatedItems.map((row) => (

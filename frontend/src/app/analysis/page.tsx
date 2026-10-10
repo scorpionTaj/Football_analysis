@@ -26,7 +26,10 @@ import { Panel } from '@/components/ui/panel';
 import { Select } from '@/components/ui/select';
 import { Stat, StatGrid } from '@/components/ui/stat';
 import { FormChip } from '@/components/ui/chip';
-import { DataTable, TBody, THead, Td, Th } from '@/components/ui/data-table';
+import { DataTable, SortTh, TableFilter, TBody, THead, Td, Th } from '@/components/ui/data-table';
+import { useTableView } from '@/lib/hooks/use-table-view';
+import { RANKING_COLUMNS, rankingSearch } from '@/lib/table-columns';
+import { FootballBadge } from '@/lib/media-utils';
 
 interface MetricConfig {
   key: 'points_per_game' | 'goals_per_game' | 'conceded_per_game' | 'win_rate' | 'clean_sheet_rate' | 'form_ppg';
@@ -87,7 +90,8 @@ function AnalysisContent() {
   });
 
   const rankings = useMemo(() => data?.rankings || [], [data?.rankings]);
-  const { paginatedItems: paginatedRankings, paginationControls: AnalysisPagination } = usePagination(rankings, 10);
+  const table = useTableView(rankings, { columns: RANKING_COLUMNS, initial: { key: 'rank', dir: 'asc' }, search: rankingSearch });
+  const { paginatedItems: paginatedRankings, paginationControls: AnalysisPagination } = usePagination(table.rows, 10);
   const matchFactors = data?.match_factors;
   const correlationMetrics = useMemo(() => {
     const first = data?.correlations?.[0];
@@ -203,7 +207,10 @@ function AnalysisContent() {
 
       <Panel
         title="Standings and performance breakdown"
-        actions={<Button size="sm" variant="outline" onPress={exportCsv}><Download className="size-3.5" aria-hidden="true" /> Export CSV</Button>}
+        actions={<>
+          <TableFilter label="Filter teams" placeholder="Filter teams…" value={table.query} onChange={table.setQuery} shown={table.rows.length} total={table.total} />
+          <Button size="sm" variant="outline" onPress={exportCsv}><Download className="size-3.5" aria-hidden="true" /> Export CSV</Button>
+        </>}
         bodyClassName="p-0"
       >
         {rankings.length === 0 ? (
@@ -213,16 +220,20 @@ function AnalysisContent() {
             <DataTable minWidth={900} caption="Analysis rankings">
               <THead>
                 <tr>
-                  <Th>#</Th><Th>Team</Th><Th align="right">P</Th><Th align="right">W</Th><Th align="right">D</Th><Th align="right">L</Th>
-                  <Th align="right" className="text-text">Pts</Th><Th align="right">PPG</Th><Th align="right">GF/m</Th><Th align="right">GA/m</Th>
-                  <Th align="right">Win %</Th><Th align="right">Clean %</Th><Th align="center">Form (last {formWindow})</Th>
+                  <SortTh {...table.sortProps('rank')}>#</SortTh><SortTh {...table.sortProps('team')}>Team</SortTh>
+                  <SortTh align="right" {...table.sortProps('played')}>P</SortTh><SortTh align="right" {...table.sortProps('wins')}>W</SortTh>
+                  <SortTh align="right" {...table.sortProps('draws')}>D</SortTh><SortTh align="right" {...table.sortProps('losses')}>L</SortTh>
+                  <SortTh align="right" {...table.sortProps('points')}>Pts</SortTh><SortTh align="right" {...table.sortProps('ppg')}>PPG</SortTh>
+                  <SortTh align="right" {...table.sortProps('gfPerGame')}>GF/m</SortTh><SortTh align="right" {...table.sortProps('gaPerGame')}>GA/m</SortTh>
+                  <SortTh align="right" {...table.sortProps('winRate')}>Win %</SortTh><SortTh align="right" {...table.sortProps('cleanSheets')}>Clean %</SortTh>
+                  <SortTh align="center" {...table.sortProps('formPpg')}>Form (last {formWindow})</SortTh>
                 </tr>
               </THead>
               <TBody>
                 {paginatedRankings.map((r) => (
                   <tr key={r.team.team_id}>
                     <Td className="text-subtext0">{r.rank}</Td>
-                    <Td className="font-medium">{r.team.name}</Td>
+                    <Td><span className="flex items-center gap-2 font-medium"><FootballBadge url={r.team.badge_url} name={r.team.name} size={18} />{r.team.name}</span></Td>
                     <Td align="right" className="text-subtext1">{r.played}</Td>
                     <Td align="right" className="text-subtext1">{r.wins}</Td>
                     <Td align="right" className="text-subtext1">{r.draws}</Td>

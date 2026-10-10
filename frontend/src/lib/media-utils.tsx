@@ -3,6 +3,9 @@
 import React, { useState } from 'react';
 import Image from 'next/image';
 import { Shield, Trophy, User } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/lib/api/client';
+import { queryKeys } from '@/lib/api/query-keys';
 
 interface FootballBadgeProps {
   url?: string | null;
@@ -129,8 +132,11 @@ export function CompetitionBadge({
   className = '',
 }: CompetitionBadgeProps) {
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  // Callers often only know the code; the (already cached) catalog carries every logo.
+  const { data: catalog } = useQuery({ queryKey: queryKeys.catalog, queryFn: api.catalog, enabled: !badge_url && !!code });
+  const url = badge_url || catalog?.competitions?.find((competition) => competition.code === code)?.badge_url || null;
 
-  if (!badge_url || failedUrl === badge_url) {
+  if (!url || failedUrl === url) {
     const isTournament = code === 'UCL' || code === 'CWC' || code === 'WC';
     return (
       <div
@@ -149,13 +155,13 @@ export function CompetitionBadge({
 
   return (
     <Image
-      src={badge_url}
+      src={url}
       alt={name}
       width={size}
       height={size}
-      onError={() => setFailedUrl(badge_url)}
+      onError={() => setFailedUrl(url)}
       unoptimized
-      className={`object-contain shrink-0 drop-shadow-md transition-transform duration-200 hover:scale-105 ${className}`}
+      className={`object-contain shrink-0 ${className}`}
       style={{ width: size, height: size, maxWidth: size, maxHeight: size }}
     />
   );

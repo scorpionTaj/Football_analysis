@@ -15,7 +15,9 @@ import { Select } from '@/components/ui/select';
 import { Segmented } from '@/components/ui/segmented';
 import { Stat, StatGrid } from '@/components/ui/stat';
 import { FormChip } from '@/components/ui/chip';
-import { DataTable, TBody, THead, Td, Th } from '@/components/ui/data-table';
+import { DataTable, SortTh, TableFilter, TBody, THead, Td, Th } from '@/components/ui/data-table';
+import { useTableView } from '@/lib/hooks/use-table-view';
+import { RANKING_COLUMNS, rankingSearch } from '@/lib/table-columns';
 import { usePagination } from '@/components/ui/pagination';
 import { Table as TableIcon, Download } from 'lucide-react';
 import { FootballBadge, CompetitionBadge } from '@/lib/media-utils';
@@ -43,7 +45,8 @@ function LeagueTablesContent() {
   });
 
   const rankings = standingData?.rankings || [];
-  const { paginatedItems: paginatedRankings, paginationControls: TablePagination } = usePagination(rankings, 10);
+  const table = useTableView(rankings, { columns: RANKING_COLUMNS, initial: { key: 'rank', dir: 'asc' }, search: rankingSearch });
+  const { paginatedItems: paginatedRankings, paginationControls: TablePagination } = usePagination(table.rows, 10);
 
   // Export CSV
   const exportCsv = () => {
@@ -117,21 +120,21 @@ function LeagueTablesContent() {
       {rankings.length === 0 ? (
         <Panel><EmptyState icon={TableIcon} message="No standings found for this competition and season." /></Panel>
       ) : (
-        <Panel bodyClassName="p-0">
+        <Panel title="Standings" actions={<TableFilter label="Filter clubs" placeholder="Filter clubs…" value={table.query} onChange={table.setQuery} shown={table.rows.length} total={table.total} />} bodyClassName="p-0">
           <DataTable minWidth={720} caption="League standings">
             <THead>
               <tr>
-                <Th align="center" className="w-12">Pos</Th>
-                <Th>Club</Th>
-                <Th align="right">P</Th>
-                <Th align="right">W</Th>
-                <Th align="right">D</Th>
-                <Th align="right">L</Th>
-                <Th align="right">GF</Th>
-                <Th align="right">GA</Th>
-                <Th align="right">GD</Th>
-                <Th align="right" className="text-text">Pts</Th>
-                <Th align="right">PPG</Th>
+                <SortTh align="center" className="w-12" {...table.sortProps('rank')}>Pos</SortTh>
+                <SortTh {...table.sortProps('team')}>Club</SortTh>
+                <SortTh align="right" {...table.sortProps('played')}>P</SortTh>
+                <SortTh align="right" {...table.sortProps('wins')}>W</SortTh>
+                <SortTh align="right" {...table.sortProps('draws')}>D</SortTh>
+                <SortTh align="right" {...table.sortProps('losses')}>L</SortTh>
+                <SortTh align="right" {...table.sortProps('goalsFor')}>GF</SortTh>
+                <SortTh align="right" {...table.sortProps('goalsAgainst')}>GA</SortTh>
+                <SortTh align="right" {...table.sortProps('goalDifference')}>GD</SortTh>
+                <SortTh align="right" {...table.sortProps('points')}>Pts</SortTh>
+                <SortTh align="right" {...table.sortProps('ppg')}>PPG</SortTh>
                 <Th align="center">Form</Th>
               </tr>
             </THead>
