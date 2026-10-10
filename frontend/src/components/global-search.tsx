@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Input } from '@heroui/react';
 import { useQuery } from '@tanstack/react-query';
 import { Search } from 'lucide-react';
 import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
@@ -91,8 +90,9 @@ export function GlobalSearch({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <div className="relative px-2 pb-2">
       <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-overlay0" aria-hidden="true" />
-        <Input
+        <Search className="pointer-events-none absolute left-2.5 top-1/2 z-10 size-3.5 -translate-y-1/2 text-overlay0" aria-hidden="true" />
+        <input
+          type="search"
           aria-label="Search clubs, players and competitions"
           role="combobox"
           aria-autocomplete="list"
@@ -103,7 +103,7 @@ export function GlobalSearch({ onNavigate }: { onNavigate?: () => void }) {
           value={query}
           onChange={(event) => { setQuery(event.target.value); setActiveIndex(-1); }}
           onKeyDown={handleKeyDown}
-          className="pl-9"
+          className="h-9 w-full min-w-0 rounded-lg border border-surface1 bg-surface0 pl-8 pr-2.5 text-[13px] text-text placeholder:text-overlay0 transition-colors hover:border-surface2 focus:border-accent [&::-webkit-search-cancel-button]:hidden"
         />
       </div>
       {isOpen ? (
