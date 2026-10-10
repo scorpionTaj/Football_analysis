@@ -15,6 +15,7 @@ from football_analysis.config import (
     CLUBS,
     OPENFOOTBALL_TOURNAMENTS,
     RECENT_LEAGUES,
+    THESPORTSDB_BADGE_IDS,
     THESPORTSDB_LEAGUE_IDS,
     TOURNAMENTS,
     current_season,
@@ -295,7 +296,9 @@ def run_refresh_pipeline(database: Path, request: RefreshRequest, progress: Prog
                 db=database, clubs=featured, include_stats=False,
                 refresh=request.force_download,
             ))
-        media_leagues = [code for code in (*domestic, *tournaments) if code in THESPORTSDB_LEAGUE_IDS]
+        # Logos for every competition on a full refresh (already cached ones are skipped).
+        media_leagues = ([code for code in (*domestic, *tournaments) if code in THESPORTSDB_BADGE_IDS]
+                         if requested else list(THESPORTSDB_BADGE_IDS))
         report.attempt(3, "Media", lambda: sync_media(
             db=database, clubs=featured, leagues=media_leagues,
             refresh=request.force_download,

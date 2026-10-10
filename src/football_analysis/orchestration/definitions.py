@@ -108,7 +108,7 @@ def app_media():
     from ..players import sync_players
     clubs = list(CLUBS.values())
     return _report([sync_players(db=DB, clubs=clubs, include_stats=False) or {},
-                    sync_media(db=DB, clubs=clubs, leagues=list(RECENT_LEAGUES)) or {},
+                    sync_media(db=DB, clubs=clubs) or {},
                     sync_event_details(db=DB) or {}])
 
 

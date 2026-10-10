@@ -86,3 +86,27 @@ def test_media_backfill_saves_batches_and_skips_cached_misses(tmp_path):
     assert [row["status"] for row in report] == ["cached", "cached_missing", "success"]
     with connect(db) as con:
         assert con.execute("SELECT count(*) FROM team_media").fetchone()[0] == 2
+
+
+def test_competition_logos_cover_every_tournament_without_adding_event_syncs(tmp_path):
+    from football_analysis.config import COMPETITIONS, THESPORTSDB_BADGE_IDS, THESPORTSDB_LEAGUE_IDS
+
+    # Logo-only ids must not leak into the ids that drive provider event syncs.
+    assert set(THESPORTSDB_LEAGUE_IDS) <= set(THESPORTSDB_BADGE_IDS)
+    assert "EURO" in THESPORTSDB_BADGE_IDS and "EURO" not in THESPORTSDB_LEAGUE_IDS
+    assert set(THESPORTSDB_BADGE_IDS) <= set(COMPETITIONS)
+
+    class LeagueAdapter:
+        def __init__(self):
+            self.calls = []
+
+        def league(self, league_id):
+            self.calls.append(league_id)
+            return {"idLeague": str(league_id), "strLeague": "x", "strBadge": f"https://example.test/{league_id}.png"}
+
+    adapter = LeagueAdapter()
+    sync_media(db=tmp_path / "football.duckdb", clubs=[], adapter=adapter)  # default: every logo id
+    assert sorted(adapter.calls) == sorted(THESPORTSDB_BADGE_IDS.values())
+    again = LeagueAdapter()
+    sync_media(db=tmp_path / "football.duckdb", clubs=[], adapter=again)
+    assert again.calls == []  # cached logos are never requested twice

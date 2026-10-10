@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 
-from .config import CLUBS, COMPETITIONS, DB, THESPORTSDB_LEAGUE_IDS, current_season
+from .config import CLUBS, COMPETITIONS, DB, THESPORTSDB_BADGE_IDS, current_season
 from .ingest import connect
 from .players import SOURCE, TheSportsDBPlayers
 from .teams import display_team, team_key
@@ -129,7 +129,7 @@ def _save_media_batch(db, teams, missing, leagues):
 
 def sync_media(db=DB, clubs=None, leagues=None, adapter=None, *, refresh=False, retry_missing=False, batch_size=10):
     clubs = clubs if clubs is not None else list(CLUBS.values())
-    leagues = leagues if leagues is not None else list(THESPORTSDB_LEAGUE_IDS)
+    leagues = leagues if leagues is not None else list(THESPORTSDB_BADGE_IDS)
     adapter = adapter or TheSportsDBMedia()
     if batch_size < 1:
         raise ValueError("batch_size must be positive")
@@ -197,7 +197,7 @@ def sync_media(db=DB, clubs=None, leagues=None, adapter=None, *, refresh=False, 
     league_rows = []
     for league_code in pending_leagues:
         try:
-            provider = adapter.league(THESPORTSDB_LEAGUE_IDS[league_code])
+            provider = adapter.league(THESPORTSDB_BADGE_IDS[league_code])
             if not provider:
                 report.append({"kind": "competition", "name": COMPETITIONS[league_code], "status": "not_found"})
                 continue

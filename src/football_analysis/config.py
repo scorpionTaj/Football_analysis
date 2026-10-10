@@ -88,6 +88,13 @@ THESPORTSDB_LEAGUE_IDS = {
     "UCL": 4480, "UEL": 4481, "UECL": 5071, "WC": 4429,
     "FAC": 4482, "EFL": 4570, "CDR": 4483, "SUC": 4511,
 }
+# Logo-only TheSportsDB ids: kept apart from THESPORTSDB_LEAGUE_IDS, which also decides which
+# cups get event syncs, so adding a logo never adds provider event requests.
+THESPORTSDB_BADGE_IDS = {
+    **THESPORTSDB_LEAGUE_IDS,
+    "USC": 4512, "GBCS": 4571, "DFB": 4485, "CIT": 4506,
+    "NLP": 4902, "EURO": 4502, "COPA": 4499, "AFCON": 4496, "ASIAN": 4866, "CWC": 4503,
+}
 CLUBS = {"Real Madrid": "Real Madrid", "Barcelona": "FC Barcelona", "Ath Madrid": "Atlético Madrid", "Man City": "Manchester City", "Liverpool": "Liverpool", "Arsenal": "Arsenal", "Bayern Munich": "Bayern Munich", "Dortmund": "Borussia Dortmund", "Paris SG": "Paris Saint-Germain", "Inter": "Inter Milan", "Milan": "AC Milan", "Juventus": "Juventus"}
 
 def seasons(today=None):
