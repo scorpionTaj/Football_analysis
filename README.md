@@ -22,11 +22,11 @@ npm --prefix frontend run dev -- --port 3001
 
 Day to day, one command does everything (extract → dbt build → champion refit → publish):
 
-| Command | What it runs | Time |
-|---|---|---|
-| `uv run football-sync --quick` | current results + fixtures, warehouse, forecasts, publish | ~2 min |
-| `uv run football-sync` | all sources (standings, cups, players, media, event details) + the same | ~10 min |
-| `uv run football-train-models` | full 9-model walk-forward leaderboard (auto-runs weekly anyway) | ~10 min |
+| Command                          | What it runs                                                            | Time    |
+| -------------------------------- | ----------------------------------------------------------------------- | ------- |
+| `uv run football-sync --quick` | current results + fixtures, warehouse, forecasts, publish               | ~2 min  |
+| `uv run football-sync`         | all sources (standings, cups, players, media, event details) + the same | ~10 min |
+| `uv run football-train-models` | full 9-model walk-forward leaderboard (auto-runs weekly anyway)         | ~10 min |
 
 Refreshes run when you start them. For an automatic schedule, use the containers below: their
 `scheduler` service runs a quick refresh every 6 hours and a full one once a day.
@@ -52,17 +52,17 @@ the API reads Supabase, so refreshes never conflict with it.
 Walk-forward evaluation: each of the last four completed seasons is predicted by models trained
 only on earlier seasons (calibrated on the season before), scored on 13,061 top-flight matches.
 
-| Model                                  | RPS ↓           | Log loss ↓     | Accuracy        | ECE ↓          |
-| -------------------------------------- | ---------------- | --------------- | --------------- | --------------- |
-| Bookmaker closing line (benchmark)     | 0.1905           | 0.954           | 54.9%           | 0.011           |
-| Model + opening odds                   | 0.1911           | 0.956           | 54.4%           | 0.004           |
-| **Stacked (champion, no odds)**  | **0.1928** | **0.962** | **54.0%** | **0.003** |
-| Ensemble                               | 0.1928           | 0.962           | 53.9%           | 0.005           |
-| Logistic regression                    | 0.1929           | 0.962           | 54.0%           | 0.005           |
-| LightGBM                               | 0.1930           | 0.963           | 53.9%           | 0.004           |
-| Poisson + Dixon-Coles                  | 0.1930           | 0.963           | 54.0%           | 0.006           |
-| Elo only                               | 0.1971           | 0.976           | 53.0%           | 0.006           |
-| Base-rate guess                        | 0.2304           | 1.074           | 43.8%           | 0.009           |
+| Model                                 | RPS ↓           | Log loss ↓     | Accuracy        | ECE ↓          |
+| ------------------------------------- | ---------------- | --------------- | --------------- | --------------- |
+| Bookmaker closing line (benchmark)    | 0.1905           | 0.954           | 54.9%           | 0.011           |
+| Model + opening odds                  | 0.1911           | 0.956           | 54.4%           | 0.004           |
+| **Stacked (champion, no odds)** | **0.1928** | **0.962** | **54.0%** | **0.003** |
+| Ensemble                              | 0.1928           | 0.962           | 53.9%           | 0.005           |
+| Logistic regression                   | 0.1929           | 0.962           | 54.0%           | 0.005           |
+| LightGBM                              | 0.1930           | 0.963           | 53.9%           | 0.004           |
+| Poisson + Dixon-Coles                 | 0.1930           | 0.963           | 54.0%           | 0.006           |
+| Elo only                              | 0.1971           | 0.976           | 53.0%           | 0.006           |
+| Base-rate guess                       | 0.2304           | 1.074           | 43.8%           | 0.009           |
 
 The champion recovers 94% of the closing line's skill over a base-rate guess and meets every target
 (log loss, RPS, calibration and 53.5% accuracy). The largest gain came from a market-implied team
