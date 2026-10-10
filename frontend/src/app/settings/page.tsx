@@ -3,23 +3,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useTheme } from '@/components/theme-provider';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card } from '@heroui/react';
+import { Button } from '@heroui/react';
 import { api } from '@/lib/api/client';
 import { queryKeys } from '@/lib/api/query-keys';
 import { PageHeader } from '@/components/ui/page-header';
-import {
-  Palette,
-  Sun,
-  Moon,
-  Laptop,
-  Server,
-  Activity,
-  Database,
-  Sliders,
-  RefreshCw,
-  CloudDownload,
-  CircleCheck,
-} from 'lucide-react';
+import { Sun, Moon, Laptop, Sliders, RefreshCw, CircleCheck } from 'lucide-react';
+import { Panel } from '@/components/ui/panel';
+import { Stat } from '@/components/ui/stat';
+import { Chip } from '@/components/ui/chip';
 
 const REFRESH_STEPS = [
   { title: 'Results and fixtures', detail: 'Current scorelines, verified full calendars and nearby fixtures' },
@@ -80,257 +71,145 @@ export default function SettingsPage() {
     }
   };
 
+  const statusTone = refreshStatus?.status === 'success' ? 'positive' : refreshStatus?.status === 'failed' ? 'negative'
+    : refreshStatus?.status === 'running' || refreshStatus?.status === 'degraded' ? 'warning' : 'neutral';
+  const running = refreshStatus?.status === 'running';
+  const modes = [
+    { value: 'auto', label: 'Automatic', hint: 'Follow the system', icon: Laptop },
+    { value: 'dark', label: 'Dark', hint: 'Always dark', icon: Moon },
+    { value: 'light', label: 'Light', hint: 'Always light', icon: Sun },
+  ] as const;
+
   return (
-    <div className="mx-auto max-w-5xl space-y-8">
+    <div className="mx-auto max-w-5xl space-y-5">
       <PageHeader icon={Sliders} eyebrow="Workspace preferences" title="Application Settings" description="Choose light or dark mode, verify the API and guide a safe source-data refresh from one place." />
 
-      {/* Section 1: Appearance Mode */}
-      <div className="rounded-xl border border-surface1 bg-surface0 p-6 space-y-4">
-        <div className="flex items-center gap-2.5 pb-2 border-b border-surface1">
-          <Palette className="h-5 w-5 text-blue" />
-          <h2 className="text-base font-semibold text-text">Appearance</h2>
+      <Panel title="Appearance" description="Follow your system setting, or keep the interface dark or light.">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          {modes.map((option) => {
+            const active = mode === option.value;
+            const Icon = option.icon;
+            return (
+              <button key={option.value} type="button" aria-pressed={active} onClick={() => setMode(option.value)}
+                className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors ${active ? 'border-accent bg-accent/10' : 'border-surface1 hover:bg-surface1/40'}`}>
+                <Icon className={`size-4 ${active ? 'text-accent' : 'text-overlay0'}`} aria-hidden="true" />
+                <span>
+                  <span className="block text-[13px] font-medium text-text">{option.label}</span>
+                  <span className="block text-xs text-subtext0">{option.hint}</span>
+                </span>
+              </button>
+            );
+          })}
         </div>
+      </Panel>
 
-        <p className="text-xs text-subtext0">
-          Follow your system setting, or keep the interface dark or light.
-        </p>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-          {/* Auto */}
-          <button
-            type="button"
-            aria-pressed={mode === 'auto'}
-            onClick={() => setMode('auto')}
-            className={`flex items-center gap-3 p-4 rounded-xl border text-left transition-all cursor-pointer ${
-              mode === 'auto'
-                ? 'bg-blue/15 border-blue text-text shadow-sm'
-                : 'bg-mantle border-surface1 text-subtext1 hover:bg-surface1'
-            }`}
-          >
-            <Laptop className={`h-5 w-5 ${mode === 'auto' ? 'text-blue' : 'text-subtext0'}`} />
-            <div>
-              <p className="text-sm font-semibold">Automatic</p>
-              <p className="text-xs text-subtext0 mt-0.5">Sync with system</p>
-            </div>
-          </button>
-
-          {/* Dark */}
-          <button
-            type="button"
-            aria-pressed={mode === 'dark'}
-            onClick={() => setMode('dark')}
-            className={`flex items-center gap-3 p-4 rounded-xl border text-left transition-all cursor-pointer ${
-              mode === 'dark'
-                ? 'bg-blue/15 border-blue text-text shadow-sm'
-                : 'bg-mantle border-surface1 text-subtext1 hover:bg-surface1'
-            }`}
-          >
-            <Moon className={`h-5 w-5 ${mode === 'dark' ? 'text-blue' : 'text-subtext0'}`} />
-            <div>
-              <p className="text-sm font-semibold">Force Dark</p>
-              <p className="text-xs text-subtext0 mt-0.5">Dark background</p>
-            </div>
-          </button>
-
-          {/* Light */}
-          <button
-            type="button"
-            aria-pressed={mode === 'light'}
-            onClick={() => setMode('light')}
-            className={`flex items-center gap-3 p-4 rounded-xl border text-left transition-all cursor-pointer ${
-              mode === 'light'
-                ? 'bg-blue/15 border-blue text-text shadow-sm'
-                : 'bg-mantle border-surface1 text-subtext1 hover:bg-surface1'
-            }`}
-          >
-            <Sun className={`h-5 w-5 ${mode === 'light' ? 'text-blue' : 'text-subtext0'}`} />
-            <div>
-              <p className="text-sm font-semibold">Force Light</p>
-              <p className="text-xs text-subtext0 mt-0.5">Light background</p>
-            </div>
-          </button>
-        </div>
-      </div>
-
-      {/* Section 3: Pagination & Display Settings */}
-      <div className="rounded-xl border border-surface1 bg-surface0 p-6 space-y-4">
-        <h2 className="text-base font-semibold text-text pb-2 border-b border-surface1">
-          Display & Pagination Standards
-        </h2>
-        <div className="space-y-3 text-xs text-subtext1">
-          <div className="flex items-center justify-between py-2 border-b border-surface1/50">
-            <div>
-              <p className="font-semibold text-text">Standard Page Size</p>
-              <p className="text-subtext0 text-[11px]">Enforced across all data views exceeding 10 entries</p>
-            </div>
-            <span className="font-mono font-bold text-blue px-2.5 py-1 rounded bg-mantle border border-surface1">
-              10 entries / page
-            </span>
+      <Panel
+        title="Gather fresh data"
+        description="Choose how deep the refresh should run. Each level includes the steps before it. Completed stages are saved as they finish, so an interrupted run can be resumed."
+        actions={<Chip tone={statusTone}>{refreshStatus?.status || 'idle'}</Chip>}
+        bodyClassName="space-y-5"
+      >
+        <div>
+          <div className="mb-2 flex items-center justify-between text-[13px]">
+            <span className="font-medium text-text">Refresh depth</span>
+            <span className="font-medium tabular-nums text-accent">Step {refreshDepth} of 4</span>
           </div>
-
-          <div className="flex items-center justify-between py-2 border-b border-surface1/50">
-            <div>
-              <p className="font-semibold text-text">URL Filter Persistence</p>
-              <p className="text-subtext0 text-[11px]">Retain competition, season, club and stage in query params</p>
-            </div>
-            <span className="font-semibold text-green">Enabled</span>
-          </div>
-
-          <div className="flex items-center justify-between py-2">
-            <div>
-              <p className="font-semibold text-text">Color Token Architecture</p>
-              <p className="text-subtext0 text-[11px]">CSS custom properties with Tailwind v4 runtime switching</p>
-            </div>
-            <span className="font-semibold text-teal">Active</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Section 4: Backend API Diagnostics */}
-      <Card className="overflow-hidden rounded-2xl border border-surface1 bg-surface0">
-        <div className="border-b border-surface1 p-5 sm:p-6">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2.5">
-                <CloudDownload className="size-5 text-teal" />
-                <h2 className="text-base font-semibold text-text">Gather fresh data</h2>
-              </div>
-              <p className="mt-2 max-w-2xl text-xs leading-5 text-subtext0">Choose how deep the refresh should run. Each level includes the steps before it. Completed stages are saved as they finish, so an interrupted run can be resumed.</p>
-            </div>
-            <span className={`rounded-full px-3 py-1 text-xs font-bold ${refreshStatus?.status === 'running' || refreshStatus?.status === 'degraded' ? 'bg-yellow/15 text-yellow' : refreshStatus?.status === 'success' ? 'bg-green/15 text-green' : refreshStatus?.status === 'failed' ? 'bg-red/15 text-red' : 'bg-surface1 text-subtext1'}`}>
-              {refreshStatus?.status || 'idle'}
-            </span>
+          <input aria-label="Refresh depth" type="range" min={1} max={4} step={1} value={refreshDepth}
+            onChange={(event) => setRefreshDepth(Number(event.target.value))} disabled={running}
+            className="h-1.5 w-full cursor-pointer accent-[var(--blue)] disabled:cursor-not-allowed" />
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {REFRESH_STEPS.map((step, index) => {
+              const number = index + 1;
+              const included = number <= refreshDepth;
+              const complete = refreshStatus?.completed_steps.includes(number);
+              return (
+                <button key={step.title} type="button" onClick={() => setRefreshDepth(number)} disabled={running}
+                  className={`rounded-lg border p-3 text-left transition-colors ${included ? 'border-accent/50 bg-accent/5' : 'border-surface1 opacity-60 hover:opacity-100'}`}>
+                  <span className="mb-1.5 flex size-5 items-center justify-center rounded-full bg-surface1 text-xs font-medium tabular-nums text-text">
+                    {complete ? <CircleCheck className="size-3.5 text-positive" aria-hidden="true" /> : number}
+                  </span>
+                  <span className="block text-[13px] font-medium text-text">{step.title}</span>
+                  <span className="mt-0.5 block text-xs leading-4 text-subtext0">{step.detail}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        <div className="space-y-6 p-5 sm:p-6">
+        <div className="grid gap-4 border-t border-surface1 pt-4 md:grid-cols-[12rem_1fr]">
+          <label className="flex flex-col gap-1 text-xs font-medium text-subtext0">
+            Season start year
+            <input type="number" min={2010} max={2100} value={refreshSeason ?? catalog?.current_season ?? ''}
+              onChange={(event) => setRefreshSeason(Number(event.target.value))}
+              className="h-9 rounded-lg border border-surface1 bg-surface0 px-3 text-[13px] text-text focus:border-accent" />
+          </label>
           <div>
-            <div className="mb-3 flex items-center justify-between text-sm"><span className="font-semibold text-text">Refresh depth</span><span className="font-mono font-black text-teal">Step {refreshDepth} of 4</span></div>
-            <input
-              aria-label="Refresh depth"
-              type="range"
-              min={1}
-              max={4}
-              step={1}
-              value={refreshDepth}
-              onChange={(event) => setRefreshDepth(Number(event.target.value))}
-              disabled={refreshStatus?.status === 'running'}
-              className="h-2 w-full cursor-pointer accent-[var(--teal)] disabled:cursor-not-allowed"
-            />
-            <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              {REFRESH_STEPS.map((step, index) => {
-                const number = index + 1;
-                const included = number <= refreshDepth;
-                const complete = refreshStatus?.completed_steps.includes(number);
+            <p className="mb-1.5 text-xs font-medium text-subtext0">Competitions <span className="font-normal">— none selected means all domestic leagues</span></p>
+            <div className="flex flex-wrap gap-1.5">
+              {(catalog?.competitions || []).map((competition) => {
+                const active = refreshCompetitions.includes(competition.code);
                 return (
-                  <button key={step.title} type="button" onClick={() => setRefreshDepth(number)} disabled={refreshStatus?.status === 'running'} className={`rounded-xl border p-3 text-left transition-colors ${included ? 'border-teal/40 bg-teal/5' : 'border-surface1 bg-mantle opacity-55'}`}>
-                    <span className="mb-2 flex size-6 items-center justify-center rounded-full bg-surface1 text-xs font-black text-text">{complete ? <CircleCheck className="size-4 text-green" /> : number}</span>
-                    <span className="block text-xs font-bold text-text">{step.title}</span>
-                    <span className="mt-1 block text-[11px] leading-4 text-subtext0">{step.detail}</span>
+                  <button key={competition.code} type="button" aria-pressed={active}
+                    onClick={() => setRefreshCompetitions((current) => active ? current.filter((code) => code !== competition.code) : [...current, competition.code])}
+                    className={`h-7 rounded-md border px-2 text-xs font-medium transition-colors ${active ? 'border-accent bg-accent/10 text-text' : 'border-surface1 text-subtext0 hover:text-text'}`}>
+                    {competition.name}
                   </button>
                 );
               })}
             </div>
           </div>
-
-          <div className="grid gap-5 border-t border-surface1 pt-5 md:grid-cols-[0.38fr_1fr]">
-            <label className="space-y-1 text-xs font-semibold text-subtext1">
-              Season start year
-              <input type="number" min={2010} max={2100} value={refreshSeason ?? catalog?.current_season ?? ''} onChange={(event) => setRefreshSeason(Number(event.target.value))} className="mt-1 min-h-10 w-full rounded-xl border border-surface1 bg-mantle px-3 text-sm text-text outline-none focus:border-blue" />
-            </label>
-            <div>
-              <p className="mb-2 text-xs font-semibold text-subtext1">Competitions <span className="font-normal text-subtext0">— none selected means all domestic leagues</span></p>
-              <div className="flex flex-wrap gap-2">
-                {(catalog?.competitions || []).map((competition) => {
-                  const active = refreshCompetitions.includes(competition.code);
-                  return <Button key={competition.code} size="sm" variant={active ? 'primary' : 'outline'} onPress={() => setRefreshCompetitions((current) => active ? current.filter((code) => code !== competition.code) : [...current, competition.code])}>{competition.name}</Button>;
-                })}
-              </div>
-            </div>
-          </div>
-
-          <label className="flex items-center gap-3 text-xs text-subtext1">
-            <input type="checkbox" checked={forceDownload} onChange={(event) => setForceDownload(event.target.checked)} className="size-4 accent-[var(--blue)]" />
-            Force all sources to download again (slower; normal refresh checks freshness automatically)
-          </label>
-
-          {refreshStatus && refreshStatus.status !== 'idle' ? (
-            <div className="rounded-xl border border-surface1 bg-mantle p-4">
-              <div className="mb-2 flex items-center justify-between gap-3 text-xs"><span className="font-bold text-text">{refreshStatus.step_name}</span><span className="font-mono text-subtext0">{refreshStatus.current_step}/{refreshStatus.target_step}</span></div>
-              <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-surface1"><div className={`h-full ${refreshStatus.status === 'failed' ? 'bg-red' : refreshStatus.status === 'success' ? 'bg-green' : 'bg-teal'}`} style={{ width: `${Math.max(4, refreshStatus.current_step / refreshStatus.target_step * 100)}%` }} /></div>
-              <p className="text-xs leading-5 text-subtext0">{refreshStatus.message}</p>
-              {refreshStatus.source_messages?.length ? (
-                <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-yellow" aria-label="Source refresh problems">
-                  {refreshStatus.source_messages.map((message, index) => <li key={`${index}-${message}`}>{message}</li>)}
-                </ul>
-              ) : null}
-            </div>
-          ) : null}
-
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="max-w-xl text-[11px] leading-4 text-subtext0">API reads pause during refresh. Completed stages remain applied if a later stage fails; source partitions are individually protected.</p>
-            <Button
-              variant="primary"
-              isDisabled={!(refreshSeason ?? catalog?.current_season) || refreshStatus?.status === 'running'}
-              onPress={() => refreshMutation.mutate({ target_step: refreshDepth, season: refreshSeason ?? catalog?.current_season, competitions: refreshCompetitions, force_download: forceDownload })}
-              className="gap-2"
-            >
-              <RefreshCw className={`size-4 ${refreshMutation.isPending || refreshStatus?.status === 'running' ? 'animate-spin' : ''}`} />Gather data through step {refreshDepth}
-            </Button>
-          </div>
-          {refreshMutation.error ? <p className="text-xs text-red">{refreshMutation.error.message}</p> : null}
-        </div>
-      </Card>
-
-      <div className="rounded-xl border border-surface1 bg-surface0 p-6 space-y-4">
-        <div className="flex items-center justify-between pb-2 border-b border-surface1">
-          <div className="flex items-center gap-2.5">
-            <Server className="h-5 w-5 text-peach" />
-            <h2 className="text-base font-semibold text-text">Backend API Diagnostics</h2>
-          </div>
-          <button
-            onClick={() => {
-              refetchHealth();
-              testPing();
-            }}
-            disabled={isPinging}
-            className="flex items-center gap-1.5 px-3 py-1 text-xs rounded bg-mantle border border-surface1 hover:border-surface2 text-text transition-colors cursor-pointer"
-          >
-            <RefreshCw className={`h-3 w-3 text-blue ${isPinging ? 'animate-spin' : ''}`} />
-            <span>Test Connection</span>
-          </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="rounded-lg bg-mantle p-3.5 border border-surface1">
-            <div className="flex items-center justify-between text-subtext0 text-xs">
-              <span>Service Status</span>
-              <span className={`h-2.5 w-2.5 rounded-full ${health?.status === 'ok' ? 'bg-green' : 'bg-red'}`} />
-            </div>
-            <p className="text-lg font-bold text-text mt-1 capitalize">{health?.status || 'Connecting…'}</p>
-          </div>
+        <label className="flex items-center gap-2.5 text-xs text-subtext1">
+          <input type="checkbox" checked={forceDownload} onChange={(event) => setForceDownload(event.target.checked)} className="size-4 accent-[var(--blue)]" />
+          Force all sources to download again (slower; a normal refresh checks freshness automatically)
+        </label>
 
-          <div className="rounded-lg bg-mantle p-3.5 border border-surface1">
-            <div className="flex items-center justify-between text-subtext0 text-xs">
-              <span>Ping Latency</span>
-              <Activity className="h-3.5 w-3.5 text-blue" />
+        {refreshStatus && refreshStatus.status !== 'idle' ? (
+          <div className="rounded-lg border border-surface1 bg-mantle p-3">
+            <div className="mb-2 flex items-center justify-between gap-3 text-xs">
+              <span className="font-medium text-text">{refreshStatus.step_name}</span>
+              <span className="tabular-nums text-subtext0">{refreshStatus.current_step}/{refreshStatus.target_step}</span>
             </div>
-            <p className="text-lg font-bold text-text mt-1">
-              {pingLatency !== null ? (pingLatency >= 0 ? `${pingLatency} ms` : 'Failed') : 'Untested'}
-            </p>
+            <div className="mb-2 h-1 overflow-hidden rounded-full bg-surface1">
+              <div className={`h-full ${refreshStatus.status === 'failed' ? 'bg-negative' : refreshStatus.status === 'success' ? 'bg-positive' : 'bg-accent'}`}
+                style={{ width: `${Math.max(4, refreshStatus.current_step / refreshStatus.target_step * 100)}%` }} />
+            </div>
+            <p className="text-xs leading-5 text-subtext0">{refreshStatus.message}</p>
+            {refreshStatus.source_messages?.length ? (
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-warning" aria-label="Source refresh problems">
+                {refreshStatus.source_messages.map((message, index) => <li key={`${index}-${message}`}>{message}</li>)}
+              </ul>
+            ) : null}
           </div>
+        ) : null}
 
-          <div className="rounded-lg bg-mantle p-3.5 border border-surface1">
-            <div className="flex items-center justify-between text-subtext0 text-xs">
-              <span>Database Access</span>
-              <Database className="h-3.5 w-3.5 text-teal" />
-            </div>
-            <p className="text-sm font-semibold text-text mt-1 truncate" title={health?.database}>
-              {health?.read_only ? 'DuckDB (Read-Only)' : 'DuckDB'}
-            </p>
-          </div>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-surface1 pt-4">
+          <p className="max-w-xl text-xs leading-5 text-subtext0">
+            The API keeps serving from PostgreSQL or the SQLite snapshot while a refresh runs. Completed stages stay applied if a later one fails. Refreshes from another machine need the server&apos;s admin token.
+          </p>
+          <Button variant="primary" size="sm" isDisabled={!(refreshSeason ?? catalog?.current_season) || running}
+            onPress={() => refreshMutation.mutate({ target_step: refreshDepth, season: refreshSeason ?? catalog?.current_season, competitions: refreshCompetitions, force_download: forceDownload })}>
+            <RefreshCw className={`size-3.5 ${refreshMutation.isPending || running ? 'animate-spin motion-reduce:animate-none' : ''}`} aria-hidden="true" />
+            Gather data through step {refreshDepth}
+          </Button>
         </div>
-      </div>
+        {refreshMutation.error ? <p className="text-xs text-negative">{refreshMutation.error.message}</p> : null}
+      </Panel>
+
+      <Panel
+        title="Backend API diagnostics"
+        actions={<Button size="sm" variant="outline" isDisabled={isPinging} onPress={() => { refetchHealth(); testPing(); }}>
+          <RefreshCw className={`size-3.5 ${isPinging ? 'animate-spin motion-reduce:animate-none' : ''}`} aria-hidden="true" /> Test connection
+        </Button>}
+      >
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <Stat inset label="Service status" value={<span className="capitalize">{health?.status || 'connecting…'}</span>} tone={health?.status === 'ok' ? 'positive' : 'negative'} />
+          <Stat inset label="Ping latency" value={pingLatency !== null ? (pingLatency >= 0 ? `${pingLatency} ms` : 'Failed') : 'Untested'} />
+          <Stat inset label="Database" value={<span className="block truncate text-[16px]" title={health?.database}>{health?.database?.startsWith('postgresql') ? 'PostgreSQL' : health?.database?.endsWith('.sqlite3') ? 'SQLite snapshot' : 'DuckDB'}</span>}
+            hint={health?.read_only ? 'read-only' : undefined} />
+        </div>
+      </Panel>
     </div>
   );
 }

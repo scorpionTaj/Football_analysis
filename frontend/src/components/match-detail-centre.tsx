@@ -1,6 +1,7 @@
 'use client';
 
-import { Button, Card } from '@heroui/react';
+import { Button } from '@heroui/react';
+import { Panel } from '@/components/ui/panel';
 import { useMemo, useState } from 'react';
 import {
   ArrowLeft,
@@ -8,7 +9,6 @@ import {
   CircleAlert,
   MapPin,
   Shirt,
-  Timer,
   UserRound,
   UsersRound,
 } from 'lucide-react';
@@ -20,11 +20,11 @@ type Side = 'home' | 'away';
 
 function timelineMark(eventType: string | null) {
   const event = (eventType || '').toLowerCase();
-  if (event.includes('missed')) return { mark: '✕', tone: 'border-red/35 bg-red/10 text-red' };
-  if (event.includes('red') || event.includes('second yellow')) return { mark: '■', tone: 'border-red/35 bg-red/10 text-red' };
-  if (event.includes('yellow')) return { mark: '■', tone: 'border-yellow/35 bg-yellow/10 text-yellow' };
-  if (event.includes('substitution')) return { mark: '↔', tone: 'border-teal/35 bg-teal/10 text-teal' };
-  if (event.includes('goal')) return { mark: '⚽', tone: 'border-green/35 bg-green/10 text-green' };
+  if (event.includes('missed')) return { mark: '✕', tone: 'border-negative/35 bg-negative/10 text-negative' };
+  if (event.includes('red') || event.includes('second yellow')) return { mark: '■', tone: 'border-negative/35 bg-negative/10 text-negative' };
+  if (event.includes('yellow')) return { mark: '■', tone: 'border-warning/35 bg-warning/10 text-warning' };
+  if (event.includes('substitution')) return { mark: '↔', tone: 'border-surface2 bg-surface1 text-subtext1' };
+  if (event.includes('goal')) return { mark: '⚽', tone: 'border-positive/35 bg-positive/10 text-positive' };
   return { mark: '•', tone: 'border-surface2 bg-mantle text-subtext1' };
 }
 
@@ -157,7 +157,7 @@ export function MatchDetailCentre({ detail, onBack }: { detail: MatchCentreDetai
     <div className="space-y-5">
       <Button variant="outline" size="sm" onPress={onBack} className="gap-2"><ArrowLeft className="size-4" />Back to matches</Button>
 
-      <Card className="overflow-hidden rounded-xl border border-surface1 bg-surface0">
+      <section className="overflow-hidden rounded-xl border border-surface1 bg-surface0">
         <div className="border-b border-surface1 p-5 sm:p-6">
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3 text-xs text-subtext0">
             <span className="flex items-center gap-2"><CalendarDays className="size-4" />{match.match_date}{match.kickoff_time ? ` · Kickoff ${match.kickoff_time}` : ''} · {match.competition}</span>
@@ -249,11 +249,10 @@ export function MatchDetailCentre({ detail, onBack }: { detail: MatchCentreDetai
             </section>
           </div>
         </div>}
-      </Card>
+      </section>
 
       {!isFixturePreview ? <div className="grid gap-5 lg:grid-cols-[1fr_0.72fr]">
-        <Card className="rounded-xl border border-surface1 bg-surface0 p-4 sm:p-5">
-          <h2 className="mb-5 flex items-center gap-2 text-sm font-semibold text-text"><Timer className="size-4 text-overlay0" />Match timeline</h2>
+        <Panel title="Match timeline">
           {orderedTimeline.length ? (
             <div className="relative space-y-1 before:absolute before:bottom-4 before:left-[2.2rem] before:top-4 before:w-px before:bg-surface2">
               {orderedTimeline.map((item, index) => (
@@ -272,21 +271,20 @@ export function MatchDetailCentre({ detail, onBack }: { detail: MatchCentreDetai
               ))}
             </div>
           ) : <p className="text-sm text-subtext0">No verified event timeline was supplied for this match.</p>}
-        </Card>
+        </Panel>
 
         <div className="space-y-5">
-          <Card className="rounded-xl border border-surface1 bg-surface0 p-4">
-            <h2 className="mb-3 text-base font-semibold text-text">Technical area</h2>
+          <Panel title="Technical area">
             <div className="space-y-3 text-sm">
               <div className="flex justify-between gap-3"><span className="text-subtext0">{match.home.name}</span><span className="text-right font-semibold text-text">{detail.home_coach || 'Coach unavailable'} · {detail.home_formation || 'shape unavailable'}</span></div>
               <div className="flex justify-between gap-3"><span className="text-subtext0">{match.away.name}</span><span className="text-right font-semibold text-text">{detail.away_coach || 'Coach unavailable'} · {detail.away_formation || 'shape unavailable'}</span></div>
             </div>
-          </Card>
+          </Panel>
           {detail.coverage_notes.length ? (
-            <Card className="rounded-xl border border-warning/30 bg-warning/5 p-4">
+            <div className="rounded-xl border border-warning/30 bg-warning/5 p-4">
               <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-warning"><CircleAlert className="size-4" />Data coverage</h2>
               <ul className="space-y-2 text-xs leading-5 text-subtext1">{detail.coverage_notes.map((note) => <li key={note}>• {note}</li>)}</ul>
-            </Card>
+            </div>
           ) : null}
           <SourceBadge meta={detail.source} />
         </div>

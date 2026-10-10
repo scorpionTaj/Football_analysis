@@ -10,6 +10,7 @@ import type { Competition, OverviewResponse } from '@/lib/api/types';
 import { axisProps, gridProps, tooltipProps } from '@/lib/chart-theme';
 import { Panel } from '@/components/ui/panel';
 import { Segmented } from '@/components/ui/segmented';
+import { DataTable, TBody, THead, Td, Th } from '@/components/ui/data-table';
 
 const CHART_VIEWS = [
   { value: 'trend', label: 'Over time' },
@@ -212,27 +213,26 @@ export function ClubTrends({
 
         {/* View 2: Season Strength Map (Matrix / Heatmap) */}
         {chartView === 'matrix' && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="text-subtext0">
-                  <th className="h-9 px-3 font-medium">Club</th>
+          <DataTable minWidth={560} caption="Season strength map: points per game">
+              <THead>
+                <tr>
+                  <Th>Club</Th>
                   {matrixData.seasons.map((yr) => (
-                    <th key={yr} className="h-9 px-3 text-center font-medium">
+                    <Th key={yr} align="center">
                       {selectedComp === 'WC' ? `${yr}` : `${yr}/${String(yr + 1).slice(-2)}`}
-                    </th>
+                    </Th>
                   ))}
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-surface1">
+              </THead>
+              <TBody>
                 {matrixData.clubs.map((row) => (
-                  <tr key={row.club} className="border-t border-surface1 hover:bg-surface1/40">
-                    <td className="flex h-10 items-center gap-2 px-3 text-text">
-                      <FootballBadge name={row.club} size={20} />
-                      <span className={row.club === activeClub ? 'font-semibold text-accent' : ''}>
-                        {row.club}
+                  <tr key={row.club}>
+                    <Td>
+                      <span className="flex items-center gap-2">
+                        <FootballBadge name={row.club} size={20} />
+                        <span className={row.club === activeClub ? 'font-semibold text-accent' : ''}>{row.club}</span>
                       </span>
-                    </td>
+                    </Td>
                     {matrixData.seasons.map((yr) => {
                       const ppg = row.values[yr];
                       // Single-hue sequential scale: stronger accent tint = more points per game.
@@ -245,18 +245,17 @@ export function ClubTrends({
                       }
 
                       return (
-                        <td key={yr} className="px-3 text-center">
-                          <span className={`inline-block min-w-12 rounded-md px-2 py-1 text-xs tabular-nums ${bgClass}`}>
+                        <Td key={yr} align="center">
+                          <span className={`inline-block min-w-12 rounded-md px-2 py-1 text-xs ${bgClass}`}>
                             {ppg !== undefined ? ppg.toFixed(2) : '—'}
                           </span>
-                        </td>
+                        </Td>
                       );
                     })}
                   </tr>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </TBody>
+          </DataTable>
         )}
 
         {/* View 3: Attacking Output vs Defensive Control (Scatter Plot) */}
@@ -266,7 +265,7 @@ export function ClubTrends({
               <span className="text-xs text-subtext0">
                 Goals Scored per Match (X) vs Conceded per Match (Y, reversed). Bubble size = PPG.
               </span>
-              <span className="text-[11px] font-mono text-green">
+              <span className="text-xs tabular-nums text-subtext0">
                 Top-right quadrant = High attack & Low conceded
               </span>
             </div>
@@ -296,11 +295,11 @@ export function ClubTrends({
                       if (!payload || !payload.length) return null;
                       const data = payload[0].payload;
                       return (
-                        <div className="p-3 rounded-xl bg-mantle border border-surface1 shadow-xl text-xs space-y-1">
-                          <p className="font-bold text-text text-sm">{data.club}</p>
-                          <p className="text-green">Goals Scored: {data.goalsPerMatch} / match</p>
-                          <p className="text-red">Goals Conceded: {data.concededPerMatch} / match</p>
-                          <p className="text-blue font-bold">PPG: {data.ppg}</p>
+                        <div className="space-y-0.5 rounded-lg border border-surface1 bg-mantle px-2.5 py-2 text-xs shadow-lg shadow-crust/30">
+                          <p className="text-[13px] font-semibold text-text">{data.club}</p>
+                          <p className="text-subtext1">Goals scored: {data.goalsPerMatch} / match</p>
+                          <p className="text-subtext1">Goals conceded: {data.concededPerMatch} / match</p>
+                          <p className="font-semibold text-text">PPG: {data.ppg}</p>
                           <p className="text-overlay1">Matches: {data.played}</p>
                         </div>
                       );

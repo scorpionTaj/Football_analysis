@@ -192,13 +192,6 @@ main th {
   white-space: nowrap;
 }
 
-/* Until every table uses the shared DataTable (which sets its own min width), keep wide
-   tables scrolling inside their containers on phones. */
-@media (max-width: 639px) {
-  main table {
-    min-width: 42rem;
-  }
-}
 
 ::selection {
   background-color: var(--surface2);
