@@ -15,6 +15,7 @@ import type { PlayerProfileResponse, PlayerStat } from '@/lib/api/types';
 import { FootballBadge, PlayerAvatar } from '@/lib/media-utils';
 import { User, Search, ChevronRight, ChevronLeft, Download, Award } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { tooltipProps } from '@/lib/chart-theme';
 
 function formatCurrency(eur: number | null | undefined): string {
   if (!eur) return 'N/A';
@@ -515,13 +516,13 @@ function PlayersContent() {
                   <div className="h-64">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={profileSeasonTotals} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#313244" />
-                        <XAxis dataKey="season" stroke="#7f849c" fontSize={11} />
-                        <YAxis stroke="#7f849c" fontSize={11} />
-                        <Tooltip contentStyle={{ backgroundColor: '#181825', borderColor: '#45475a', borderRadius: 8 }} />
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                        <XAxis dataKey="season" stroke="var(--chart-axis)" fontSize={11} />
+                        <YAxis stroke="var(--chart-axis)" fontSize={11} />
+                        <Tooltip {...tooltipProps} />
                         <Legend />
-                        <Bar dataKey="goals" fill="#cba6f7" radius={[4, 4, 0, 0]} />
-                        <Bar dataKey="assists" fill="#89b4fa" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="goals" fill="var(--series-3)" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="assists" fill="var(--series-1)" radius={[4, 4, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>

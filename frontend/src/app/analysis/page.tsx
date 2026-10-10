@@ -21,6 +21,7 @@ import {
   CartesianGrid,
   Cell,
 } from 'recharts';
+import { tooltipProps } from '@/lib/chart-theme';
 
 interface MetricConfig {
   key: 'points_per_game' | 'goals_per_game' | 'conceded_per_game' | 'win_rate' | 'clean_sheet_rate' | 'form_ppg';
@@ -30,12 +31,12 @@ interface MetricConfig {
 }
 
 const METRIC_CONFIGS: MetricConfig[] = [
-  { key: 'points_per_game', label: 'Points per game (PPG)', color: '#89b4fa' },
-  { key: 'goals_per_game', label: 'Goals scored / match', color: '#a6e3a1' },
-  { key: 'conceded_per_game', label: 'Goals conceded / match', color: '#f38ba8', reverse: true },
-  { key: 'win_rate', label: 'Win rate (%)', color: '#cba6f7' },
-  { key: 'clean_sheet_rate', label: 'Clean sheet rate (%)', color: '#94e2d5' },
-  { key: 'form_ppg', label: 'Recent Form PPG', color: '#fab387' },
+  { key: 'points_per_game', label: 'Points per game (PPG)', color: 'var(--series-1)' },
+  { key: 'goals_per_game', label: 'Goals scored / match', color: 'var(--green)' },
+  { key: 'conceded_per_game', label: 'Goals conceded / match', color: 'var(--red)', reverse: true },
+  { key: 'win_rate', label: 'Win rate (%)', color: 'var(--series-3)' },
+  { key: 'clean_sheet_rate', label: 'Clean sheet rate (%)', color: 'var(--teal)' },
+  { key: 'form_ppg', label: 'Recent Form PPG', color: 'var(--series-2)' },
 ];
 
 type MetricKey = MetricConfig['key'];
@@ -287,11 +288,11 @@ function AnalysisContent() {
         <div className="h-80 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chartData} layout="vertical" margin={{ top: 10, right: 20, left: 40, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#313244" horizontal={false} />
-              <XAxis type="number" stroke="#7f849c" fontSize={11} />
-              <YAxis type="category" dataKey="name" stroke="#7f849c" fontSize={11} width={110} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" horizontal={false} />
+              <XAxis type="number" stroke="var(--chart-axis)" fontSize={11} />
+              <YAxis type="category" dataKey="name" stroke="var(--chart-axis)" fontSize={11} width={110} />
               <Tooltip
-                contentStyle={{ backgroundColor: '#181825', borderColor: '#45475a', borderRadius: '8px', color: '#cdd6f4' }}
+                {...tooltipProps}
                 formatter={(val) => [`${val}`, metricInfo.label]}
               />
               <Bar dataKey="value" fill={metricInfo.color} radius={[0, 4, 4, 0]}>

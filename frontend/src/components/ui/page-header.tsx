@@ -1,36 +1,33 @@
 import type { ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { Card } from '@heroui/react';
 
+/** Compact page title bar: eyebrow, the page's only h1, one-line description, actions on the right. */
 export function PageHeader({
   title,
   description,
   icon: Icon,
-  eyebrow = 'Football intelligence',
+  eyebrow,
   action,
 }: {
   title: string;
-  description: string;
-  icon: LucideIcon;
+  description?: string;
+  icon?: LucideIcon;
   eyebrow?: string;
   action?: ReactNode;
 }) {
   return (
-    <Card className="page-intro relative overflow-hidden border border-surface1/70 bg-surface0/75 px-5 py-5 shadow-xl shadow-crust/10 sm:px-6 sm:py-6">
-      <div className="pointer-events-none absolute -right-16 -top-20 size-56 rounded-full bg-blue/10 blur-3xl" aria-hidden="true" />
-      <div className="relative flex flex-col justify-between gap-5 sm:flex-row sm:items-center">
-        <div className="flex min-w-0 items-start gap-4">
-          <span className="grid size-12 shrink-0 place-items-center rounded-2xl border border-blue/20 bg-gradient-to-br from-blue/20 to-sapphire/5 text-blue shadow-inner">
-            <Icon className="size-6" aria-hidden="true" />
-          </span>
-          <div className="min-w-0">
-            <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.18em] text-sapphire">{eyebrow}</p>
-            <h1 className="text-balance text-2xl font-black tracking-[-0.035em] text-text sm:text-3xl">{title}</h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-subtext0 sm:text-[15px]">{description}</p>
-          </div>
-        </div>
-        {action ? <div className="shrink-0">{action}</div> : null}
+    <header className="flex flex-col justify-between gap-4 border-b border-surface1 pb-5 sm:flex-row sm:items-end">
+      <div className="min-w-0">
+        {eyebrow ? (
+          <p className="mb-1 flex items-center gap-1.5 text-xs font-medium text-subtext0">
+            {Icon ? <Icon className="size-3.5 text-accent" aria-hidden="true" /> : null}
+            {eyebrow}
+          </p>
+        ) : null}
+        <h1 className="text-balance text-2xl font-semibold tracking-tight text-text sm:text-[28px] sm:leading-9">{title}</h1>
+        {description ? <p className="mt-1.5 max-w-3xl text-sm text-subtext0">{description}</p> : null}
       </div>
-    </Card>
+      {action ? <div className="flex shrink-0 flex-wrap items-center gap-2">{action}</div> : null}
+    </header>
   );
 }

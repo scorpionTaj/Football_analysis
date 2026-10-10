@@ -89,7 +89,7 @@ export function GlobalSearch({ onNavigate }: { onNavigate?: () => void }) {
   };
 
   return (
-    <div className="relative px-3 py-3">
+    <div className="relative px-2 pb-2">
       <div className="relative">
         <Search className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-overlay0" aria-hidden="true" />
         <Input
@@ -107,7 +107,7 @@ export function GlobalSearch({ onNavigate }: { onNavigate?: () => void }) {
         />
       </div>
       {isOpen ? (
-        <div id="global-search-results" role="listbox" aria-label="Search results" className="absolute inset-x-3 top-[3.8rem] z-20 overflow-hidden rounded-xl border border-surface1 bg-mantle shadow-2xl">
+        <div id="global-search-results" role="listbox" aria-label="Search results" className="absolute inset-x-2 top-[2.9rem] z-20 overflow-hidden rounded-lg border border-surface1 bg-mantle shadow-xl shadow-crust/30">
           {results.length ? results.map((result, index) => (
             <Link
               key={result.key}

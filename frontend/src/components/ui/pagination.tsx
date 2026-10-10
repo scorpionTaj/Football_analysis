@@ -44,7 +44,7 @@ export function Pagination({
   }
 
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 border-t border-surface1 text-xs text-subtext0">
+    <div className="flex flex-col justify-between gap-3 border-t border-surface1 pt-3 text-xs text-subtext0 sm:flex-row sm:items-center">
       <div className="flex items-center gap-3">
         {totalItems !== undefined && (
           <span>
@@ -57,7 +57,8 @@ export function Pagination({
             <select
               value={pageSize}
               onChange={(e) => onPageSizeChange(Number(e.target.value))}
-              className="rounded bg-mantle border border-surface1 px-2 py-0.5 text-xs text-text outline-none cursor-pointer"
+              aria-label="Rows per page"
+              className="h-7 cursor-pointer rounded-md border border-surface1 bg-surface0 px-2 text-xs text-text"
             >
               {pageSizeOptions.map((opt) => (
                 <option key={opt} value={opt}>
@@ -74,8 +75,9 @@ export function Pagination({
         <button
           onClick={() => onPageChange(1)}
           disabled={currentPage === 1}
-          className="p-1 rounded hover:bg-surface1 disabled:opacity-30 disabled:cursor-not-allowed text-subtext1 transition-colors cursor-pointer"
-          title="First Page"
+          className="grid size-7 place-items-center rounded-md text-subtext1 transition-colors hover:bg-surface1 disabled:cursor-not-allowed disabled:opacity-30"
+          type="button"
+          aria-label="First page"
         >
           <ChevronsLeft className="h-4 w-4" />
         </button>
@@ -84,8 +86,9 @@ export function Pagination({
         <button
           onClick={() => onPageChange(currentPage - 1)}
           disabled={currentPage === 1}
-          className="p-1 rounded hover:bg-surface1 disabled:opacity-30 disabled:cursor-not-allowed text-subtext1 transition-colors cursor-pointer"
-          title="Previous Page"
+          className="grid size-7 place-items-center rounded-md text-subtext1 transition-colors hover:bg-surface1 disabled:cursor-not-allowed disabled:opacity-30"
+          type="button"
+          aria-label="Previous page"
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
@@ -104,11 +107,14 @@ export function Pagination({
             return (
               <button
                 key={p}
+                type="button"
                 onClick={() => onPageChange(p)}
-                className={`h-7 w-7 rounded text-xs font-medium transition-colors cursor-pointer ${
+                aria-label={`Page ${p}`}
+                aria-current={isCurrent ? 'page' : undefined}
+                className={`h-7 min-w-7 rounded-md px-1.5 text-xs font-medium tabular-nums transition-colors ${
                   isCurrent
-                    ? 'bg-blue text-crust font-bold'
-                    : 'bg-mantle border border-surface1 text-text hover:bg-surface1'
+                    ? 'bg-accent text-[var(--accent-foreground)]'
+                    : 'text-subtext1 hover:bg-surface1'
                 }`}
               >
                 {p}
@@ -121,8 +127,9 @@ export function Pagination({
         <button
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage === totalPages}
-          className="p-1 rounded hover:bg-surface1 disabled:opacity-30 disabled:cursor-not-allowed text-subtext1 transition-colors cursor-pointer"
-          title="Next Page"
+          className="grid size-7 place-items-center rounded-md text-subtext1 transition-colors hover:bg-surface1 disabled:cursor-not-allowed disabled:opacity-30"
+          type="button"
+          aria-label="Next page"
         >
           <ChevronRight className="h-4 w-4" />
         </button>
@@ -131,8 +138,9 @@ export function Pagination({
         <button
           onClick={() => onPageChange(totalPages)}
           disabled={currentPage === totalPages}
-          className="p-1 rounded hover:bg-surface1 disabled:opacity-30 disabled:cursor-not-allowed text-subtext1 transition-colors cursor-pointer"
-          title="Last Page"
+          className="grid size-7 place-items-center rounded-md text-subtext1 transition-colors hover:bg-surface1 disabled:cursor-not-allowed disabled:opacity-30"
+          type="button"
+          aria-label="Last page"
         >
           <ChevronsRight className="h-4 w-4" />
         </button>
