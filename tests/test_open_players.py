@@ -85,7 +85,7 @@ def test_match_detail_and_cup_frames_keep_players_cards_misses_and_images(tmp_pa
             {"game_event_id": "goal", "game_id": 42, "minute": 12, "type": "Goals", "club_id": 11, "club_name": "Arsenal FC", "player_id": 7, "description": "Right-footed shot", "player_in_id": None, "player_assist_id": None},
             {"game_event_id": "red", "game_id": 42, "minute": 72, "type": "Cards", "club_id": 31, "club_name": "Liverpool FC", "player_id": 8, "description": "Red card, Serious foul", "player_in_id": None, "player_assist_id": None},
             {"game_event_id": "miss", "game_id": 42, "minute": 120, "type": "Shootout", "club_id": 31, "club_name": "Liverpool FC", "player_id": 8, "description": ", Missed", "player_in_id": None, "player_assist_id": None},
-            {"game_event_id": "fallback", "game_id": 42, "minute": 88, "type": "Goals", "club_id": 11, "club_name": "Arsenal FC", "player_id": 9, "description": "Header", "player_in_id": None, "player_assist_id": None},
+            {"game_event_id": "fallback", "game_id": 42, "minute": 88, "type": "Goals", "club_id": 11, "club_name": "Arsenal", "player_id": 9, "description": "Header", "player_in_id": None, "player_assist_id": None},
         ]), tmp_path / "game_events.csv.gz"),
         "game_lineups": _write(pd.DataFrame([
             {"game_lineups_id": "lineup", "game_id": 42, "player_id": 7,
@@ -106,6 +106,8 @@ def test_match_detail_and_cup_frames_keep_players_cards_misses_and_images(tmp_pa
     assert matches.loc[0, "competition"] == "FAC"
     assert set(goals.player) == {"Home Player", "Lineup-only Scorer"}
     assert timeline.loc[timeline.player_id == "9", "player"].iloc[0] == "Lineup-only Scorer"
+    # game_events spells the club "Arsenal" while games.csv says "Arsenal FC": goals must use the match's side.
+    assert set(goals.team) <= {matches.loc[0, "home_team"], matches.loc[0, "away_team"]}
 
 
 def test_match_detail_accepts_source_without_events_or_lineups(tmp_path):

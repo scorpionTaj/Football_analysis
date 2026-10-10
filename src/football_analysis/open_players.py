@@ -214,7 +214,13 @@ def build_match_detail_frames(paths, first_season=2021):
     now = datetime.now()
     games = games.set_index("game_id")
     events = raw_events.fillna("").join(
-        games[["home_club_id"]], on="game_id", how="inner",
+        games[["home_club_id", "away_club_id", "home_club_name", "away_club_name"]], on="game_id", how="inner",
+    )
+    # game_events.csv spells clubs differently from games.csv (e.g. "AS Roma" vs "Associazione
+    # Sportiva Roma"); name the side by club id so events, lineups and matches agree.
+    event_team = events.home_club_name.where(
+        events.club_id.eq(events.home_club_id),
+        events.away_club_name.where(events.club_id.eq(events.away_club_id), events.club_name),
     )
     description = events.description.str.lower()
     kind = events.type.replace("", "Match event")
@@ -231,7 +237,7 @@ def build_match_detail_frames(paths, first_season=2021):
     timeline = pd.DataFrame({
         "source": SOURCE, "timeline_id": events.game_event_id, "event_id": events.game_id,
         "minute": events.minute, "event_type": kind, "detail": events.description,
-        "team": events.club_name, "player_id": events.player_id,
+        "team": event_team, "player_id": events.player_id,
         "player": events.player_id.map(players.name).replace("", pd.NA).fillna(
             events.player_id.map(lineup_names)).fillna(""),
         "assist": assists.map(players.name).replace("", pd.NA).fillna(
