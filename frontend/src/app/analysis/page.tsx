@@ -10,7 +10,8 @@ import { SourceBadge } from '@/components/ui/source-badge';
 import { LoadingSkeleton, ErrorMessage, EmptyState } from '@/components/ui/loading';
 import { PageHeader } from '@/components/ui/page-header';
 import { usePagination } from '@/components/ui/pagination';
-import { BarChart3, TrendingUp, ShieldAlert, Award, Download, SlidersHorizontal } from 'lucide-react';
+import { BarChart3, Download } from 'lucide-react';
+import { Button } from '@heroui/react';
 import {
   BarChart,
   Bar,
@@ -19,9 +20,13 @@ import {
   Tooltip,
   ResponsiveContainer,
   CartesianGrid,
-  Cell,
 } from 'recharts';
-import { tooltipProps } from '@/lib/chart-theme';
+import { axisProps, gridProps, tooltipProps } from '@/lib/chart-theme';
+import { Panel } from '@/components/ui/panel';
+import { Select } from '@/components/ui/select';
+import { Stat, StatGrid } from '@/components/ui/stat';
+import { FormChip } from '@/components/ui/chip';
+import { DataTable, TBody, THead, Td, Th } from '@/components/ui/data-table';
 
 interface MetricConfig {
   key: 'points_per_game' | 'goals_per_game' | 'conceded_per_game' | 'win_rate' | 'clean_sheet_rate' | 'form_ppg';
@@ -32,11 +37,11 @@ interface MetricConfig {
 
 const METRIC_CONFIGS: MetricConfig[] = [
   { key: 'points_per_game', label: 'Points per game (PPG)', color: 'var(--series-1)' },
-  { key: 'goals_per_game', label: 'Goals scored / match', color: 'var(--green)' },
-  { key: 'conceded_per_game', label: 'Goals conceded / match', color: 'var(--red)', reverse: true },
-  { key: 'win_rate', label: 'Win rate (%)', color: 'var(--series-3)' },
-  { key: 'clean_sheet_rate', label: 'Clean sheet rate (%)', color: 'var(--teal)' },
-  { key: 'form_ppg', label: 'Recent Form PPG', color: 'var(--series-2)' },
+  { key: 'goals_per_game', label: 'Goals scored / match', color: 'var(--series-1)' },
+  { key: 'conceded_per_game', label: 'Goals conceded / match', color: 'var(--series-2)', reverse: true },
+  { key: 'win_rate', label: 'Win rate (%)', color: 'var(--series-1)' },
+  { key: 'clean_sheet_rate', label: 'Clean sheet rate (%)', color: 'var(--series-1)' },
+  { key: 'form_ppg', label: 'Recent form PPG', color: 'var(--series-1)' },
 ];
 
 type MetricKey = MetricConfig['key'];
@@ -148,314 +153,145 @@ function AnalysisContent() {
 
   const compOptions = catalog?.competitions || [];
 
+  const mean = (pick: (row: typeof rankings[number]) => number) =>
+    rankings.length ? rankings.reduce((sum, row) => sum + pick(row), 0) / rankings.length : 0;
+  const fixed = (value: number | null | undefined, digits = 2) => (value == null ? 'N/A' : value.toFixed(digits));
+
   return (
-    <div className="space-y-6">
-      {/* Filter Control Bar */}
-      <div className="rounded-xl border border-surface1 bg-surface0 p-4 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-surface1 pb-3">
-          <div className="flex items-center gap-2">
-            <SlidersHorizontal className="h-4 w-4 text-blue" />
-            <span className="text-sm font-semibold text-text">Analysis Scope</span>
-          </div>
-          {data?.source && <SourceBadge meta={data.source} />}
+    <div className="space-y-4">
+      <Panel title="Analysis scope" actions={data?.source && <SourceBadge meta={data.source} />}>
+        <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-end">
+          <Select label="Competition" value={selectedCompetitions[0]} onChange={(value) => filters.set({ competition: value })}
+            options={compOptions.map((c) => ({ value: c.code, label: c.name }))} className="sm:w-52" />
+          <Select label="Season" value={String(selectedSeasons[0] ?? '')} onChange={(value) => filters.set({ season: Number(value) })}
+            options={(compOptions.find((c) => c.code === selectedCompetitions[0])?.seasons || []).map((season) => ({ value: String(season.season), label: season.label }))} className="sm:w-32" />
+          <Select label="Venue" value={filters.venue || ''} onChange={(value) => filters.set({ venue: value || null })} placeholder="All venues"
+            options={[{ value: 'Home', label: 'Home' }, { value: 'Away', label: 'Away' }]} className="sm:w-36" />
+          <Select label="Form window" value={String(formWindow)} onChange={(value) => setFormWindow(Number(value))}
+            options={[3, 5, 8, 10].map((n) => ({ value: String(n), label: `Last ${n} matches` }))} className="sm:w-40" />
         </div>
+      </Panel>
 
-        <div className="flex flex-wrap items-center gap-4">
-          {/* Competition */}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-subtext0">Competition</label>
-            <select
-              value={selectedCompetitions[0]}
-              onChange={(e) => filters.set({ competition: e.target.value })}
-              className="rounded-lg border border-surface1 bg-mantle px-3 py-1.5 text-xs text-text outline-none hover:border-surface2 focus:border-blue cursor-pointer"
-            >
-              {compOptions.map((c) => (
-                <option key={c.code} value={c.code}>{c.name}</option>
-              ))}
-            </select>
-          </div>
+      <StatGrid>
+        <Stat label="Matches analysed" value={data?.match_count.toLocaleString() ?? '0'} />
+        <Stat label="Teams ranked" value={rankings.length} />
+        <Stat label="Avg goals / match" value={mean((row) => row.goals_per_game).toFixed(2)} />
+        <Stat label="Avg clean-sheet rate" value={`${mean((row) => row.clean_sheet_rate).toFixed(1)}%`} />
+      </StatGrid>
 
-          {/* Season */}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-subtext0">Season</label>
-            <select
-              value={selectedSeasons[0]}
-              onChange={(e) => filters.set({ season: Number(e.target.value) })}
-              className="rounded-lg border border-surface1 bg-mantle px-3 py-1.5 text-xs text-text outline-none hover:border-surface2 focus:border-blue cursor-pointer"
-            >
-              {(compOptions.find((c) => c.code === selectedCompetitions[0])?.seasons || []).map((s) => (
-                <option key={s.season} value={s.season}>{s.label}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Venue */}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-subtext0">Venue</label>
-            <select
-              value={filters.venue || ''}
-              onChange={(e) => filters.set({ venue: e.target.value || null })}
-              className="rounded-lg border border-surface1 bg-mantle px-3 py-1.5 text-xs text-text outline-none hover:border-surface2 focus:border-blue cursor-pointer"
-            >
-              <option value="">All Venues</option>
-              <option value="Home">Home</option>
-              <option value="Away">Away</option>
-            </select>
-          </div>
-
-          {/* Form Window */}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-subtext0">Form Window (Matches)</label>
-            <select
-              value={formWindow}
-              onChange={(e) => setFormWindow(Number(e.target.value))}
-              className="rounded-lg border border-surface1 bg-mantle px-3 py-1.5 text-xs text-text outline-none hover:border-surface2 focus:border-blue cursor-pointer"
-            >
-              <option value={3}>Last 3 matches</option>
-              <option value={5}>Last 5 matches</option>
-              <option value={8}>Last 8 matches</option>
-              <option value={10}>Last 10 matches</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* Summary KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="rounded-xl bg-surface0 border border-surface1 p-4">
-          <p className="text-xs font-medium text-subtext0 uppercase">Matches Analyzed</p>
-          <p className="mt-1 text-2xl font-bold text-text">{data?.match_count.toLocaleString()}</p>
-        </div>
-
-        <div className="rounded-xl bg-surface0 border border-surface1 p-4">
-          <p className="text-xs font-medium text-subtext0 uppercase">Teams Ranked</p>
-          <p className="mt-1 text-2xl font-bold text-teal">{rankings.length}</p>
-        </div>
-
-        <div className="rounded-xl bg-surface0 border border-surface1 p-4">
-          <p className="text-xs font-medium text-subtext0 uppercase">Avg Goals / Match</p>
-          <p className="mt-1 text-2xl font-bold text-peach">
-            {rankings.length > 0
-              ? (rankings.reduce((s, r) => s + r.goals_per_game, 0) / rankings.length).toFixed(2)
-              : '0'}
-          </p>
-        </div>
-
-        <div className="rounded-xl bg-surface0 border border-surface1 p-4">
-          <p className="text-xs font-medium text-subtext0 uppercase">Avg Clean Sheet Rate</p>
-          <p className="mt-1 text-2xl font-bold text-mauve">
-            {rankings.length > 0
-              ? `${(rankings.reduce((s, r) => s + r.clean_sheet_rate, 0) / rankings.length).toFixed(1)}%`
-              : '0%'}
-          </p>
-        </div>
-      </div>
-
-      {/* Interactive Ranking Chart Section */}
-      <div className="rounded-xl border border-surface1 bg-surface0 p-5 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <BarChart3 className="h-4 w-4 text-blue" />
-            <h2 className="text-base font-semibold text-text">Team Performance Ranking</h2>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {/* Metric selector */}
-            <select
-              value={selectedMetric}
-              onChange={(e) => setSelectedMetric(e.target.value as MetricKey)}
-              className="rounded-lg border border-surface1 bg-mantle px-3 py-1.5 text-xs font-medium text-text outline-none cursor-pointer"
-            >
-              {METRIC_CONFIGS.map((m) => (
-                <option key={m.key} value={m.key}>{m.label}</option>
-              ))}
-            </select>
-
-            {/* Teams shown slider/select */}
-            <select
-              value={teamLimit}
-              onChange={(e) => setTeamLimit(Number(e.target.value))}
-              className="rounded-lg border border-surface1 bg-mantle px-2.5 py-1.5 text-xs text-subtext0 outline-none cursor-pointer"
-            >
-              <option value={10}>Top 10</option>
-              <option value={15}>Top 15</option>
-              <option value={20}>Top 20</option>
-              <option value={30}>All</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="h-80 w-full">
+      <Panel
+        title="Team performance ranking"
+        actions={<>
+          <Select hideLabel label="Ranking metric" value={selectedMetric} onChange={(value) => setSelectedMetric(value as MetricKey)}
+            options={METRIC_CONFIGS.map((m) => ({ value: m.key, label: m.label }))} className="w-52" />
+          <Select hideLabel label="Teams shown" value={String(teamLimit)} onChange={(value) => setTeamLimit(Number(value))}
+            options={[['10', 'Top 10'], ['15', 'Top 15'], ['20', 'Top 20'], ['30', 'All']].map(([value, label]) => ({ value, label }))} className="w-28" />
+        </>}
+      >
+        <div className="w-full" style={{ height: Math.max(240, chartData.length * 24 + 40) }}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} layout="vertical" margin={{ top: 10, right: 20, left: 40, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" horizontal={false} />
-              <XAxis type="number" stroke="var(--chart-axis)" fontSize={11} />
-              <YAxis type="category" dataKey="name" stroke="var(--chart-axis)" fontSize={11} width={110} />
-              <Tooltip
-                {...tooltipProps}
-                formatter={(val) => [`${val}`, metricInfo.label]}
-              />
-              <Bar dataKey="value" fill={metricInfo.color} radius={[0, 4, 4, 0]}>
-                {chartData.map((_, index) => (
-                  <Cell key={`cell-${index}`} fill={metricInfo.color} />
-                ))}
-              </Bar>
+            <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 16, left: 8, bottom: 0 }}>
+              <CartesianGrid {...gridProps} vertical horizontal={false} />
+              <XAxis type="number" {...axisProps} />
+              <YAxis type="category" dataKey="name" {...axisProps} width={120} />
+              <Tooltip {...tooltipProps} formatter={(val) => [`${val}`, metricInfo.label]} />
+              <Bar dataKey="value" fill={metricInfo.color} radius={[0, 3, 3, 0]} maxBarSize={18} />
             </BarChart>
           </ResponsiveContainer>
         </div>
-      </div>
+      </Panel>
 
-      {/* Comprehensive Rankings Table */}
-      <div className="rounded-xl border border-surface1 bg-surface0 overflow-hidden">
-        <div className="flex items-center justify-between p-4 border-b border-surface1">
-          <h2 className="text-base font-semibold text-text flex items-center gap-2">
-            <Award className="h-4 w-4 text-yellow" /> Full Standings & Performance Breakdown
-          </h2>
-          <button
-            onClick={exportCsv}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-mantle border border-surface1 hover:border-surface2 text-xs font-medium text-text transition-colors cursor-pointer"
-          >
-            <Download className="h-3.5 w-3.5 text-blue" />
-            <span>Export CSV</span>
-          </button>
-        </div>
-
+      <Panel
+        title="Standings and performance breakdown"
+        actions={<Button size="sm" variant="outline" onPress={exportCsv}><Download className="size-3.5" aria-hidden="true" /> Export CSV</Button>}
+        bodyClassName="p-0"
+      >
         {rankings.length === 0 ? (
-          <EmptyState icon="📊" message="No matches in this slice." suggestion="Widen the competition, season, team or venue filters." />
+          <EmptyState icon={BarChart3} message="No matches in this slice." suggestion="Widen the competition, season, team or venue filters." />
         ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-surface1 bg-mantle text-xs uppercase text-subtext0">
-              <tr>
-                <th className="py-3 px-4">#</th>
-                <th className="py-3 px-4">Team</th>
-                <th className="py-3 px-4 text-center">P</th>
-                <th className="py-3 px-4 text-center">W</th>
-                <th className="py-3 px-4 text-center">D</th>
-                <th className="py-3 px-4 text-center">L</th>
-                <th className="py-3 px-4 text-center">Pts</th>
-                <th className="py-3 px-4 text-right">PPG</th>
-                <th className="py-3 px-4 text-right">GF/m</th>
-                <th className="py-3 px-4 text-right">GA/m</th>
-                <th className="py-3 px-4 text-center">Win %</th>
-                <th className="py-3 px-4 text-center">Clean %</th>
-                <th className="py-3 px-4 text-center">Form (Last {formWindow})</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-surface1">
-              {paginatedRankings.map((r) => (
-                <tr key={r.team.team_id} className="hover:bg-surface1/40 transition-colors">
-                  <td className="py-2.5 px-4 font-mono text-xs text-subtext0">{r.rank}</td>
-                  <td className="py-2.5 px-4 font-semibold text-text">{r.team.name}</td>
-                  <td className="py-2.5 px-4 text-center text-subtext1">{r.played}</td>
-                  <td className="py-2.5 px-4 text-center text-green font-medium">{r.wins}</td>
-                  <td className="py-2.5 px-4 text-center text-yellow font-medium">{r.draws}</td>
-                  <td className="py-2.5 px-4 text-center text-red font-medium">{r.losses}</td>
-                  <td className="py-2.5 px-4 text-center font-bold text-blue">{r.points}</td>
-                  <td className="py-2.5 px-4 text-right font-mono text-xs">{r.points_per_game.toFixed(2)}</td>
-                  <td className="py-2.5 px-4 text-right font-mono text-xs text-green">{r.goals_per_game.toFixed(2)}</td>
-                  <td className="py-2.5 px-4 text-right font-mono text-xs text-red">{r.conceded_per_game.toFixed(2)}</td>
-                  <td className="py-2.5 px-4 text-center text-xs">{r.win_rate.toFixed(1)}%</td>
-                  <td className="py-2.5 px-4 text-center text-xs text-teal">{r.clean_sheet_rate.toFixed(1)}%</td>
-                  <td className="py-2.5 px-4 text-center">
-                    <div className="flex items-center justify-center gap-1">
-                      {(r.form || '').split(' ').map((char, ci) => {
-                        const bg = char === 'W' ? 'bg-green/20 text-green' : char === 'D' ? 'bg-yellow/20 text-yellow' : 'bg-red/20 text-red';
-                        return (
-                          <span key={ci} className={`h-5 w-5 rounded text-[10px] font-bold flex items-center justify-center ${bg}`}>
-                            {char}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  </td>
+          <>
+            <DataTable minWidth={900} caption="Analysis rankings">
+              <THead>
+                <tr>
+                  <Th>#</Th><Th>Team</Th><Th align="right">P</Th><Th align="right">W</Th><Th align="right">D</Th><Th align="right">L</Th>
+                  <Th align="right" className="text-text">Pts</Th><Th align="right">PPG</Th><Th align="right">GF/m</Th><Th align="right">GA/m</Th>
+                  <Th align="right">Win %</Th><Th align="right">Clean %</Th><Th align="center">Form (last {formWindow})</Th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </THead>
+              <TBody>
+                {paginatedRankings.map((r) => (
+                  <tr key={r.team.team_id}>
+                    <Td className="text-subtext0">{r.rank}</Td>
+                    <Td className="font-medium">{r.team.name}</Td>
+                    <Td align="right" className="text-subtext1">{r.played}</Td>
+                    <Td align="right" className="text-subtext1">{r.wins}</Td>
+                    <Td align="right" className="text-subtext1">{r.draws}</Td>
+                    <Td align="right" className="text-subtext1">{r.losses}</Td>
+                    <Td align="right" className="font-semibold">{r.points}</Td>
+                    <Td align="right">{r.points_per_game.toFixed(2)}</Td>
+                    <Td align="right" className="text-subtext1">{r.goals_per_game.toFixed(2)}</Td>
+                    <Td align="right" className="text-subtext1">{r.conceded_per_game.toFixed(2)}</Td>
+                    <Td align="right" className="text-subtext1">{r.win_rate.toFixed(1)}%</Td>
+                    <Td align="right" className="text-subtext1">{r.clean_sheet_rate.toFixed(1)}%</Td>
+                    <Td align="center">
+                      <span className="inline-flex gap-1">{(r.form || '').split(' ').filter(Boolean).map((result, i) => <FormChip key={i} result={result} />)}</span>
+                    </Td>
+                  </tr>
+                ))}
+              </TBody>
+            </DataTable>
+            <div className="px-4 pb-3">{AnalysisPagination}</div>
+          </>
         )}
-        <div className="px-4 py-3 bg-mantle border-t border-surface1">
-          {AnalysisPagination}
-        </div>
-      </div>
+      </Panel>
 
       {data?.correlations?.length && correlationMetrics.length ? (
-        <div className="overflow-hidden rounded-xl border border-surface1 bg-surface0">
-          <div className="border-b border-surface1 p-4">
-            <h2 className="font-semibold text-text">Metric correlation matrix</h2>
-            <p className="mt-1 text-xs text-subtext0">Values near +1 move together; values near −1 move in opposite directions.</p>
-          </div>
-          <div className="overflow-x-auto p-4">
-            <table className="w-full text-center text-xs">
-              <thead><tr><th className="p-2 text-left text-subtext0">Metric</th>{correlationMetrics.map((metric) => <th key={metric} className="min-w-24 p-2 text-subtext0">{metric.replaceAll('_', ' ')}</th>)}</tr></thead>
-              <tbody>
-                {data.correlations.map((row) => <tr key={String(row.metric)}><th className="p-2 text-left font-semibold text-text">{String(row.metric).replaceAll('_', ' ')}</th>{correlationMetrics.map((metric) => {
-                  const value = typeof row[metric] === 'number' ? row[metric] as number : null;
-                  const intensity = value == null ? 0 : Math.min(0.32, Math.abs(value) * 0.32);
-                  return <td key={metric} className="border border-surface1 p-2 font-mono text-text" style={{ backgroundColor: value == null ? undefined : value >= 0 ? `rgba(137,180,250,${intensity})` : `rgba(243,139,168,${intensity})` }}>{value == null ? '—' : value.toFixed(2)}</td>;
-                })}</tr>)}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <Panel title="Metric correlation matrix" description="Values near +1 move together; values near −1 move in opposite directions." bodyClassName="p-0">
+          <DataTable minWidth={640} caption="Metric correlation matrix">
+            <THead>
+              <tr><Th>Metric</Th>{correlationMetrics.map((metric) => <Th key={metric} align="center" className="capitalize">{metric.replaceAll('_', ' ')}</Th>)}</tr>
+            </THead>
+            <TBody>
+              {data.correlations.map((row) => (
+                <tr key={String(row.metric)}>
+                  <th scope="row" className="h-9 px-3 text-left font-medium capitalize text-text">{String(row.metric).replaceAll('_', ' ')}</th>
+                  {correlationMetrics.map((metric) => {
+                    const value = typeof row[metric] === 'number' ? row[metric] as number : null;
+                    const tint = value == null ? null : `color-mix(in srgb, var(${value >= 0 ? '--blue' : '--red'}) ${Math.round(Math.min(1, Math.abs(value)) * 30)}%, transparent)`;
+                    return <Td key={metric} align="center" style={{ background: tint ?? undefined }}>{value == null ? '—' : value.toFixed(2)}</Td>;
+                  })}
+                </tr>
+              ))}
+            </TBody>
+          </DataTable>
+        </Panel>
       ) : null}
 
-      {/* Match Factors & Disciplinary Context */}
       {matchFactors && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="rounded-xl border border-surface1 bg-surface0 p-5 space-y-3">
-            <h3 className="text-sm font-semibold text-text flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-teal" /> In-Match Scoring Distribution
-            </h3>
-            <div className="grid grid-cols-2 gap-3 pt-2">
-              <div className="rounded-lg bg-mantle p-3 border border-surface1">
-                <p className="text-xs text-subtext0">1st Half Goals (Mean)</p>
-                <p className="text-lg font-bold text-text mt-1">{matchFactors.first_half_goals_mean?.toFixed(2) ?? 'N/A'}</p>
-              </div>
-              <div className="rounded-lg bg-mantle p-3 border border-surface1">
-                <p className="text-xs text-subtext0">2nd Half Goals (Mean)</p>
-                <p className="text-lg font-bold text-text mt-1">{matchFactors.second_half_goals_mean?.toFixed(2) ?? 'N/A'}</p>
-              </div>
-              <div className="rounded-lg bg-mantle p-3 border border-surface1">
-                <p className="text-xs text-subtext0">Corners / Match (Mean)</p>
-                <p className="text-lg font-bold text-text mt-1">{matchFactors.corners_mean?.toFixed(2) ?? 'N/A'}</p>
-              </div>
-              <div className="rounded-lg bg-mantle p-3 border border-surface1">
-                <p className="text-xs text-subtext0">Fouls / Match (Mean)</p>
-                <p className="text-lg font-bold text-text mt-1">{matchFactors.fouls_mean?.toFixed(2) ?? 'N/A'}</p>
-              </div>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <Panel title="In-match factors" description="Means per match in this slice">
+            <div className="grid grid-cols-2 gap-2">
+              <Stat inset label="1st-half goals" value={fixed(matchFactors.first_half_goals_mean)} />
+              <Stat inset label="2nd-half goals" value={fixed(matchFactors.second_half_goals_mean)} />
+              <Stat inset label="Corners" value={fixed(matchFactors.corners_mean)} />
+              <Stat inset label="Fouls" value={fixed(matchFactors.fouls_mean)} />
             </div>
-          </div>
-
-          {/* Referee Activity */}
-          <div className="rounded-xl border border-surface1 bg-surface0 p-5 space-y-3">
-            <h3 className="text-sm font-semibold text-text flex items-center gap-2">
-              <ShieldAlert className="h-4 w-4 text-peach" /> Referee Disciplinary Impact
-            </h3>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="border-b border-surface1 text-subtext0 uppercase">
-                  <tr>
-                    <th className="py-2">Referee</th>
-                    <th className="py-2 text-center">Matches</th>
-                    <th className="py-2 text-right">Yellows / m</th>
-                    <th className="py-2 text-right">Reds / m</th>
+          </Panel>
+          <Panel title="Referee discipline" description="Most active referees in this slice" bodyClassName="p-0">
+            <DataTable minWidth={360} caption="Referee discipline">
+              <THead><tr><Th>Referee</Th><Th align="right">Matches</Th><Th align="right">Yellows / m</Th><Th align="right">Reds / m</Th></tr></THead>
+              <TBody>
+                {(matchFactors.referees || []).slice(0, 5).map((ref) => (
+                  <tr key={ref.referee}>
+                    <Td className="font-medium">{ref.referee}</Td>
+                    <Td align="right" className="text-subtext1">{ref.matches}</Td>
+                    <Td align="right">{ref.yellow_cards_mean?.toFixed(2) ?? '–'}</Td>
+                    <Td align="right">{ref.red_cards_mean?.toFixed(2) ?? '–'}</Td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-surface1">
-                  {(matchFactors.referees || []).slice(0, 5).map((ref) => (
-                    <tr key={ref.referee} className="hover:bg-surface1/30">
-                      <td className="py-2 font-medium text-text">{ref.referee}</td>
-                      <td className="py-2 text-center text-subtext1">{ref.matches}</td>
-                      <td className="py-2 text-right font-mono text-yellow">{ref.yellow_cards_mean?.toFixed(2) ?? '-'}</td>
-                      <td className="py-2 text-right font-mono text-red">{ref.red_cards_mean?.toFixed(2) ?? '-'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                ))}
+              </TBody>
+            </DataTable>
+          </Panel>
         </div>
       )}
     </div>
@@ -464,7 +300,7 @@ function AnalysisContent() {
 
 export default function AnalysisPage() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader icon={BarChart3} eyebrow="Compare and explain" title="Analysis Lab" description="Compare competitions, form, match factors and disciplinary patterns from one filterable workspace." />
 
       <Suspense fallback={<LoadingSkeleton lines={8} />}>

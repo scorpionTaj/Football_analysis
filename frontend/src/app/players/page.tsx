@@ -1,6 +1,6 @@
 'use client';
 
-import { Card, Chip, Button } from '@heroui/react';
+import { Button } from '@heroui/react';
 import React, { Suspense, useMemo, useState, useEffect } from 'react';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
@@ -10,36 +10,17 @@ import { useFilterParams } from '@/lib/hooks/use-filter-params';
 import { SourceBadge } from '@/components/ui/source-badge';
 import { LoadingSkeleton, ErrorMessage, EmptyState } from '@/components/ui/loading';
 import { PageHeader } from '@/components/ui/page-header';
-import { usePagination } from '@/components/ui/pagination';
-import type { PlayerProfileResponse, PlayerStat } from '@/lib/api/types';
-import { FootballBadge, PlayerAvatar } from '@/lib/media-utils';
-import { User, Search, ChevronRight, ChevronLeft, Download, Award } from 'lucide-react';
-import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { tooltipProps } from '@/lib/chart-theme';
-
-function formatCurrency(eur: number | null | undefined): string {
-  if (!eur) return 'N/A';
-  if (eur >= 1_000_000) {
-    return `€${(eur / 1_000_000).toFixed(1)}M`;
-  }
-  if (eur >= 1_000) {
-    return `€${(eur / 1_000).toFixed(0)}k`;
-  }
-  return `€${eur.toLocaleString()}`;
-}
-
-type ComparisonPlayer = { id: string; name: string };
+import type { PlayerStat } from '@/lib/api/types';
+import { User, Search, Download } from 'lucide-react';
+import { Panel } from '@/components/ui/panel';
+import { Select } from '@/components/ui/select';
+import { Stat, StatGrid } from '@/components/ui/stat';
+import { PlayerComparison, type ComparisonPlayer } from './_components/player-comparison';
+import { PlayerList } from './_components/player-list';
+import { PlayerProfile, formatCurrency } from './_components/player-profile';
 
 function comparisonKey(stat: PlayerStat): string {
   return JSON.stringify([String(stat.season), stat.competition]);
-}
-
-function formatComparisonValue(value: number | null | undefined): string {
-  return value == null ? '—' : value.toLocaleString();
-}
-
-function formatPer90(value: number | null | undefined, minutes: number | null | undefined): string {
-  return value == null || minutes == null || minutes <= 0 ? '—' : (value * 90 / minutes).toFixed(2);
 }
 
 function PlayersContent() {
@@ -164,13 +145,6 @@ function PlayersContent() {
     return Array.from(totals.values()).sort((a, b) => a.season.localeCompare(b.season));
   }, [profile?.stats]);
 
-  const profileTotals = useMemo(() => profileSeasonTotals.reduce((acc, row) => ({
-    appearances: acc.appearances + row.appearances,
-    goals: acc.goals + row.goals,
-    assists: acc.assists + row.assists,
-    minutes: acc.minutes + row.minutes,
-  }), { appearances: 0, goals: 0, assists: 0, minutes: 0 }), [profileSeasonTotals]);
-
   const handleNextPage = () => {
     if (page?.next_cursor) {
       setCursorHistory((prev) => [...prev, currentCursor || '']);
@@ -206,329 +180,93 @@ function PlayersContent() {
     URL.revokeObjectURL(url);
   };
 
+  const resetPaging = () => {
+    setCurrentCursor(null);
+    setCursorHistory([]);
+  };
+
   return (
-    <div className="space-y-6">
-      {/* Search Header - persistently mounted, never unmounts */}
-      <Card className="p-4 rounded-xl bg-surface0 border border-surface1 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="grid w-full gap-3 sm:grid-cols-3 lg:max-w-3xl">
-            <select
-              value={selectedTeam}
-              onChange={(event) => {
-                setSelectedTeam(event.target.value);
-                setSelectedPosition('');
-                setSelectedPlayerId(null);
-                setCurrentCursor(null);
-                setCursorHistory([]);
-              }}
-              className="rounded-lg border border-surface1 bg-mantle px-3 py-2 text-xs text-text outline-none focus:border-blue"
-              aria-label="Filter players by club"
-            >
-              <option value="">All clubs</option>
-              {(playerListData?.teams || []).map((team) => <option key={team.team_id} value={team.name}>{team.name}</option>)}
-            </select>
-            <select
-              value={selectedPosition}
-              onChange={(event) => {
-                setSelectedPosition(event.target.value);
-                setSelectedPlayerId(null);
-                setCurrentCursor(null);
-                setCursorHistory([]);
-              }}
-              className="rounded-lg border border-surface1 bg-mantle px-3 py-2 text-xs text-text outline-none focus:border-blue"
-              aria-label="Filter players by position"
-            >
-              <option value="">All positions</option>
-              {(playerListData?.positions || []).map((position) => <option key={position} value={position}>{position}</option>)}
-            </select>
-            <div className="relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-overlay0 pointer-events-none" />
+    <div className="space-y-4">
+      <Panel bodyClassName="flex flex-col justify-between gap-3 lg:flex-row lg:items-end">
+        <div className="grid w-full gap-3 sm:grid-cols-3 lg:max-w-3xl">
+          <Select hideLabel label="Filter players by club" value={selectedTeam} placeholder="All clubs"
+            onChange={(value) => { setSelectedTeam(value); setSelectedPosition(''); setSelectedPlayerId(null); resetPaging(); }}
+            options={(playerListData?.teams || []).map((team) => ({ value: team.name, label: team.name }))} />
+          <Select hideLabel label="Filter players by position" value={selectedPosition} placeholder="All positions"
+            onChange={(value) => { setSelectedPosition(value); setSelectedPlayerId(null); resetPaging(); }}
+            options={(playerListData?.positions || []).map((position) => ({ value: position, label: position }))} />
+          <span className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-overlay0" aria-hidden="true" />
             <input
               type="text"
+              aria-label="Search player name"
               placeholder="Search player name..."
               value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setCurrentCursor(null);
-                setCursorHistory([]);
-              }}
-              className="w-full rounded-lg border border-surface1 bg-mantle pl-9 pr-3 py-2 text-xs text-text outline-none focus:border-blue placeholder:text-overlay0 transition-colors"
+              onChange={(e) => { setSearchQuery(e.target.value); resetPaging(); }}
+              className="h-9 w-full rounded-lg border border-surface1 bg-surface0 pl-9 pr-20 text-[13px] text-text placeholder:text-overlay0 focus:border-accent"
             />
-            {isListFetching && (
-              <span className="absolute right-3 top-3 text-[10px] text-blue font-medium animate-pulse">
-                Searching...
-              </span>
-            )}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {playerListData?.source && <SourceBadge meta={playerListData.source} />}
-            <Button
-              size="sm"
-              variant="outline"
-              onPress={exportCsv}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer"
-            >
-              <Download className="h-3.5 w-3.5 text-blue" />
-              <span>Export List</span>
-            </Button>
-          </div>
+            {isListFetching && <span role="status" className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-subtext0">Searching…</span>}
+          </span>
         </div>
-      </Card>
-
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {[
-          ['Players', playerListData?.total_count ?? 0],
-          ['Average age', playerListData?.average_age ?? '—'],
-          ['Nationalities', playerListData?.nationality_count ?? 0],
-          ['Squad value', formatCurrency(playerListData?.total_market_value_eur)],
-        ].map(([label, value]) => <Card key={String(label)} className="rounded-xl border border-surface1 bg-surface0 p-4"><p className="text-xs uppercase text-subtext0">{label}</p><p className="mt-1 text-xl font-bold text-text">{value}</p></Card>)}
-      </div>
-
-      {listError && (
-        <ErrorMessage title="Failed to load players" detail={listError.message} retry={() => refetch()} />
-      )}
-
-      <section aria-label="Player comparison" className="rounded-xl border border-surface1 bg-surface0 p-4 sm:p-5 space-y-4">
-        <div>
-          <h2 className="text-lg font-bold text-text">Compare players</h2>
-          <p className="text-xs text-subtext0 mt-1">Transfermarkt Open Dataset · 2025/26 snapshot, through July 2026. These are historical records, not current 2026/27 squads. Choosing a third player replaces Player 2.</p>
+        <div className="flex items-center gap-2">
+          {playerListData?.source && <SourceBadge meta={playerListData.source} />}
+          <Button size="sm" variant="outline" onPress={exportCsv}>
+            <Download className="size-3.5" aria-hidden="true" /> Export list
+          </Button>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {comparisonPlayers.map((player, index) => (
-            <div key={index} className="flex items-center justify-between gap-3 rounded-lg border border-surface1 bg-mantle p-3">
-              <div className="min-w-0">
-                <p className="text-xs text-subtext0">Player {index + 1}</p>
-                <p className="truncate text-sm font-semibold text-text">{player?.name || 'Choose from the list below'}</p>
-              </div>
-              {player && <button type="button" onClick={() => toggleComparisonPlayer(player)} aria-label={`Remove ${player.name} from comparison`} className="shrink-0 rounded px-2 py-1 text-xs text-blue hover:bg-surface1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue">Remove</button>}
-            </div>
-          ))}
+      </Panel>
+
+      <StatGrid>
+        <Stat label="Players" value={(playerListData?.total_count ?? 0).toLocaleString()} />
+        <Stat label="Average age" value={playerListData?.average_age ?? '—'} />
+        <Stat label="Nationalities" value={playerListData?.nationality_count ?? 0} />
+        <Stat label="Squad value" value={formatCurrency(playerListData?.total_market_value_eur)} />
+      </StatGrid>
+
+      {listError && <ErrorMessage title="Failed to load players" detail={listError.message} retry={() => refetch()} />}
+
+      <PlayerComparison
+        players={comparisonPlayers}
+        onRemove={toggleComparisonPlayer}
+        profiles={[firstComparisonProfile, secondComparisonProfile]}
+        isLoading={isFirstComparisonLoading || isSecondComparisonLoading}
+        error={firstComparisonError || secondComparisonError}
+        retry={() => {
+          if (firstComparisonError) void refetchFirstComparison();
+          if (secondComparisonError) void refetchSecondComparison();
+        }}
+        options={comparisonOptions}
+        selectedKey={selectedComparisonOption?.key || ''}
+        onSelectKey={setComparisonKeySelection}
+        stats={comparisonStats}
+      />
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+        <div className="lg:col-span-5">
+          <PlayerList
+            players={players}
+            total={playerListData?.total_count ?? players.length}
+            query={debouncedQuery}
+            isLoading={isListLoading}
+            selectedId={effectivePlayerId}
+            onSelect={setSelectedPlayerId}
+            comparison={comparisonPlayers}
+            onToggleComparison={toggleComparisonPlayer}
+            canGoBack={cursorHistory.length > 0}
+            canGoForward={!!page?.next_cursor}
+            onPrev={handlePrevPage}
+            onNext={handleNextPage}
+          />
         </div>
-        {comparisonPlayers[0] && comparisonPlayers[1] && (
-          isFirstComparisonLoading || isSecondComparisonLoading ? <LoadingSkeleton lines={4} /> :
-          firstComparisonError || secondComparisonError ? (
-            <ErrorMessage title="Failed to load comparison" detail={(firstComparisonError || secondComparisonError)?.message || 'Try again.'} retry={() => {
-              if (firstComparisonError) void refetchFirstComparison();
-              if (secondComparisonError) void refetchSecondComparison();
-            }} />
-          ) : firstComparisonProfile && secondComparisonProfile ? (
-            comparisonOptions.length ? (
-              <div className="space-y-3">
-                <div className="flex flex-col gap-1 sm:max-w-sm">
-                  <label htmlFor="comparison-season-competition" className="text-xs font-medium text-subtext1">Season and competition</label>
-                  <select id="comparison-season-competition" value={selectedComparisonOption?.key || ''} onChange={(event) => setComparisonKeySelection(event.target.value)} className="rounded-lg border border-surface1 bg-mantle px-3 py-2 text-sm text-text outline-none focus:border-blue">
-                    {comparisonOptions.map((option) => <option key={option.key} value={option.key}>{option.season} · {option.competition || 'Unspecified competition'}</option>)}
-                  </select>
-                </div>
-                <div className="overflow-x-auto rounded-lg border border-surface1">
-                  <table className="w-full min-w-[300px] text-sm">
-                    <caption className="sr-only">Historical season statistics for {firstComparisonProfile.name} and {secondComparisonProfile.name}</caption>
-                    <thead className="bg-mantle text-xs text-subtext0"><tr><th scope="col" className="p-2 text-left">Metric</th><th scope="col" className="p-2 text-right">Player 1</th><th scope="col" className="p-2 text-right">Player 2</th></tr></thead>
-                    <tbody className="divide-y divide-surface1 text-text">
-                      {([
-                        ['Appearances', comparisonStats[0]?.appearances, comparisonStats[1]?.appearances],
-                        ['Goals', comparisonStats[0]?.goals, comparisonStats[1]?.goals],
-                        ['Assists', comparisonStats[0]?.assists, comparisonStats[1]?.assists],
-                        ['Minutes', comparisonStats[0]?.minutes_played, comparisonStats[1]?.minutes_played],
-                      ] as const).map(([label, first, second]) => <tr key={label}><th scope="row" className="p-2 text-left font-medium">{label}</th><td className="p-2 text-right tabular-nums">{formatComparisonValue(first)}</td><td className="p-2 text-right tabular-nums">{formatComparisonValue(second)}</td></tr>)}
-                      <tr><th scope="row" className="p-2 text-left font-medium">Goals / 90</th><td className="p-2 text-right tabular-nums">{formatPer90(comparisonStats[0]?.goals, comparisonStats[0]?.minutes_played)}</td><td className="p-2 text-right tabular-nums">{formatPer90(comparisonStats[1]?.goals, comparisonStats[1]?.minutes_played)}</td></tr>
-                      <tr><th scope="row" className="p-2 text-left font-medium">Assists / 90</th><td className="p-2 text-right tabular-nums">{formatPer90(comparisonStats[0]?.assists, comparisonStats[0]?.minutes_played)}</td><td className="p-2 text-right tabular-nums">{formatPer90(comparisonStats[1]?.assists, comparisonStats[1]?.minutes_played)}</td></tr>
-                    </tbody>
-                  </table>
-                </div>
-                <p className="text-xs text-subtext0">— means unavailable. Per-90 figures require recorded minutes above zero.</p>
-              </div>
-            ) : <p className="text-sm text-subtext0">No historical season statistics are available for these players.</p>
-          ) : null
-        )}
-      </section>
-
-      {/* Two-Pane Layout: Player List + Profile Drawer */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left: Player Discovery List */}
-        <div className="lg:col-span-5 space-y-3">
-          <div className="rounded-xl border border-surface1 bg-surface0 overflow-hidden">
-            <div className="p-3 border-b border-surface1 bg-mantle text-xs font-semibold text-subtext0 flex items-center justify-between">
-              <span>Found {playerListData?.total_count ?? players.length} Players</span>
-              {debouncedQuery && (
-                <Chip size="sm" variant="soft" color="accent" className="text-[10px]">
-                  Matching &quot;{debouncedQuery}&quot;
-                </Chip>
-              )}
-            </div>
-
-            {isListLoading && players.length === 0 ? (
-              <div className="p-4">
-                <LoadingSkeleton lines={6} />
-              </div>
-            ) : players.length === 0 ? (
-              <div className="p-8 text-center">
-                <EmptyState icon="👤" message="No players found." suggestion="Try another spelling or clear search." />
-              </div>
-            ) : (
-              <div className="divide-y divide-surface1 max-h-[640px] overflow-y-auto">
-                {players.map((p) => {
-                  const isSelected = effectivePlayerId === p.player_id;
-                  const comparisonSlot = comparisonPlayers.findIndex((player) => player?.id === p.player_id);
-                  return (
-                    <div key={p.player_id} className={`flex items-center transition-colors ${
-                        isSelected ? 'bg-blue/15 border-l-4 border-blue' : 'hover:bg-surface1/40'
-                      }`}>
-                      <button type="button" aria-label={`View profile for ${p.name}`} aria-pressed={isSelected} onClick={() => setSelectedPlayerId(p.player_id)} className="flex min-w-0 flex-1 cursor-pointer items-center justify-between p-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue">
-                      <div className="flex items-center gap-3 min-w-0 truncate pr-2">
-                        <PlayerAvatar image_url={p.image_url} name={p.name} size={36} />
-                        <div className="space-y-0.5 truncate">
-                          <p className={`font-semibold text-sm truncate ${isSelected ? 'text-blue' : 'text-text'}`}>
-                            {p.name}
-                          </p>
-                          <div className="flex items-center gap-2 text-xs text-subtext0">
-                            <span className="truncate">{p.team.name}</span>
-                            {p.position && (
-                              <>
-                                <span>·</span>
-                                <span className="rounded bg-surface1 px-1.5 py-0.2 text-[11px] text-subtext1">
-                                  {p.position}
-                                </span>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <ChevronRight className={`h-4 w-4 shrink-0 ${isSelected ? 'text-blue' : 'text-overlay0'}`} />
-                      </button>
-                      <button type="button" aria-label={`${comparisonSlot >= 0 ? 'Remove' : 'Add'} ${p.name} ${comparisonSlot >= 0 ? 'from' : 'to'} comparison`} aria-pressed={comparisonSlot >= 0} onClick={() => toggleComparisonPlayer({ id: p.player_id, name: p.name })} className="mr-3 shrink-0 rounded-lg border border-surface1 px-2 py-1 text-xs font-medium text-blue hover:bg-surface1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue">
-                        {comparisonSlot >= 0 ? `Player ${comparisonSlot + 1}` : 'Compare'}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Pagination Controls */}
-            <div className="flex items-center justify-between p-3 border-t border-surface1 bg-mantle text-xs text-subtext0">
-              <Button
-                size="sm"
-                variant="outline"
-                isDisabled={cursorHistory.length === 0}
-                onPress={handlePrevPage}
-                className="flex items-center gap-1 px-2.5 py-1 text-xs cursor-pointer"
-              >
-                <ChevronLeft className="h-3 w-3" />
-                <span>Prev</span>
-              </Button>
-              <span className="font-medium text-[11px]">{players.length} items</span>
-              <Button
-                size="sm"
-                variant="outline"
-                isDisabled={!page?.next_cursor}
-                onPress={handleNextPage}
-                className="flex items-center gap-1 px-2.5 py-1 text-xs cursor-pointer"
-              >
-                <span>Next</span>
-                <ChevronRight className="h-3 w-3" />
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {/* Right: Selected Player Profile */}
         <div className="lg:col-span-7">
           {isProfileLoading ? (
             <LoadingSkeleton lines={8} />
           ) : profileError ? (
             <ErrorMessage title="Player profile unavailable" detail={profileError.message} retry={() => refetchProfile()} />
           ) : !profile ? (
-            <div className="rounded-xl border border-surface1 bg-surface0 p-12 text-center">
-              <p className="text-subtext0">Select a player from the list to view profile.</p>
-            </div>
+            <Panel><EmptyState icon={User} message="Select a player from the list to view profile." /></Panel>
           ) : (
-            <div className="rounded-xl border border-surface1 bg-surface0 p-6 space-y-6">
-              {/* Profile Card Header */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-surface1 pb-5">
-                <div className="flex items-center gap-4">
-                  <PlayerAvatar
-                    image_url={profile.image_url}
-                    name={profile.name}
-                    size={64}
-                    className="rounded-2xl"
-                  />
-                  <div>
-                    <h2 className="text-xl font-bold text-text">{profile.name}</h2>
-                    <div className="text-sm text-subtext1 mt-1 flex items-center gap-2">
-                      <FootballBadge url={profile.team.badge_url} name={profile.team.name} size={18} />
-                      <span>{profile.team.name}</span>
-                      {profile.position && (
-                        <span className="rounded bg-surface1 px-2 py-0.5 text-xs text-subtext1 font-medium">
-                          {profile.position}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex flex-col items-start sm:items-end">
-                  <span className="text-xs text-subtext0 uppercase font-medium">Market Value</span>
-                  <span className="text-2xl font-bold text-green mt-0.5">
-                    {formatCurrency(profile.market_value_eur)}
-                  </span>
-                </div>
-              </div>
-
-              {/* Bio Details Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="rounded-lg bg-mantle p-3 border border-surface1">
-                  <p className="text-xs text-subtext0">Nationality</p>
-                  <p className="text-sm font-semibold text-text mt-0.5">{profile.nationality || 'N/A'}</p>
-                </div>
-                <div className="rounded-lg bg-mantle p-3 border border-surface1">
-                  <p className="text-xs text-subtext0">Date of Birth</p>
-                  <p className="text-sm font-semibold text-text mt-0.5">{profile.date_born || 'N/A'}</p>
-                </div>
-                <div className="rounded-lg bg-mantle p-3 border border-surface1">
-                  <p className="text-xs text-subtext0">Height</p>
-                  <p className="text-sm font-semibold text-text mt-0.5">{profile.height_cm ? `${profile.height_cm} cm` : 'N/A'}</p>
-                </div>
-                <div className="rounded-lg bg-mantle p-3 border border-surface1">
-                  <p className="text-xs text-subtext0">Preferred Foot</p>
-                  <p className="text-sm font-semibold text-text capitalize mt-0.5">{profile.foot || 'N/A'}</p>
-                </div>
-              </div>
-
-              {/* Historical Career Statistics */}
-              <div className="space-y-3">
-                <h3 className="text-sm font-bold text-text uppercase tracking-wider flex items-center gap-2">
-                  <Award className="h-4 w-4 text-yellow" /> Season Statistics History
-                </h3>
-                <PlayerStatsTable stats={profile.stats} />
-              </div>
-
-              {profileSeasonTotals.length ? (
-                <div className="space-y-4 border-t border-surface1 pt-5">
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                    {[
-                      ['Appearances', profileTotals.appearances], ['Goals', profileTotals.goals],
-                      ['Assists', profileTotals.assists], ['Minutes', profileTotals.minutes.toLocaleString()],
-                    ].map(([label, value]) => <div key={String(label)} className="rounded-lg border border-surface1 bg-mantle p-3"><p className="text-xs text-subtext0">{label}</p><p className="mt-1 text-lg font-bold text-text">{value}</p></div>)}
-                  </div>
-                  <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={profileSeasonTotals} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-                        <XAxis dataKey="season" stroke="var(--chart-axis)" fontSize={11} />
-                        <YAxis stroke="var(--chart-axis)" fontSize={11} />
-                        <Tooltip {...tooltipProps} />
-                        <Legend />
-                        <Bar dataKey="goals" fill="var(--series-3)" radius={[4, 4, 0, 0]} />
-                        <Bar dataKey="assists" fill="var(--series-1)" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              ) : null}
-            </div>
+            <PlayerProfile profile={profile} seasonTotals={profileSeasonTotals} />
           )}
         </div>
       </div>
@@ -536,53 +274,9 @@ function PlayersContent() {
   );
 }
 
-function PlayerStatsTable({ stats }: { stats: PlayerProfileResponse['stats'] }) {
-  const { paginatedItems, paginationControls } = usePagination(stats, 10);
-
-  if (stats.length === 0) {
-    return <p className="text-xs text-subtext0 py-4">No historical competition stats recorded for this profile.</p>;
-  }
-
-  return (
-    <div className="space-y-3">
-      <div className="rounded-lg border border-surface1 overflow-hidden">
-        <table className="w-full text-left text-xs">
-          <thead className="border-b border-surface1 bg-mantle text-subtext0 uppercase">
-            <tr>
-              <th className="py-2.5 px-3">Season</th>
-              <th className="py-2.5 px-3">Competition</th>
-              <th className="py-2.5 px-2 text-center">Apps</th>
-              <th className="py-2.5 px-2 text-center text-green">Goals</th>
-              <th className="py-2.5 px-2 text-center text-blue">Assists</th>
-              <th className="py-2.5 px-2 text-right">Mins</th>
-              <th className="py-2.5 px-2 text-center text-yellow">Yel</th>
-              <th className="py-2.5 px-2 text-center text-red">Red</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-surface1">
-            {paginatedItems.map((st, i) => (
-              <tr key={i} className="hover:bg-surface1/30">
-                <td className="py-2 px-3 font-mono font-medium text-text">{st.season}</td>
-                <td className="py-2 px-3 text-subtext1 capitalize">{st.competition || 'domestic'}</td>
-                <td className="py-2 px-2 text-center">{st.appearances ?? '-'}</td>
-                <td className="py-2 px-2 text-center font-bold text-green">{st.goals ?? 0}</td>
-                <td className="py-2 px-2 text-center font-bold text-blue">{st.assists ?? 0}</td>
-                <td className="py-2 px-2 text-right font-mono text-subtext0">{st.minutes_played?.toLocaleString() ?? '-'}</td>
-                <td className="py-2 px-2 text-center text-yellow">{st.yellow_cards ?? 0}</td>
-                <td className="py-2 px-2 text-center text-red">{st.red_cards ?? 0}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {paginationControls}
-    </div>
-  );
-}
-
 export default function PlayersPage() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader icon={User} eyebrow="Player database" title="Player Profiles & Statistics" description="Explore the open player snapshot, market values and season-by-season appearance records." />
 
       <Suspense fallback={<LoadingSkeleton lines={10} />}>
