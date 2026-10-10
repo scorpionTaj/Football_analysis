@@ -26,7 +26,7 @@ function age(hours: number | null) {
 function Freshness({ check }: { check: PipelineCheck }) {
   const hours = check.value;
   const state = hours === null ? 'missing' : hours <= 12 ? 'fresh' : hours <= 7 * 24 ? 'ageing' : 'stale';
-  const style = { fresh: 'text-green', ageing: 'text-yellow', stale: 'text-red', missing: 'text-red' }[state];
+  const style = { fresh: 'text-positive', ageing: 'text-warning', stale: 'text-negative', missing: 'text-negative' }[state];
   const Icon = state === 'fresh' ? CheckCircle2 : state === 'ageing' ? CircleAlert : CircleX;
   return (
     <li className="flex items-center justify-between gap-3 py-2">
@@ -91,7 +91,7 @@ export function PipelineHealth() {
             <ul className="mt-2 max-h-64 space-y-1 overflow-y-auto pr-1">
               {tests.filter((t) => t.status === 'pass').map((t) => (
                 <li key={t.name} className="flex items-start gap-2 text-xs text-subtext1">
-                  <CheckCircle2 className="mt-0.5 size-3 shrink-0 text-green" aria-hidden="true" />
+                  <CheckCircle2 className="mt-0.5 size-3 shrink-0 text-positive" aria-hidden="true" />
                   <span className="min-w-0 break-words">{t.name.replaceAll('_', ' ')}</span>
                 </li>
               ))}

@@ -81,7 +81,7 @@ function LeagueTablesContent() {
   const totalMatches = rankings.reduce((acc, r) => acc + r.played, 0) / 2;
   const avgGoals = totalMatches > 0 ? (totalGoals / totalMatches).toFixed(2) : '0';
 
-  const zone = (pos: number) => pos <= 4 ? 'bg-accent' : pos <= 6 ? 'bg-teal' : pos >= rankings.length - 2 ? 'bg-negative' : 'bg-transparent';
+  const zone = (pos: number) => pos <= 4 ? 'bg-accent' : pos <= 6 ? 'bg-[var(--series-3)]' : pos >= rankings.length - 2 ? 'bg-negative' : 'bg-transparent';
   const signed = (value: number | null | undefined) => value == null ? '—' : `${value > 0 ? '+' : ''}${value}`;
 
   return (
@@ -169,7 +169,7 @@ function LeagueTablesContent() {
           <div className="px-4 pb-3">{TablePagination}</div>
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-surface1 px-4 py-3 text-xs text-subtext0">
             <span className="inline-flex items-center gap-2"><span className="h-3 w-0.5 rounded bg-accent" aria-hidden="true" />Champions League (1–4)</span>
-            <span className="inline-flex items-center gap-2"><span className="h-3 w-0.5 rounded bg-teal" aria-hidden="true" />Europa League (5–6)</span>
+            <span className="inline-flex items-center gap-2"><span className="h-3 w-0.5 rounded bg-[var(--series-3)]" aria-hidden="true" />Europa League (5–6)</span>
             <span className="inline-flex items-center gap-2"><span className="h-3 w-0.5 rounded bg-negative" aria-hidden="true" />Relegation (bottom 3)</span>
           </div>
         </Panel>

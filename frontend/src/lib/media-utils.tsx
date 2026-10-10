@@ -134,14 +134,14 @@ export function CompetitionBadge({
     const isTournament = code === 'UCL' || code === 'CWC' || code === 'WC';
     return (
       <div
-        className={`inline-flex items-center justify-center rounded-xl bg-surface0 border border-surface1 shadow-sm text-blue shrink-0 ${className}`}
+        className={`inline-flex items-center justify-center rounded-lg bg-surface0 border border-surface1 text-overlay0 shrink-0 ${className}`}
         style={{ width: size, height: size }}
         title={name}
       >
         {isTournament ? (
-          <Trophy size={Math.floor(size * 0.55)} className="text-yellow" />
+          <Trophy size={Math.floor(size * 0.55)} className="text-overlay0" />
         ) : (
-          <Shield size={Math.floor(size * 0.55)} className="text-sapphire" />
+          <Shield size={Math.floor(size * 0.55)} className="text-overlay0" />
         )}
       </div>
     );
@@ -195,7 +195,7 @@ export function PlayerAvatar({
   if (!image_url || failedUrl === image_url) {
     return (
       <div
-        className={`inline-flex items-center justify-center rounded-full bg-gradient-to-br from-blue/20 via-sapphire/15 to-mauve/20 text-blue font-bold shrink-0 ${ringClasses} ${className}`}
+        className={`inline-flex items-center justify-center rounded-full bg-surface1 text-subtext1 font-semibold shrink-0 ${ringClasses} ${className}`}
         style={{ width: size, height: size }}
         title={name}
       >
@@ -204,7 +204,7 @@ export function PlayerAvatar({
             {initials}
           </span>
         ) : (
-          <User size={Math.floor(size * 0.5)} className="text-blue" />
+          <User size={Math.floor(size * 0.5)} className="text-overlay0" />
         )}
       </div>
     );

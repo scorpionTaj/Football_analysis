@@ -15,6 +15,7 @@ import { EmptyState, ErrorMessage, LoadingSkeleton } from '@/components/ui/loadi
 import { axisProps, gridProps, legendProps, OUTCOME, SERIES, tooltipProps } from '@/lib/chart-theme';
 import { Panel } from '@/components/ui/panel';
 import { Chip } from '@/components/ui/chip';
+import { DataTable, TBody, THead, Td, Th } from '@/components/ui/data-table';
 
 const NAMES: Record<string, string> = {
   prevalence_baseline: 'Base-rate guess',
@@ -155,34 +156,29 @@ function Reliability({ run }: { run: ModelRun }) {
 
 function Leaderboard({ runs }: { runs: ModelRun[] }) {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[640px] text-[13px] tabular-nums">
-        <caption className="sr-only">All candidate models, walk-forward scores</caption>
-        <thead>
-          <tr className="text-left text-xs text-subtext0">
-            <th scope="col" className="h-9 px-3 font-medium">Model</th>
-            {['RPS', 'Log loss', 'Brier', 'Accuracy', 'ECE'].map((h) => (
-              <th key={h} scope="col" className="h-9 px-3 text-right font-medium">{h}</th>
-            ))}
+    <DataTable minWidth={640} caption="All candidate models, walk-forward scores">
+      <THead>
+        <tr>
+          <Th>Model</Th>
+          {['RPS', 'Log loss', 'Brier', 'Accuracy', 'ECE'].map((h) => <Th key={h} align="right">{h}</Th>)}
+        </tr>
+      </THead>
+      <TBody>
+        {runs.map((run) => (
+          <tr key={run.model}>
+            <th scope="row" className="h-9 px-3 text-left font-medium text-text">
+              {name(run.model)}
+              {run.is_champion && <Chip tone="accent" className="ml-2">Champion</Chip>}
+            </th>
+            <Td align="right" className="text-subtext1">{run.rps.toFixed(4)}</Td>
+            <Td align="right" className="text-subtext1">{run.log_loss.toFixed(4)}</Td>
+            <Td align="right" className="text-subtext1">{run.brier.toFixed(4)}</Td>
+            <Td align="right" className="text-subtext1">{pct(run.accuracy)}</Td>
+            <Td align="right" className="text-subtext1">{run.ece.toFixed(4)}</Td>
           </tr>
-        </thead>
-        <tbody>
-          {runs.map((run) => (
-            <tr key={run.model} className="border-t border-surface1 hover:bg-surface1/40">
-              <th scope="row" className="h-9 px-3 text-left font-medium text-text">
-                {name(run.model)}
-                {run.is_champion && <Chip tone="accent" className="ml-2">Champion</Chip>}
-              </th>
-              <td className="py-2 text-right tabular-nums text-subtext1">{run.rps.toFixed(4)}</td>
-              <td className="py-2 text-right tabular-nums text-subtext1">{run.log_loss.toFixed(4)}</td>
-              <td className="py-2 text-right tabular-nums text-subtext1">{run.brier.toFixed(4)}</td>
-              <td className="py-2 text-right tabular-nums text-subtext1">{pct(run.accuracy)}</td>
-              <td className="py-2 text-right tabular-nums text-subtext1">{run.ece.toFixed(4)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+        ))}
+      </TBody>
+    </DataTable>
   );
 }
 
