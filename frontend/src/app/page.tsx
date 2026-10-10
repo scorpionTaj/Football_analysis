@@ -45,7 +45,7 @@ function TeamLine({ team, goals }: { team: TeamRef; goals?: number | null }) {
         <FootballBadge url={team.badge_url} name={team.name} size={22} />
         <span className="truncate text-[13px] text-text">{team.name}</span>
       </span>
-      {goals !== undefined ? <span className="text-base font-semibold tabular-nums text-text">{goals ?? '–'}</span> : null}
+      {goals !== undefined ? <span className="text-[16px] font-semibold tabular-nums text-text">{goals ?? '–'}</span> : null}
     </div>
   );
 }

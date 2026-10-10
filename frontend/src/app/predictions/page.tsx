@@ -1,6 +1,6 @@
 'use client';
 
-import { Card, Button } from '@heroui/react';
+import { Button } from '@heroui/react';
 import { Suspense, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
@@ -10,7 +10,7 @@ import { SourceBadge } from '@/components/ui/source-badge';
 import { LoadingSkeleton, ErrorMessage, EmptyState } from '@/components/ui/loading';
 import { PageHeader } from '@/components/ui/page-header';
 import { FootballBadge } from '@/lib/media-utils';
-import { Cpu, Target, CheckCircle2, Download, Calendar, BarChart2, Trophy } from 'lucide-react';
+import { Target, Download } from 'lucide-react';
 import {
   BarChart,
   Bar,
@@ -21,7 +21,13 @@ import {
   CartesianGrid,
   Legend,
 } from 'recharts';
-import { tooltipProps } from '@/lib/chart-theme';
+import { axisProps, gridProps, legendProps, SERIES, tooltipProps } from '@/lib/chart-theme';
+import { Panel } from '@/components/ui/panel';
+import { Select } from '@/components/ui/select';
+import { Stat } from '@/components/ui/stat';
+import { Chip } from '@/components/ui/chip';
+import { ProbabilityBar } from '@/components/ui/probability-bar';
+import { DataTable, TBody, THead, Td, Th } from '@/components/ui/data-table';
 
 const LEAGUE_NAMES: Record<string, string> = {
   E0: 'Premier League', SP1: 'La Liga', D1: 'Bundesliga', I1: 'Serie A', F1: 'Ligue 1',
@@ -53,7 +59,8 @@ function PredictionsContent() {
   const accuracy = typeof metrics.accuracy === 'number' ? (metrics.accuracy * 100).toFixed(1) : null;
   const baseline = typeof metrics.baseline_accuracy === 'number' ? (metrics.baseline_accuracy * 100).toFixed(1) : null;
   const logLoss = typeof metrics.log_loss === 'number' ? metrics.log_loss.toFixed(3) : null;
-  const temperature = typeof metrics.temperature === 'number' ? metrics.temperature.toFixed(2) : null;
+  const rps = typeof metrics.rps === 'number' ? metrics.rps.toFixed(4) : null;
+  const ece = typeof metrics.ece === 'number' ? metrics.ece.toFixed(3) : null;
   const validationMatches = typeof metrics.validation_matches === 'number' ? metrics.validation_matches.toLocaleString() : null;
   const shotCoverage = typeof metrics.shot_coverage === 'number' ? (metrics.shot_coverage * 100).toFixed(1) : null;
   const strongThreshold = typeof metrics.high_confidence_threshold === 'number' ? metrics.high_confidence_threshold : 0.75;
@@ -132,343 +139,250 @@ function PredictionsContent() {
     return <ErrorMessage title="Failed to load predictions" detail={error.message} retry={() => refetch()} />;
   }
 
-  return (
-    <div className="space-y-6">
-      {/* Model Card Header */}
-      <Card className="rounded-xl border border-surface1 bg-surface0 p-5 space-y-3 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-surface1 pb-3">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-lg bg-blue/10 text-blue">
-              <Cpu className="h-5 w-5" />
-            </div>
-            <div>
-              <h2 className="text-base font-bold text-text">{data?.model_name || 'Match Outcome Predictor'}</h2>
-              <p className="text-xs text-subtext0 mt-0.5">
-                Model ID: <span className="font-mono text-subtext1">{data?.model_id || 'n/a'}</span>
-                {data?.validation_cutoff && (
-                  <span className="ml-2">· Cutoff: <span className="text-subtext1">{data.validation_cutoff}</span></span>
-                )}
-              </p>
-            </div>
-          </div>
-          {data?.source && <SourceBadge meta={data.source} />}
-        </div>
+  const pct = (value: number | null | undefined, digits = 1) => (value == null ? '—' : `${(value * 100).toFixed(digits)}%`);
+  const pickLabel = (f: typeof forecasts[number]) => f.predicted_result === 'Home' ? `${f.home.name} win` : f.predicted_result === 'Away' ? `${f.away.name} win` : 'Draw';
 
-        {/* Model Metrics */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 pt-1">
-          <div className="rounded-lg bg-mantle p-3 border border-surface1">
-            <p className="text-xs uppercase text-subtext0 font-medium">Model Accuracy</p>
-            <p className="text-xl font-bold text-green mt-1">{accuracy ? `${accuracy}%` : 'N/A'}</p>
-          </div>
-          <div className="rounded-lg bg-mantle p-3 border border-surface1">
-            <p className="text-xs uppercase text-subtext0 font-medium">Baseline Accuracy</p>
-            <p className="text-xl font-bold text-subtext1 mt-1">{baseline ? `${baseline}%` : 'N/A'}</p>
-          </div>
-          <div className="rounded-lg bg-mantle p-3 border border-surface1">
-            <p className="text-xs uppercase text-subtext0 font-medium">Log Loss</p>
-            <p className="text-xl font-bold text-blue mt-1">{logLoss ?? 'N/A'}</p>
-          </div>
-          <div className="rounded-lg bg-mantle p-3 border border-surface1">
-            <p className="text-xs uppercase text-subtext0 font-medium">Active Forecasts</p>
-            <p className="text-xl font-bold text-peach mt-1">{forecasts.length}</p>
-          </div>
-          <div className="rounded-lg bg-mantle p-3 border border-surface1">
-            <p className="text-xs uppercase text-subtext0 font-medium">Calibration</p>
-            <p className="text-xl font-bold text-mauve mt-1">{temperature ? `${temperature}×` : 'N/A'}</p>
-          </div>
-          <div className="rounded-lg bg-mantle p-3 border border-surface1">
-            <p className="text-xs uppercase text-subtext0 font-medium">Holdout Matches</p>
-            <p className="text-xl font-bold text-text mt-1">{validationMatches ?? 'N/A'}</p>
-          </div>
+  return (
+    <div className="space-y-4">
+      <Panel
+        title={data?.model_name || 'Match outcome predictor'}
+        description={<>Model ID <span className="font-mono">{data?.model_id || 'n/a'}</span>{data?.validation_cutoff ? ` · cutoff ${data.validation_cutoff}` : ''}</>}
+        actions={data?.source && <SourceBadge meta={data.source} />}
+      >
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+          <Stat inset label="Model accuracy" value={accuracy ? `${accuracy}%` : 'N/A'} />
+          <Stat inset label="Baseline accuracy" value={baseline ? `${baseline}%` : 'N/A'} />
+          <Stat inset label="Log loss" value={logLoss ?? 'N/A'} />
+          <Stat inset label="RPS" value={rps ?? 'N/A'} />
+          <Stat inset label="Calibration error (ECE)" value={ece ?? 'N/A'} />
+          <Stat inset label="Holdout matches" value={validationMatches ?? 'N/A'} />
         </div>
-        <p className="text-xs text-subtext0">
-          Uses only prior-match Elo, form, rest and shots on target. {shotCoverage ? `${shotCoverage}% of training results have shot data. ` : ''}Probabilities are calibrated on earlier matches, then scored on a later holdout set; the baseline is learned only from training matches.
+        <p className="mt-3 text-xs text-subtext0">
+          Uses only prior-match Elo, form, rest, shots on target and a market-strength rating learned from earlier matches&apos; prices. {shotCoverage ? `${shotCoverage}% of training results have shot data. ` : ''}Probabilities are calibrated on earlier matches, then scored on a later holdout set; the baseline is learned only from training matches.
         </p>
-      </Card>
+      </Panel>
 
       {strongMatches > 0 && strongAccuracy !== null && (
-        <Card className="grid gap-4 rounded-xl border border-teal/40 bg-teal/5 p-5 sm:grid-cols-[11rem_1fr] sm:items-center">
-          <div className="border-b border-teal/30 pb-4 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-5">
-            <p className="text-3xl font-black tabular-nums text-teal">{(strongAccuracy * 100).toFixed(1)}%</p>
-            <p className="text-xs font-semibold text-text">Observed on strong picks</p>
+        <Panel bodyClassName="grid gap-4 sm:grid-cols-[10rem_1fr] sm:items-center">
+          <div className="border-b border-surface1 pb-3 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-4">
+            <p className="text-3xl font-semibold tabular-nums text-text">{(strongAccuracy * 100).toFixed(1)}%</p>
+            <p className="text-xs text-subtext0">Observed on strong picks</p>
           </div>
-          <div className="space-y-1.5">
-            <h2 className="text-sm font-bold text-text">A selective tier, not an 80% all-match model</h2>
-            <p className="text-xs leading-5 text-subtext1">
+          <div className="space-y-1">
+            <h2 className="text-sm font-semibold text-text">A selective tier, not an 80% all-match model</h2>
+            <p className="text-xs leading-5 text-subtext0">
               At least {(strongThreshold * 100).toFixed(0)}% predicted for one outcome: {strongMatches} of {validationMatches} holdout matches ({(strongCoverage * 100).toFixed(1)}% coverage).
               {strongLow95 !== null && strongHigh95 !== null && ` The 95% interval is ${(strongLow95 * 100).toFixed(1)}–${(strongHigh95 * 100).toFixed(1)}%.`}
             </p>
-            <p className="text-xs font-semibold text-teal">{qualifyingForecasts} upcoming fixtures meet this threshold now.</p>
+            <p className="text-xs font-medium text-accent">{qualifyingForecasts} upcoming fixtures meet this threshold now.</p>
           </div>
-        </Card>
+        </Panel>
       )}
 
       {titleRaces.length > 0 && (
-        <section className="space-y-4" aria-labelledby="title-outlook-heading">
+        <section className="space-y-3" aria-labelledby="title-outlook-heading">
           <div>
-            <div className="flex items-center gap-2">
-              <Trophy className="h-4 w-4 text-yellow" />
-              <h2 id="title-outlook-heading" className="text-base font-semibold text-text">League Winner Outlook</h2>
-            </div>
-            <p className="mt-1 text-xs text-subtext0">
-              Data-driven title probabilities from current points and smoothed points pace. Early-season estimates remain deliberately conservative.
-            </p>
+            <h2 id="title-outlook-heading" className="text-sm font-semibold text-text">League Winner Outlook</h2>
+            <p className="mt-0.5 text-xs text-subtext0">Title probabilities from current points and smoothed points pace. Early-season estimates stay deliberately conservative.</p>
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {titleRaces.map((race) => (
-              <Card key={race.competition} className="rounded-xl border border-surface1 bg-surface0 p-4 shadow-sm">
+              <Panel key={race.competition} as="div">
                 <div className="mb-3 flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-wide text-subtext0">{race.competition}</p>
-                    <h3 className="text-sm font-bold text-text">{race.name}</h3>
+                  <div className="min-w-0">
+                    <p className="text-xs text-subtext0">{race.competition}</p>
+                    <h3 className="truncate text-sm font-semibold text-text">{race.name}</h3>
                   </div>
-                  <span className="rounded-full bg-yellow/10 px-2 py-1 text-xs font-bold text-yellow">
-                    {((race.rows[0]?.title_probability || 0) * 100).toFixed(1)}%
-                  </span>
+                  <Chip tone="accent">{((race.rows[0]?.title_probability || 0) * 100).toFixed(1)}%</Chip>
                 </div>
                 <div className="space-y-3">
                   {race.rows.map((row) => {
                     const probability = row.title_probability * 100;
                     return (
-                      <div key={row.team.team_id} className="space-y-1.5">
-                        <div className="flex items-center justify-between gap-2 text-xs">
-                          <span className="flex min-w-0 items-center gap-2 font-semibold text-text">
-                            <FootballBadge url={row.team.badge_url || row.team.logo_url} name={row.team.name} size={22} />
+                      <div key={row.team.team_id} className="space-y-1">
+                        <div className="flex items-center justify-between gap-2 text-[13px]">
+                          <span className="flex min-w-0 items-center gap-2 text-text">
+                            <FootballBadge url={row.team.badge_url || row.team.logo_url} name={row.team.name} size={18} />
                             <span className="truncate">{row.team.name}</span>
                           </span>
-                          <span className="shrink-0 font-mono text-subtext1">{probability.toFixed(1)}%</span>
+                          <span className="shrink-0 tabular-nums text-subtext1">{probability.toFixed(1)}%</span>
                         </div>
-                        <div className="h-1.5 overflow-hidden rounded-full bg-mantle">
-                          <div className="h-full rounded-full bg-gradient-to-r from-yellow to-peach" style={{ width: `${Math.max(2, probability)}%` }} />
+                        <div className="h-1 overflow-hidden rounded-full bg-surface1">
+                          <div className="h-full rounded-full bg-accent" style={{ width: `${Math.max(2, probability)}%` }} />
                         </div>
-                        <p className="text-[10px] text-subtext0">#{row.current_rank} · {row.points} pts · projected {row.projected_points}</p>
+                        <p className="text-xs tabular-nums text-subtext0">#{row.current_rank} · {row.points} pts · projected {row.projected_points}</p>
                       </div>
                     );
                   })}
                 </div>
-              </Card>
+              </Panel>
             ))}
           </div>
         </section>
       )}
 
-      {/* Match Forecasts Section */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Target className="h-4 w-4 text-blue" />
-            <h2 className="text-base font-semibold text-text">Upcoming Match Forecasts</h2>
-          </div>
-          {forecasts.length > 0 && (
-            <Button
-              size="sm"
-              variant="outline"
-              onPress={exportCsv}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium cursor-pointer"
-            >
-              <Download className="h-3.5 w-3.5 text-blue" />
-              <span>Export all forecasts</span>
-            </Button>
-          )}
-        </div>
-        <p className="text-xs leading-5 text-subtext0">Long-range percentages use today’s known form; they cannot account for matches, injuries or transfers that have not happened yet. Refresh after results for updated probabilities.</p>
-
+      <Panel
+        title={`Upcoming match forecasts (${forecasts.length})`}
+        description="Long-range percentages use today’s known form; they cannot account for matches, injuries or transfers that have not happened yet."
+        actions={forecasts.length > 0 && <Button size="sm" variant="outline" onPress={exportCsv}><Download className="size-3.5" aria-hidden="true" /> Export all forecasts</Button>}
+        bodyClassName="p-0"
+      >
         {forecasts.length === 0 ? (
-          <EmptyState icon="🎯" message="No current match forecasts available." suggestion="Forecasts update when upcoming domestic fixtures are ingested." />
+          <EmptyState icon={Target} message="No current match forecasts available." suggestion="Forecasts update when upcoming domestic fixtures are ingested." />
         ) : (
           <>
-          <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-subtext0">
-            <label className="flex items-center gap-2">
-              <span>League</span>
-              <select
-                value={forecastLeague}
-                onChange={(event) => { setForecastLeague(event.target.value); setVisibleForecasts(30); }}
-                className="min-h-9 rounded-lg border border-surface1 bg-mantle px-2 text-text"
-              >
-                <option value="all">All leagues</option>
-                {forecastLeagues.map((league) => (
-                  <option key={league} value={league}>{LEAGUE_NAMES[league] || league}</option>
-                ))}
-              </select>
-            </label>
-            <span>Showing {Math.min(visibleForecasts, filteredForecasts.length)} of {filteredForecasts.length} forecasts</span>
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {filteredForecasts.slice(0, visibleForecasts).map((f, idx) => {
-              const homePct = Number((f.home_probability * 100).toFixed(0));
-              const drawPct = Number((f.draw_probability * 100).toFixed(0));
-              const awayPct = Number((f.away_probability * 100).toFixed(0));
-              const confidence = Math.max(f.home_probability, f.draw_probability, f.away_probability);
-
-              return (
-                <div
-                  key={`${f.match_date}_${f.home.team_id}_${f.away.team_id}_${idx}`}
-                  className="p-4 rounded-xl bg-surface0 border border-surface1 hover:border-surface2 transition-colors space-y-3"
-                >
-                  <div className="flex items-center justify-between text-xs text-subtext0">
-                    <span className="flex items-center gap-1.5 text-overlay1 font-mono">
-                      <Calendar className="h-3.5 w-3.5" />
-                      {f.match_date}
-                    </span>
-                    <span className="rounded bg-surface1 px-2 py-0.5 font-medium text-subtext1">
-                      {f.competition}
-                    </span>
-                  </div>
-
-                  {/* Match Teams */}
-                  <div className="flex items-center justify-between text-sm font-semibold">
-                    <span className="text-text truncate w-[45%] text-left">{f.home.name}</span>
-                    <span className="text-overlay0 text-xs px-2">vs</span>
-                    <span className="text-text truncate w-[45%] text-right">{f.away.name}</span>
-                  </div>
-
-                  {/* Outcome Probabilities Progress Bar */}
-                  <div className="space-y-1.5 pt-1">
-                    <div className="flex h-3 w-full rounded-full overflow-hidden bg-mantle">
-                      <div
-                        className="bg-blue transition-all"
-                        style={{ width: `${homePct}%` }}
-                        title={`Home win: ${homePct}%`}
-                      />
-                      <div
-                        className="bg-overlay1 transition-all"
-                        style={{ width: `${drawPct}%` }}
-                        title={`Draw: ${drawPct}%`}
-                      />
-                      <div
-                        className="bg-peach transition-all"
-                        style={{ width: `${awayPct}%` }}
-                        title={`Away win: ${awayPct}%`}
-                      />
+            <div className="flex flex-wrap items-end justify-between gap-3 border-b border-surface1 px-4 py-3 text-xs text-subtext0">
+              <Select label="League" value={forecastLeague} onChange={(value) => { setForecastLeague(value); setVisibleForecasts(30); }}
+                options={[{ value: 'all', label: 'All leagues' }, ...forecastLeagues.map((league) => ({ value: league, label: LEAGUE_NAMES[league] || league }))]} className="w-48" />
+              <span className="tabular-nums">Showing {Math.min(visibleForecasts, filteredForecasts.length)} of {filteredForecasts.length} forecasts</span>
+            </div>
+            <ul className="grid grid-cols-1 lg:grid-cols-2">
+              {filteredForecasts.slice(0, visibleForecasts).map((f, idx) => {
+                const confidence = Math.max(f.home_probability, f.draw_probability, f.away_probability);
+                const strong = confidence >= strongThreshold;
+                return (
+                  <li key={`${f.match_date}_${f.home.team_id}_${f.away.team_id}_${idx}`} className="space-y-2 border-b border-surface1 px-4 py-3 lg:odd:border-r">
+                    <div className="flex items-center justify-between text-xs text-subtext0">
+                      <span className="tabular-nums">{f.match_date}</span>
+                      <Chip>{f.competition}</Chip>
                     </div>
-
-                    <div className="flex justify-between text-[11px] font-mono text-subtext0">
-                      <span className="text-blue font-medium">Home: {homePct}%</span>
-                      <span className="text-overlay1">Draw: {drawPct}%</span>
-                      <span className="text-peach font-medium">Away: {awayPct}%</span>
+                    <div className="flex items-center justify-between gap-2 text-[13px] font-medium text-text">
+                      <span className="flex min-w-0 items-center gap-2"><FootballBadge url={f.home.badge_url} name={f.home.name} size={18} /><span className="truncate">{f.home.name}</span></span>
+                      <span className="text-xs text-overlay0">v</span>
+                      <span className="flex min-w-0 items-center justify-end gap-2"><span className="truncate">{f.away.name}</span><FootballBadge url={f.away.badge_url} name={f.away.name} size={18} /></span>
                     </div>
-                  </div>
-
-                  {/* Predicted Outcome Badge */}
-                  <div className="pt-1 flex items-center justify-between border-t border-surface1/60 text-xs">
-                    <span className="text-subtext0">Forecast:</span>
-                    <span className="flex items-center gap-1 font-semibold text-text">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-green" />
-                      {f.predicted_result === 'Home'
-                        ? `${f.home.name} Win`
-                        : f.predicted_result === 'Away'
-                        ? `${f.away.name} Win`
-                        : 'Draw'}
-                    </span>
-                  </div>
-                  <p className={`text-[11px] font-semibold ${confidence >= strongThreshold ? 'text-teal' : 'text-subtext0'}`}>
-                    {confidence >= strongThreshold ? 'High-confidence tier' : confidence >= 0.6 ? 'Moderate lean' : 'Open match'} · {(confidence * 100).toFixed(1)}% strongest outcome
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-          {visibleForecasts < filteredForecasts.length && (
-            <Button variant="outline" onPress={() => setVisibleForecasts((count) => count + 30)}>
-              Show 30 more forecasts
-            </Button>
-          )}
+                    <ProbabilityBar home={f.home_probability} draw={f.draw_probability} away={f.away_probability} />
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-subtext0">Pick: <span className="font-medium text-text">{pickLabel(f)}</span></span>
+                      <span className={strong ? 'font-medium text-accent' : 'text-subtext0'}>
+                        {strong ? 'High-confidence tier' : confidence >= 0.6 ? 'Moderate lean' : 'Open match'} · {(confidence * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+            {visibleForecasts < filteredForecasts.length && (
+              <div className="p-3">
+                <Button variant="outline" size="sm" onPress={() => setVisibleForecasts((count) => count + 30)}>Show 30 more forecasts</Button>
+              </div>
+            )}
           </>
         )}
-      </div>
+      </Panel>
 
-      {/* Model Calibration Section */}
       {calibrationChartData.length > 0 && (
-        <div className="rounded-xl border border-surface1 bg-surface0 p-5 space-y-4">
-          <div className="flex items-center gap-2">
-            <BarChart2 className="h-4 w-4 text-teal" />
-            <h2 className="text-base font-semibold text-text">Reliability Calibration Diagram</h2>
-          </div>
-          <p className="text-xs text-subtext0">
-            Compares model mean forecasted probabilities against actual observed outcomes in holdout validation matches.
-          </p>
-
-          <div className="h-64 w-full">
+        <Panel title="Reliability calibration" description="Mean forecast probability against the observed rate per outcome in the holdout matches">
+          <div className="h-60 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={calibrationChartData} margin={{ top: 10, right: 20, left: -10, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
-                <XAxis dataKey="outcome" stroke="var(--chart-axis)" fontSize={11} />
-                <YAxis stroke="var(--chart-axis)" fontSize={11} unit="%" />
-                <Tooltip
-                  {...tooltipProps}
-                  formatter={(val) => [`${val}%`]}
-                />
-                <Legend wrapperStyle={{ fontSize: '11px', color: 'var(--subtext1)' }} />
-                <Bar dataKey="Predicted Probability" fill="var(--series-1)" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Observed Win Rate" fill="var(--green)" radius={[4, 4, 0, 0]} />
+              <BarChart data={calibrationChartData} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+                <CartesianGrid {...gridProps} />
+                <XAxis dataKey="outcome" {...axisProps} />
+                <YAxis {...axisProps} unit="%" />
+                <Tooltip {...tooltipProps} formatter={(val) => [`${val}%`]} />
+                <Legend {...legendProps} />
+                <Bar dataKey="Predicted Probability" fill={SERIES[0]} radius={[3, 3, 0, 0]} maxBarSize={36} />
+                <Bar dataKey="Observed Win Rate" fill={SERIES[3]} radius={[3, 3, 0, 0]} maxBarSize={36} />
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </Panel>
       )}
 
       {leagueBacktest.length > 0 && (
-        <Card className="rounded-xl border border-surface1 bg-surface0 p-5 space-y-3">
-          <h2 className="text-base font-semibold text-text">Holdout by league</h2>
-          <p className="text-xs text-subtext0">The same later test period, split by competition. Small samples are less reliable.</p>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[420px] text-left text-xs">
-              <thead className="border-b border-surface1 text-subtext0"><tr><th className="py-2">League</th><th className="py-2 text-right">Matches</th><th className="py-2 text-right">Accuracy</th><th className="py-2 text-right">Log loss</th></tr></thead>
-              <tbody>{leagueBacktest.map((row) => <tr key={row.league} className="border-b border-surface1/50 last:border-0"><td className="py-2 font-semibold text-text">{LEAGUE_NAMES[row.league] || row.league}</td><td className="py-2 text-right text-subtext1">{row.matches}</td><td className="py-2 text-right text-subtext1">{(row.accuracy * 100).toFixed(1)}%</td><td className="py-2 text-right text-subtext1">{row.log_loss.toFixed(3)}</td></tr>)}</tbody>
-            </table>
-          </div>
-        </Card>
+        <Panel title="Holdout by league" description="The same later test period, split by competition. Small samples are less reliable." bodyClassName="p-0">
+          <DataTable minWidth={420} caption="Holdout by league">
+            <THead><tr><Th>League</Th><Th align="right">Matches</Th><Th align="right">Accuracy</Th><Th align="right">Log loss</Th></tr></THead>
+            <TBody>
+              {leagueBacktest.map((row) => (
+                <tr key={row.league}>
+                  <Td className="font-medium">{LEAGUE_NAMES[row.league] || row.league}</Td>
+                  <Td align="right" className="text-subtext1">{row.matches}</Td>
+                  <Td align="right">{pct(row.accuracy)}</Td>
+                  <Td align="right" className="text-subtext1">{row.log_loss.toFixed(3)}</Td>
+                </tr>
+              ))}
+            </TBody>
+          </DataTable>
+        </Panel>
       )}
 
       {(outcomeBacktest.length > 0 || walkForward.length > 0) && (
         <div className="grid gap-4 xl:grid-cols-2">
           {outcomeBacktest.length > 0 && (
-            <Card className="rounded-xl border border-surface1 bg-surface0 p-5">
-              <h2 className="text-base font-semibold text-text">Home, draw and away audit</h2>
-              <p className="mt-1 text-xs text-subtext0">Recall shows how often each real outcome was found; precision shows how often that prediction was right.</p>
-              <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[380px] text-xs">
-                <thead className="border-b border-surface1 text-subtext0"><tr><th className="py-2 text-left">Outcome</th><th className="text-right">Actual</th><th className="text-right">Predicted</th><th className="text-right">Recall</th><th className="text-right">Precision</th></tr></thead>
-                <tbody>{outcomeBacktest.map((row) => <tr key={row.outcome} className="border-b border-surface1/50 last:border-0"><td className="py-2 font-semibold text-text">{row.outcome}</td><td className="text-right text-subtext1">{row.matches}</td><td className="text-right text-subtext1">{row.predicted}</td><td className="text-right text-subtext1">{row.recall === null ? '—' : `${(row.recall * 100).toFixed(1)}%`}</td><td className="text-right text-subtext1">{row.precision === null ? '—' : `${(row.precision * 100).toFixed(1)}%`}</td></tr>)}</tbody>
-              </table></div>
-            </Card>
+            <Panel title="Home, draw and away audit" description="Recall: how often each real outcome was found. Precision: how often that prediction was right." bodyClassName="p-0">
+              <DataTable minWidth={380} caption="Outcome audit">
+                <THead><tr><Th>Outcome</Th><Th align="right">Actual</Th><Th align="right">Predicted</Th><Th align="right">Recall</Th><Th align="right">Precision</Th></tr></THead>
+                <TBody>
+                  {outcomeBacktest.map((row) => (
+                    <tr key={row.outcome}>
+                      <Td className="font-medium">{row.outcome}</Td>
+                      <Td align="right" className="text-subtext1">{row.matches}</Td>
+                      <Td align="right" className="text-subtext1">{row.predicted}</Td>
+                      <Td align="right">{pct(row.recall)}</Td>
+                      <Td align="right">{pct(row.precision)}</Td>
+                    </tr>
+                  ))}
+                </TBody>
+              </DataTable>
+            </Panel>
           )}
           {walkForward.length > 0 && (
-            <Card className="rounded-xl border border-surface1 bg-surface0 p-5">
-              <h2 className="text-base font-semibold text-text">Season-by-season walk-forward</h2>
-              <p className="mt-1 text-xs text-subtext0">Each season is scored using only earlier seasons for fitting and calibration.</p>
-              <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[360px] text-xs">
-                <thead className="border-b border-surface1 text-subtext0"><tr><th className="py-2 text-left">Season</th><th className="text-right">Games</th><th className="text-right">Accuracy</th><th className="text-right">Baseline</th><th className="text-right">Log loss</th></tr></thead>
-                <tbody>{walkForward.map((row) => <tr key={row.season} className="border-b border-surface1/50 last:border-0"><td className="py-2 font-semibold text-text">{row.season}/{String(row.season + 1).slice(-2)}</td><td className="text-right text-subtext1">{row.matches}</td><td className="text-right text-subtext1">{(row.accuracy * 100).toFixed(1)}%</td><td className="text-right text-subtext1">{(row.baseline_accuracy * 100).toFixed(1)}%</td><td className="text-right text-subtext1">{row.log_loss.toFixed(3)}</td></tr>)}</tbody>
-              </table></div>
-            </Card>
+            <Panel title="Season-by-season walk-forward" description="Each season is scored using only earlier seasons for fitting and calibration." bodyClassName="p-0">
+              <DataTable minWidth={360} caption="Walk-forward seasons">
+                <THead><tr><Th>Season</Th><Th align="right">Games</Th><Th align="right">Accuracy</Th><Th align="right">Baseline</Th><Th align="right">Log loss</Th></tr></THead>
+                <TBody>
+                  {walkForward.map((row) => (
+                    <tr key={row.season}>
+                      <Td className="font-medium">{row.season}/{String(row.season + 1).slice(-2)}</Td>
+                      <Td align="right" className="text-subtext1">{row.matches}</Td>
+                      <Td align="right">{pct(row.accuracy)}</Td>
+                      <Td align="right" className="text-subtext1">{pct(row.baseline_accuracy)}</Td>
+                      <Td align="right" className="text-subtext1">{row.log_loss.toFixed(3)}</Td>
+                    </tr>
+                  ))}
+                </TBody>
+              </DataTable>
+            </Panel>
           )}
         </div>
       )}
 
-      <Card className="rounded-xl border border-surface1 bg-surface0 p-5">
-        <h2 className="text-base font-semibold text-text">Published forecast record</h2>
-        <p className="mt-1 text-xs text-subtext0">Forecasts are kept as issued and matched with results after refresh. Re-forecasts for the same match are separate records.</p>
-        <p className="mt-3 text-sm font-semibold text-text">
+      <Panel title="Published forecast record" description="Forecasts are kept as issued and matched with results after refresh. Re-forecasts for the same match are separate records.">
+        <p className="text-sm font-medium text-text">
           {forecastRecord?.resolved ? `${forecastRecord.correct ?? 0} correct of ${forecastRecord.resolved} resolved (${((forecastRecord.accuracy ?? 0) * 100).toFixed(1)}%)` : 'No published forecasts resolved yet'}
           <span className="ml-2 text-xs font-normal text-subtext0">· {forecastRecord?.issued ?? 0} issued</span>
         </p>
-        <p className="mt-1 text-xs text-subtext1">
+        <p className="mt-1 text-xs text-subtext0">
           {forecastRecord?.rps != null
             ? `Live RPS ${forecastRecord.rps.toFixed(4)} on ${forecastRecord.matches_scored} matches (last forecast before kick-off)${forecastRecord.walk_forward_rps != null ? ` vs ${forecastRecord.walk_forward_rps.toFixed(4)} walk-forward; lower is better` : ''}.`
             : 'Live RPS appears once forecast matches have results.'}
         </p>
-        {forecastHistory.length > 0 && <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[500px] text-xs">
-          <thead className="border-b border-surface1 text-subtext0"><tr><th className="py-2 text-left">Issued</th><th className="text-left">Fixture</th><th className="text-left">Pick</th><th className="text-left">Result</th></tr></thead>
-          <tbody>{forecastHistory.map((row) => <tr key={`${row.model_id}-${row.competition}-${row.match_date}-${row.home.team_id}-${row.away.team_id}`} className="border-b border-surface1/50 last:border-0"><td className="py-2 text-subtext1">{row.issued_at.slice(0, 10)}</td><td className="text-subtext1">{row.home.name} – {row.away.name}</td><td className="text-subtext1">{row.predicted_result}</td><td className={row.actual_result ? row.actual_result === row.predicted_result ? 'text-green' : 'text-red' : 'text-subtext0'}>{row.actual_result || 'Pending'}</td></tr>)}</tbody>
-        </table></div>}
-      </Card>
+        {forecastHistory.length > 0 && (
+          <div className="mt-3 overflow-hidden rounded-lg border border-surface1">
+            <DataTable minWidth={500} caption="Recent journal entries">
+              <THead><tr><Th>Issued</Th><Th>Fixture</Th><Th>Pick</Th><Th>Result</Th></tr></THead>
+              <TBody>
+                {forecastHistory.map((row) => (
+                  <tr key={`${row.model_id}-${row.competition}-${row.match_date}-${row.home.team_id}-${row.away.team_id}`}>
+                    <Td className="text-subtext0">{row.issued_at.slice(0, 10)}</Td>
+                    <Td>{row.home.name} – {row.away.name}</Td>
+                    <Td className="text-subtext1">{row.predicted_result}</Td>
+                    <Td>{row.actual_result ? <Chip tone={row.actual_result === row.predicted_result ? 'positive' : 'negative'}>{row.actual_result}</Chip> : <span className="text-subtext0">Pending</span>}</Td>
+                  </tr>
+                ))}
+              </TBody>
+            </DataTable>
+          </div>
+        )}
+      </Panel>
     </div>
   );
 }
 
 export default function PredictionsPage() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader icon={Target} eyebrow="Model intelligence" title="Predictions & Model Card" description="Review calibrated match probabilities, chronological holdout evidence, and every supported league's title outlook." />
 
       <Suspense fallback={<LoadingSkeleton lines={8} />}>

@@ -276,7 +276,7 @@ export function MatchDetailCentre({ detail, onBack }: { detail: MatchCentreDetai
 
         <div className="space-y-5">
           <Card className="rounded-xl border border-surface1 bg-surface0 p-4">
-            <h2 className="mb-3 text-base font-semibold text-text">Technical area</h2>
+            <h2 className="mb-3 text-[16px] font-semibold text-text">Technical area</h2>
             <div className="space-y-3 text-sm">
               <div className="flex justify-between gap-3"><span className="text-subtext0">{match.home.name}</span><span className="text-right font-semibold text-text">{detail.home_coach || 'Coach unavailable'} · {detail.home_formation || 'shape unavailable'}</span></div>
               <div className="flex justify-between gap-3"><span className="text-subtext0">{match.away.name}</span><span className="text-right font-semibold text-text">{detail.away_coach || 'Coach unavailable'} · {detail.away_formation || 'shape unavailable'}</span></div>

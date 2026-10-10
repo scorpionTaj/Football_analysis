@@ -30,7 +30,7 @@ function Freshness({ check }: { check: PipelineCheck }) {
   const Icon = state === 'fresh' ? CheckCircle2 : state === 'ageing' ? CircleAlert : CircleX;
   return (
     <li className="flex items-center justify-between gap-3 py-2">
-      <span className="min-w-0 truncate text-sm text-text">{check.name.replaceAll('_', ' ')}</span>
+      <span className="min-w-0 truncate text-[13px] text-text">{check.name.replaceAll('_', ' ')}</span>
       <span className={`flex shrink-0 items-center gap-1.5 text-xs font-semibold ${style}`}>
         <Icon className="size-3.5" aria-hidden="true" />
         {state === 'fresh' ? 'Fresh' : state === 'ageing' ? 'Ageing' : state === 'stale' ? 'Stale' : 'Missing'} · {age(hours)}
@@ -42,7 +42,7 @@ function Freshness({ check }: { check: PipelineCheck }) {
 export function PipelineHealth() {
   const [showAll, setShowAll] = useState(false);
   const { data, isLoading, error, refetch } = useQuery({ queryKey: queryKeys.pipeline, queryFn: () => api.pipeline() });
-  if (isLoading) return <section className="rounded-2xl border border-surface1/70 bg-surface0/60 p-5"><LoadingSkeleton lines={4} /></section>;
+  if (isLoading) return <section className="rounded-xl border border-surface1 bg-surface0 p-4"><LoadingSkeleton lines={4} /></section>;
   if (error) return <ErrorMessage title="Pipeline status could not be loaded" detail={String(error)} retry={() => refetch()} />;
   if (!data || !data.checks.length) return null;
 
@@ -55,28 +55,28 @@ export function PipelineHealth() {
   const built = data.checked_at ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(data.checked_at)) : 'unknown';
 
   return (
-    <section aria-labelledby="pipeline-title" className="rounded-2xl border border-surface1/70 bg-surface0/60 p-5 sm:p-6">
+    <section aria-labelledby="pipeline-title" className="rounded-xl border border-surface1 bg-surface0 p-4">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex min-w-0 items-start gap-3">
-          <Workflow className="mt-1 size-5 shrink-0 text-blue" aria-hidden="true" />
+          <Workflow className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden="true" />
           <div className="min-w-0">
-            <h2 id="pipeline-title" className="text-lg font-bold text-text">Pipeline health</h2>
-            <p className="mt-1 text-sm text-subtext0">Latest warehouse build {built}. Every dbt model and data test runs on each refresh.</p>
+            <h2 id="pipeline-title" className="text-sm font-semibold text-text">Pipeline health</h2>
+            <p className="mt-0.5 text-xs text-subtext0">Latest warehouse build {built}. Every dbt model and data test runs on each refresh.</p>
           </div>
         </div>
-        <p className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold ${healthy ? 'bg-green/10 text-green' : 'bg-red/10 text-red'}`} aria-live="polite">
+        <p className={`flex items-center gap-2 rounded-lg px-2.5 py-1 text-xs font-medium ${healthy ? 'bg-positive/15 text-positive' : 'bg-negative/15 text-negative'}`} aria-live="polite">
           {healthy ? <CheckCircle2 className="size-4" aria-hidden="true" /> : <CircleX className="size-4" aria-hidden="true" />}
           <span className="tabular-nums">{data.tests_passed} of {total}</span> data tests passed
         </p>
       </div>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-3">
+      <div className="mt-4 grid gap-6 border-t border-surface1 pt-4 lg:grid-cols-3">
         <div>
-          <h3 className="text-sm font-bold text-text">Data tests</h3>
+          <h3 className="text-xs font-medium text-subtext0">Data tests</h3>
           {failing.length > 0 && (
             <ul className="mt-2 space-y-1">
               {failing.map((t) => (
-                <li key={t.name} className="flex items-start gap-2 text-sm text-red">
+                <li key={t.name} className="flex items-start gap-2 text-[13px] text-negative">
                   <CircleX className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
                   <span className="min-w-0 break-words">{t.name} · {t.value ?? 0} failing rows</span>
                 </li>
@@ -84,7 +84,7 @@ export function PipelineHealth() {
             </ul>
           )}
           <button type="button" onClick={() => setShowAll((v) => !v)} aria-expanded={showAll}
-                  className="mt-2 text-sm font-semibold text-blue hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue">
+                  className="mt-2 text-xs font-medium text-accent hover:underline">
             {showAll ? 'Hide passing tests' : `Show ${data.tests_passed} passing tests`}
           </button>
           {showAll && (
@@ -99,18 +99,18 @@ export function PipelineHealth() {
           )}
         </div>
         <div>
-          <h3 className="text-sm font-bold text-text">Warehouse layers</h3>
+          <h3 className="text-xs font-medium text-subtext0">Warehouse layers</h3>
           <dl className="mt-2 divide-y divide-surface1/50">
             {layers.map((l) => (
               <div key={l.name} className="flex items-center justify-between gap-3 py-2">
                 <dt className="min-w-0 truncate text-sm text-text">{LAYER_NAMES[l.name] ?? l.name}</dt>
-                <dd className="text-sm font-bold tabular-nums text-subtext1">{(l.value ?? 0).toLocaleString()} rows</dd>
+                <dd className="text-[13px] font-medium tabular-nums text-text">{(l.value ?? 0).toLocaleString()} rows</dd>
               </div>
             ))}
           </dl>
         </div>
         <div>
-          <h3 className="text-sm font-bold text-text">Source freshness</h3>
+          <h3 className="text-xs font-medium text-subtext0">Source freshness</h3>
           <ul className="mt-2 divide-y divide-surface1/50">
             {freshness.map((f) => <Freshness key={f.name} check={f} />)}
           </ul>

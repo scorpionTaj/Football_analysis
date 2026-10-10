@@ -223,7 +223,7 @@ function TournamentsContent() {
           <CompetitionBadge code={currentTournamentConfig.code} name={currentTournamentConfig.name} size={36} />
           <div className="min-w-0">
             <p className="text-xs text-subtext0">{currentTournamentConfig.group}</p>
-            <p className="truncate text-base font-semibold text-text">{currentTournamentConfig.name}</p>
+            <p className="truncate text-[16px] font-semibold text-text">{currentTournamentConfig.name}</p>
           </div>
         </div>
         <div className="flex flex-wrap items-end gap-2">
