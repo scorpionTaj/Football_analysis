@@ -34,6 +34,9 @@ export default function RootLayout({
   return (
     <html lang="en" className={`dark ${inter.variable}`} data-scroll-behavior="smooth" suppressHydrationWarning>
       <head>
+        {/* The app ships its own light/dark themes; stop Dark Reader re-colouring it (its injected
+            attributes also break React hydration). */}
+        <meta name="darkreader-lock" />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="bg-base text-text antialiased">
