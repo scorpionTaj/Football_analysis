@@ -46,16 +46,16 @@ def test_replay_idempotency_and_failed_refresh_preserves_data(tmp_path):
     for _ in range(2):
         assert ingest(adapter, db, [2024], ['E0'])[0]['status'] == 'success'
     with connect(db) as con:
-        assert con.sql('SELECT count(*) FROM matches').fetchone()[0] == 380
-        assert con.sql("SELECT count(*) FROM ingestion_runs WHERE status='success'").fetchone()[0] == 1
-        record = con.sql("SELECT played,wins,draws,losses,goals_for,goals_against,points,clean_sheets FROM team_seasons WHERE team='Arsenal'").fetchone()
+        assert con.execute('SELECT count(*) FROM matches').fetchall()[0][0] == 380
+        assert con.execute("SELECT count(*) FROM ingestion_runs WHERE status='success'").fetchall()[0][0] == 1
+        record = con.execute("SELECT played,wins,draws,losses,goals_for,goals_against,points,clean_sheets FROM team_seasons WHERE team='Arsenal'").fetchall()[0]
         assert record == (38,19,0,19,38,38,57,19)
-        assert con.sql('SELECT count(*) FROM matches WHERE home_shots IS NULL').fetchone()[0] == 380
+        assert con.execute('SELECT count(*) FROM matches WHERE home_shots IS NULL').fetchall()[0][0] == 380
     path.write_bytes(raw(fixture().iloc[:-1]))
     assert ingest(adapter, db, [2024], ['E0'])[0]['status'] == 'failed'
     with connect(db) as con:
-        assert con.sql('SELECT count(*) FROM matches').fetchone()[0] == 380
-        assert con.sql("SELECT count(*) FROM ingestion_runs WHERE status='failed'").fetchone()[0] == 1
+        assert con.execute('SELECT count(*) FROM matches').fetchall()[0][0] == 380
+        assert con.execute("SELECT count(*) FROM ingestion_runs WHERE status='failed'").fetchall()[0][0] == 1
 
 
 def test_impossible_shot_pair_is_quarantined():
@@ -99,5 +99,5 @@ def test_ingestion_persists_derived_analytics(tmp_path):
     db = tmp_path / "test.duckdb"
     ingest(LocalCSV(tmp_path / "raw"), db, [2024], ["E0"])
     with connect(db) as con:
-        assert con.sql("SELECT count(*) FROM elo_ratings").fetchone()[0] == 760
-        assert con.sql("SELECT match_rows FROM analytics_metadata").fetchone()[0] == 380
+        assert con.execute("SELECT count(*) FROM elo_ratings").fetchall()[0][0] == 760
+        assert con.execute("SELECT match_rows FROM analytics_metadata").fetchall()[0][0] == 380

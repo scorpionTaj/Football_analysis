@@ -244,7 +244,7 @@ def sync_tournaments(
                 existing_count = con.execute(
                     "SELECT count(*) FROM tournament_matches WHERE competition=? AND season=?",
                     [competition, season],
-                ).fetchone()[0]
+                ).fetchall()[0][0]
                 if cached_fingerprint(con, key) == fingerprint and existing_count == len(batch.frame):
                     report.append({
                         "competition": competition, "season": season,

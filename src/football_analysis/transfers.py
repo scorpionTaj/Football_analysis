@@ -38,7 +38,7 @@ def sync_transfers(db=DB, directory=None):
             )
         """)
         if cached_fingerprint(con, "transfermarkt-transfers") == digest:
-            count = con.execute("SELECT count(*) FROM transfers").fetchone()[0]
+            count = con.execute("SELECT count(*) FROM transfers").fetchall()[0][0]
             if count:
                 return count
     transfers = pd.read_csv(directory / "transfers.csv.gz")

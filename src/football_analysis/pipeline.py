@@ -97,9 +97,9 @@ def forecast_drift(db=DB, min_matches=100, tolerance=0.01) -> str | None:
         tables = {row[0] for row in con.execute("SELECT table_name FROM information_schema.tables").fetchall()}
         if not {"forecast_history", "prediction_models"} <= tables:
             return None
-        matches, live = con.execute(LIVE_FORECAST_SQL).fetchone()
-        metrics = con.execute("SELECT metrics FROM prediction_models ORDER BY trained_at DESC LIMIT 1").fetchone()
-    expected = json.loads(metrics[0]).get("rps") if metrics else None
+        matches, live = con.execute(LIVE_FORECAST_SQL).fetchall()[0]
+        metrics = con.execute("SELECT metrics FROM prediction_models ORDER BY trained_at DESC LIMIT 1").fetchall()
+    expected = json.loads(metrics[0][0]).get("rps") if metrics else None
     if not matches or matches < min_matches or live is None or expected is None or live <= expected + tolerance:
         return None
     return f"Live RPS {live:.4f} over {matches} resolved forecasts vs walk-forward {expected:.4f}."

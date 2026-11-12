@@ -79,7 +79,7 @@ def test_sync_replaces_only_requested_partition(tmp_path):
     adapter.score = 2
     assert sync_tournaments(db, [("UCL", 2025)], adapter)[0]["status"] == "success"
     with connect(db) as con:
-        assert con.sql("SELECT count(*), max(home_goals) FROM tournament_matches").fetchone() == (1, 2)
+        assert con.execute("SELECT count(*), max(home_goals) FROM tournament_matches").fetchall()[0] == (1, 2)
 
 
 def test_running_editions_are_redownloaded_daily_and_completed_ones_never(tmp_path, monkeypatch):

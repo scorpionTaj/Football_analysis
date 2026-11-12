@@ -47,7 +47,7 @@ def record_status(db: Path = DB) -> int:
         for schema, names in LAYER_TABLES.items():
             for name in names:
                 if f"{schema}.{name}" in tables:
-                    count = con.execute(f"SELECT count(*) FROM {schema}.{name}").fetchone()[0]
+                    count = con.execute(f"SELECT count(*) FROM {schema}.{name}").fetchall()[0][0]
                     rows.append(("layer_rows", f"{schema}.{name}", "ok", float(count), None, ""))
         # Freshness = last successful check per source family (unchanged data still counts as checked).
         if "main.source_sync_cache" in tables:

@@ -60,4 +60,4 @@ def test_profile_refresh_preserves_stats_and_warm_sync_skips_provider(tmp_path):
     adapter.stats_available = False
     assert sync_players(db=db, clubs=["Arsenal"], adapter=adapter, refresh=True)[0]["status"] == "success"
     with connect(db) as con:
-        assert con.sql("SELECT count(*) FROM player_stats").fetchone()[0] == 1
+        assert con.execute("SELECT count(*) FROM player_stats").fetchall()[0][0] == 1
