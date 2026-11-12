@@ -1,0 +1,14 @@
+# The Vercel function's environment: this repository's package, installed from the repo root.
+# The function reads the published Postgres snapshot (FOOTBALL_API_READ_BACKEND=postgres);
+# none of the de/ml extras (dbt, Dagster, LightGBM, MLflow) are needed to serve it.
+[project]
+name = "football-vercel-api"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = ["football_analysis"]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+football_analysis = { path = "../.." }
