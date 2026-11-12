@@ -8,6 +8,7 @@ import pandas as pd
 
 from .config import DATA, DB
 from .ingest import connect
+from .open_players import download_snapshot
 from .sync_state import cached_fingerprint, mark_fresh
 
 
@@ -23,8 +24,10 @@ def _ids(values):
 
 def sync_transfers(db=DB, directory=None):
     directory = Path(directory or DATA / "external" / "transfermarkt")
+    files = ("transfers", "clubs", "players")
+    download_snapshot(directory, names=files)  # no-op while the local copies are under a week old
     fingerprint = sha256(b"transfer-import-v2")
-    for name in ("transfers", "clubs", "players"):
+    for name in files:
         fingerprint.update((directory / f"{name}.csv.gz").read_bytes())
     fingerprint.update(date.today().isoformat().encode())
     digest = fingerprint.hexdigest()
