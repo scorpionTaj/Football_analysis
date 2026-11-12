@@ -25,7 +25,8 @@ from .ingest import connect
 SOURCE = "Transfermarkt Open Dataset"
 DATASET_URL = "https://github.com/dcaribou/transfermarkt-datasets"
 DOWNLOAD_BASE = "https://pub-e682421888d945d684bcae8890b0ec20.r2.dev/data"
-FILES = ("players", "games", "appearances", "competitions", "game_events", "game_lineups", "transfers")
+FILES = ("players", "games", "appearances", "competitions", "game_events", "game_lineups", "transfers",
+         "clubs")
 CLUB_MAP = {
     418: "Real Madrid", 131: "Barcelona", 13: "Ath Madrid",
     281: "Man City", 31: "Liverpool", 11: "Arsenal",
@@ -45,13 +46,13 @@ def _session():
     return session
 
 
-def download_snapshot(directory, refresh=False):
+def download_snapshot(directory, refresh=False, names=FILES):
     """Download the published CSVs required by the player and transfer importers."""
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     session = _session()
     paths = {}
-    for name in FILES:
+    for name in names:
         path = directory / f"{name}.csv.gz"
         # The dataset republishes weekly; re-download a snapshot older than that.
         if refresh or not path.exists() or time.time() - path.stat().st_mtime > 7 * 86400:
