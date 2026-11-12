@@ -13,6 +13,7 @@ import subprocess
 import uuid
 from datetime import date, timedelta
 
+import duckdb
 import pytest
 from fastapi.testclient import TestClient
 
@@ -20,7 +21,7 @@ from football_analysis.api.app import create_app
 from football_analysis.api.db import PostgresReadOnlyStore, ReadOnlyStore
 from football_analysis.ingest import connect
 from football_analysis.pg import connect as pg_connect, schema_name
-from football_analysis.publish import build_sqlite_fallback, publish_postgres
+from football_analysis.publish import build_sqlite_fallback, publish_postgres, recent_detail
 from test_api import build_marts
 
 
@@ -275,3 +276,18 @@ def test_full_local_snapshot_against_temporary_postgres(postgres_server, monkeyp
     finally:
         pg_app.state.store.close()
         duck_app.state.store.close()
+
+
+def test_hosted_snapshot_keeps_recent_match_detail_only():
+    con = duckdb.connect()
+    con.execute("CREATE TABLE ctx AS SELECT * FROM (VALUES ('tm', 'm1', 2023), ('tm', 'm2', 2024), "
+                "('tm', 'm3', 2025)) AS t(source, match_id, season)")
+    con.execute("CREATE TABLE lineup AS SELECT * FROM (VALUES ('tm', 'm1'), ('tm', 'm2'), ('tm', 'm3'), "
+                "('live', 'x9')) AS t(source, event_id)")
+    tables = {"fct_match_context": "ctx", "fct_match_lineup": "lineup", "elo_ratings": "elo"}
+    recent = recent_detail(tables, 2)
+    assert sorted(con.execute(f"SELECT match_id FROM {recent['fct_match_context']}").fetchall()) == [("m2",), ("m3",)]
+    # rows without a known season (live feed) stay; other tables are untouched
+    assert sorted(con.execute(f"SELECT event_id FROM {recent['fct_match_lineup']}").fetchall()) == [
+        ("m2",), ("m3",), ("x9",)]
+    assert recent["elo_ratings"] == "elo" and recent_detail(tables, 0) == tables

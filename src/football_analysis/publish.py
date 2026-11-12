@@ -54,6 +54,28 @@ def served_tables(con) -> dict[str, str]:
     return {**served, **{name: rel for name, rel in WAREHOUSE_TABLES.items() if rel in existing}}
 
 
+# Per-match detail is most of the warehouse (lineups alone are ~200 MB over 14 seasons). The
+# hosted PostgreSQL keeps the latest seasons of it to stay well inside the free tier; DuckDB and
+# the SQLite fallback keep the full history. Detail rows without a known season are kept.
+MATCH_DETAIL_TABLES = ("fct_match_timeline_event", "fct_match_lineup")
+
+
+def recent_detail(tables: dict[str, str], seasons: int) -> dict[str, str]:
+    """Limit match context, timelines and lineups to the latest `seasons` seasons (0 = all)."""
+    context = tables.get("fct_match_context")
+    if seasons <= 0 or context is None:
+        return tables
+    first = f"(SELECT max(season) - {int(seasons) - 1} FROM {context})"
+    windowed = {"fct_match_context": f"(SELECT * FROM {context} WHERE season >= {first}) AS recent"}
+    for name in MATCH_DETAIL_TABLES:
+        if name in tables:
+            windowed[name] = (
+                f"(SELECT * FROM {tables[name]} AS d WHERE NOT EXISTS (SELECT 1 FROM {context} AS c "
+                f"WHERE c.source = d.source AND c.match_id = d.event_id AND c.season < {first})) AS recent"
+            )
+    return {**tables, **windowed}
+
+
 def _columns(con, relation):
     return con.execute(f"DESCRIBE SELECT * FROM {relation}").fetchall()
 
@@ -63,11 +85,13 @@ def _pg_type(kind: str) -> str:
     return TYPES.get(base, "TEXT") if base not in ("DECIMAL", "HUGEINT") else "NUMERIC"
 
 
-def publish_postgres(dsn: str, schema: str, db: Path = DB) -> dict:
+def publish_postgres(dsn: str, schema: str, db: Path = DB, detail_seasons: int | None = None) -> dict:
     schema = _name(schema)
+    if detail_seasons is None:
+        detail_seasons = int(os.environ.get("FOOTBALL_POSTGRES_DETAIL_SEASONS", 2))
     report = {"changed": {}, "unchanged": []}
     with duckdb.connect(str(db), read_only=True) as source, _connect(dsn) as target:
-        tables = served_tables(source)
+        tables = recent_detail(served_tables(source), detail_seasons)
         with target.cursor() as cursor:
             # A large table's COPY over a slow uplink outlasts Supabase's default statement
             # timeout; this session only stages and swaps tables, so it may take its time.
@@ -132,7 +156,7 @@ def publish_postgres(dsn: str, schema: str, db: Path = DB) -> dict:
         from .pipeline import notify
 
         notify("Supabase database nearly full",
-               f"{report['database_mb']} MB of {quota_mb:.0f} MB used. Trim old event_lineups or upgrade the plan.")
+               f"{report['database_mb']} MB of {quota_mb:.0f} MB used. Lower FOOTBALL_POSTGRES_DETAIL_SEASONS or upgrade the plan.")
     return report
 
 
@@ -159,8 +183,8 @@ def build_sqlite_fallback(db: Path = DB, path: Path = LOCAL_SNAPSHOT) -> dict:
                     f'CAST("{c[0]}" AS VARCHAR) AS "{c[0]}"' if c[1].upper().startswith(("DATE", "TIMESTAMP"))
                     else f'"{c[0]}"' for c in columns)
                 con.execute(f'CREATE TABLE fallback."{name}" AS SELECT {select} FROM {relation}')
-                counts[name] = con.execute(f'SELECT count(*) FROM fallback."{name}"').fetchone()[0]
-                if counts[name] != con.execute(f"SELECT count(*) FROM {relation}").fetchone()[0]:
+                counts[name] = con.execute(f'SELECT count(*) FROM fallback."{name}"').fetchall()[0][0]
+                if counts[name] != con.execute(f"SELECT count(*) FROM {relation}").fetchall()[0][0]:
                     raise ValueError(f"SQLite fallback count mismatch for {name}")
             con.execute("CREATE TABLE fallback.snapshot_manifest (table_name TEXT PRIMARY KEY, row_count BIGINT)")
             con.executemany("INSERT INTO fallback.snapshot_manifest VALUES (?, ?)", list(counts.items()))
