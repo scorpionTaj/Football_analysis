@@ -5,6 +5,11 @@ are landed, modelled in a tested dbt warehouse, orchestrated with Dagster, used 
 compare match-outcome models tracked in MLflow, and served through FastAPI to a Next.js app.
 No paid API or key is required.
 
+**Live demo: [football-analytics-ma.vercel.app](https://football-analytics-ma.vercel.app)**, on
+free tiers: the web app and the API on Vercel, reading the published snapshot from Supabase
+through a read-only role. The snapshot is refreshed by running `football-sync` locally, which
+publishes when `FOOTBALL_POSTGRES_DSN` is set.
+
 <p align="center"><img src="docs/demo.gif" width="800" alt="Football Analysis app: overview with a club spotlight, league table, Match Centre, Champions League view, the champion model's card and the model leaderboard against the bookmaker closing line"></p>
 
 ## Architecture

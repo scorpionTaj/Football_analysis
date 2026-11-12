@@ -1,0 +1,16 @@
+name: Keep the demo database awake
+
+# Supabase's free tier pauses a project after a week without traffic. Reading a page of
+# data through the live API every three days keeps the demo's database active.
+on:
+  schedule:
+    - cron: "17 6 */3 * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Query the published snapshot through the API
+        run: curl --fail --silent --show-error --retry 3 --retry-delay 20 --max-time 60 -o /dev/null https://football-analytics-api-ma.vercel.app/api/v1/catalog

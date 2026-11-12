@@ -69,6 +69,9 @@ def publish_postgres(dsn: str, schema: str, db: Path = DB) -> dict:
     with duckdb.connect(str(db), read_only=True) as source, _connect(dsn) as target:
         tables = served_tables(source)
         with target.cursor() as cursor:
+            # A large table's COPY over a slow uplink outlasts Supabase's default statement
+            # timeout; this session only stages and swaps tables, so it may take its time.
+            cursor.execute("SET statement_timeout = 0")
             cursor.execute(sql.SQL("CREATE SCHEMA IF NOT EXISTS {}").format(sql.Identifier(schema)))
             cursor.execute(sql.SQL("SET search_path TO {}").format(sql.Identifier(schema)))
             cursor.execute("CREATE TABLE IF NOT EXISTS snapshot_manifest (table_name text PRIMARY KEY, "
