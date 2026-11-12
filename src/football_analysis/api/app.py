@@ -15,7 +15,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 
 from football_analysis.api import queries
 from football_analysis.api.contracts import (
@@ -114,9 +114,14 @@ def create_app(
         title="Football Analysis API",
         version="1.0.0",
         openapi_url="/openapi.json",
-        docs_url="/docs",
+        docs_url="/",  # the API's home page is its interactive documentation (Swagger UI)
         lifespan=lifespan,
     )
+
+    @app.get("/docs", include_in_schema=False)
+    def docs_redirect():
+        """The docs moved to `/`; keep the conventional path working."""
+        return RedirectResponse("/")
     app.add_middleware(GZipMiddleware, minimum_size=1024)
     app.add_middleware(
         CORSMiddleware,

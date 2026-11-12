@@ -25,7 +25,7 @@ PORT="${PORT:-8000}"
 
 echo "===================================================================="
 echo " Starting Football Analysis Backend API on http://$HOST:$PORT"
-echo " Docs available at: http://localhost:$PORT/docs"
+echo " Docs available at: http://localhost:$PORT/"
 echo " OpenAPI JSON at:   http://localhost:$PORT/openapi.json"
 echo "===================================================================="
 
