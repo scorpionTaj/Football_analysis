@@ -232,6 +232,10 @@ def test_health_and_openapi_document_v1_routes(tmp_path):
     health = api.get("/api/v1/health")
     assert health.status_code == 200
     assert health.json()["status"] == "ok"
+    root = api.get("/")
+    assert root.status_code == 200 and "swagger-ui" in root.text
+    moved = api.get("/docs", follow_redirects=False)
+    assert moved.status_code == 307 and moved.headers["location"] == "/"
     spec = api.get("/openapi.json").json()
     for path in (
         "/api/v1/catalog", "/api/v1/teams", "/api/v1/matches", "/api/v1/analysis",
