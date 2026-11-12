@@ -62,7 +62,7 @@ def sync(adapter=None, db=None, years=None, leagues=None, refresh=False):
                 has_rows = con.execute(
                     "SELECT count(*) FROM reference_standings WHERE source=? AND league=? AND season=?",
                     [SOURCE, league, year],
-                ).fetchone()[0] > 0
+                ).fetchall()[0][0] > 0
                 max_age = (
                     timedelta(hours=6) if year >= current_season()
                     else None if has_rows else timedelta(days=1)

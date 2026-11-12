@@ -329,8 +329,8 @@ def sync_open_players(db=DB, directory=None, refresh=False, first_season=2021):
         with connect(db) as con:
             cached = con.execute(
                 "SELECT fingerprint FROM source_sync_cache WHERE source=?", [SOURCE]
-            ).fetchone()
-            if cached and cached[0] == fingerprint:
+            ).fetchall()
+            if cached and cached[0][0] == fingerprint:
                 counts = con.execute(
                     "SELECT "
                     "(SELECT count(*) FROM open_players WHERE source=?), "
@@ -338,7 +338,7 @@ def sync_open_players(db=DB, directory=None, refresh=False, first_season=2021):
                     "(SELECT count(*) FROM event_lineups WHERE source=?), "
                     "(SELECT count(*) FROM tournament_matches WHERE source=?)",
                     [SOURCE] * 4,
-                ).fetchone()
+                ).fetchall()[0]
                 if all(counts):
                     report = {
                         "source": SOURCE, "status": "cached", "players": counts[0],

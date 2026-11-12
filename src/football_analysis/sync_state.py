@@ -5,17 +5,17 @@ from datetime import datetime, timedelta
 
 def is_fresh(con, key: str, max_age: timedelta | None) -> bool:
     """A completed partition is fresh until its source-specific age expires."""
-    row = con.execute(
+    rows = con.execute(
         "SELECT synced_at FROM source_sync_cache WHERE source=?", [key]
-    ).fetchone()
-    return bool(row and (max_age is None or row[0] >= datetime.now() - max_age))
+    ).fetchall()
+    return bool(rows and (max_age is None or rows[0][0] >= datetime.now() - max_age))
 
 
 def cached_fingerprint(con, key: str) -> str | None:
-    row = con.execute(
+    rows = con.execute(
         "SELECT fingerprint FROM source_sync_cache WHERE source=?", [key]
-    ).fetchone()
-    return row[0] if row else None
+    ).fetchall()
+    return rows[0][0] if rows else None
 
 
 def mark_fresh(con, key: str, fingerprint: str = "") -> None:

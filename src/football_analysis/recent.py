@@ -213,7 +213,7 @@ def sync_recent(db=DB, year=None, leagues=None, refresh=False, event_adapter=Non
                 key = f"recent-matches:{league}:{year}"
                 existing_count = con.execute(
                     "SELECT count(*) FROM recent_matches WHERE league=? AND season=?", [league, year]
-                ).fetchone()[0]
+                ).fetchall()[0][0]
                 if cached_fingerprint(con, key) == batch.digest and existing_count == len(frame):
                     mark_fresh(con, key, batch.digest)  # record the successful check, not only changes
                     report.append({"league": league, "season": year, "source": SOURCE_CSV, "status": "cached", "rows": len(frame)})

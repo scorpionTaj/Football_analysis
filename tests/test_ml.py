@@ -129,10 +129,10 @@ def test_play_off_rematches_keep_fixtures_and_resolve_by_meeting():
                 "home_team VARCHAR, away_team VARCHAR, issued_at TIMESTAMP, actual_result VARCHAR, resolved_at TIMESTAMP)")
     con.execute("INSERT INTO forecast_history VALUES ('m', 'B1', 2025, '2026-04-10', 'Gent', 'Genk', '2026-04-01', NULL, NULL)")
     _reconcile_forecast_history(con, played)  # only the October meeting is played: stays pending
-    assert con.sql("SELECT actual_result FROM forecast_history").fetchone()[0] is None
+    assert con.execute("SELECT actual_result FROM forecast_history").fetchall()[0][0] is None
     rematch = dict(played.iloc[0], match_date=pd.Timestamp("2026-04-10"), home_goals=0, away_goals=1)
     _reconcile_forecast_history(con, pd.concat([played, pd.DataFrame([rematch])]))
-    assert con.sql("SELECT actual_result FROM forecast_history").fetchone()[0] == "Away"
+    assert con.execute("SELECT actual_result FROM forecast_history").fetchall()[0][0] == "Away"
 
 
 def test_fixtures_further_ahead_roll_rest_days_and_match_count_forward():

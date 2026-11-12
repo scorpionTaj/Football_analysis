@@ -14,7 +14,7 @@ def _store_batch(con, league, year, batch):
     key = f"historical-matches:{league}:{year}"
     existing_count = con.execute(
         "SELECT count(*) FROM matches WHERE league=? AND season=?", [league, year],
-    ).fetchone()[0]
+    ).fetchall()[0][0]
     if cached_fingerprint(con, key) == batch.digest and existing_count == count:
         mark_fresh(con, key, batch.digest)  # record the successful check, not only changes
         return False
@@ -49,7 +49,7 @@ def _warehouse_elo(con, matches):
     """Elo from the model's own engine (ml.ml_elo_ratings, built by dbt), limited to the
     league-seasons the dashboard shows, so screen and model never disagree."""
     exists = con.execute("SELECT count(*) FROM information_schema.tables "
-                         "WHERE table_schema = 'ml' AND table_name = 'ml_elo_ratings'").fetchone()[0]
+                         "WHERE table_schema = 'ml' AND table_name = 'ml_elo_ratings'").fetchall()[0][0]
     if not exists or matches.empty:
         return None
     con.register("dashboard_scope", matches[["league", "season"]].drop_duplicates())
