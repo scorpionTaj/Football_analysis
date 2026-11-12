@@ -5,6 +5,8 @@ are landed, modelled in a tested dbt warehouse, orchestrated with Dagster, used 
 compare match-outcome models tracked in MLflow, and served through FastAPI to a Next.js app.
 No paid API or key is required.
 
+<p align="center"><img src="docs/demo.gif" width="800" alt="Football Analysis app: overview with a club spotlight, league table, Match Centre, Champions League view, the champion model's card and the model leaderboard against the bookmaker closing line"></p>
+
 ## Architecture
 
 [![Full pipeline architecture](docs/architecture.png)](docs/architecture.svg)
